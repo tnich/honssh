@@ -1,0 +1,23 @@
+from twisted.conch.ssh import transport
+from twisted.python import log
+from twisted.internet import protocol
+
+class HonsshSlimClientTransport(transport.SSHClientTransport):
+    def dataReceived(self, data):
+        self.buf = self.buf + data
+        if not self.gotVersion:
+            if self.buf.find('\n', self.buf.find('SSH-')) == -1:
+                return
+            lines = self.buf.split('\n')
+            for p in lines:
+                if p.startswith('SSH-'):
+                    self.gotVersion = True
+                    self.otherVersionString = p.strip()
+                    self.factory.server.otherVersionString = self.otherVersionString
+                    log.msg(self.factory.server.otherVersionString)
+                    self.loseConnection()
+            
+class HonsshSlimClientFactory(protocol.ClientFactory):
+    protocol = HonsshSlimClientTransport  
+    
+    
