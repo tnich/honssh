@@ -1,5 +1,7 @@
 # Copyright (c) 2009 Upi Tamminen <desaster@gmail.com>
 # See the COPYRIGHT file for more information
+# Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
 
 # Should be compatible with user mode linux
 

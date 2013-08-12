@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 #
 # Copyright (C) 2003-2011 Upi Tamminen <desaster@dragonlight.fi>
-#
+# See the COPYRIGHT file for more information
+# Redistributions of source code must retain the above copyright
+# notice, this list of conditions and the following disclaimer.
+
 
 import os, sys, time, struct, string, getopt
 
