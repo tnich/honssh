@@ -32,7 +32,7 @@ from twisted.internet import protocol, defer
 from honssh import txtlog, extras
 from kippo.core import ttylog
 from kippo.core.config import config
-import datetime, time, os
+import datetime, time, os, re
 
 
 class HonsshClientTransport(transport.SSHClientTransport):
@@ -58,11 +58,20 @@ class HonsshClientTransport(transport.SSHClientTransport):
             
             if messageNum == 94:
                 data = payload[8:]
-                if(self.factory.server.tabPress):
-                    self.factory.server.command = self.factory.server.command + repr(data)[1:2]
-                ttylog.ttylog_write(self.ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
-                for i in self.factory.server.interactors:
-                    i.sessionWrite(data)
+                if self.factory.server.isPty:
+                    if(self.factory.server.tabPress):
+                        self.factory.server.command = self.factory.server.command + repr(data)[1:2]
+                    ttylog.ttylog_write(self.ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
+                    for i in self.factory.server.interactors:
+                        i.sessionWrite(data)
+                else:
+                    if self.factory.server.size > 0 and data != '\x00' and data != '\x0a':
+                        txtlog.log(self.txtlog_file, "RAW SERVER-CLIENT: %s" % (repr(data)))
+                        
+                    match = re.match('C\d{4} (\d*) (.*)', data)
+                    if match:
+                        txtlog.log(self.txtlog_file, "Downloading File via SCP: %s" % str(match.group(2)))
+                    
             elif messageNum == 51:
                 if self.firstTry:
                     self.failedString = self.failedString +  datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " - Failed login - Username:%s Password:%s\n" % (self.factory.server.currUsername, self.factory.server.currPassword)
@@ -72,16 +81,16 @@ class HonsshClientTransport(transport.SSHClientTransport):
                 extras.successLogin(self.factory.server.endIP)
                 if not os.path.exists(os.path.join('sessions/' + self.factory.server.endIP)):
                     os.makedirs(os.path.join('sessions/' + self.factory.server.endIP))
-                ttylog.ttylog_open(self.ttylog_file, time.time())
                 txtlog.log(self.txtlog_file, self.factory.server.connectionString)
                 txtlog.logna(self.txtlog_file, self.failedString)
                 self.failedString = ''
                 txtlog.log(self.txtlog_file, "Successful login - Username:%s Password:%s" % (self.factory.server.currUsername, self.factory.server.currPassword))
             elif messageNum == 97:
-                ttylog.ttylog_close(self.ttylog_file, time.time())
+                if self.factory.server.isPty:
+                    ttylog.ttylog_close(self.ttylog_file, time.time())
                 txtlog.log(self.txtlog_file, "Lost connection from: %s" % self.factory.server.endIP)
-            else:           
-                log.msg("OUTPUT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload).decode("utf-8"))
+            #else:           
+            #    log.msg("OUTPUT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload).decode("utf-8"))
         else:
             transport.SSHClientTransport.dispatchMessage(self, messageNum, payload)
 

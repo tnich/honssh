@@ -32,7 +32,7 @@ from twisted.internet import reactor
 from honssh import client, txtlog, extras
 from kippo.core import ttylog
 from kippo.core.config import config
-import datetime, time, os, struct
+import datetime, time, os, struct, re
 
 class HonsshServerTransport(transport.SSHServerTransport):
     command = ''
@@ -43,6 +43,9 @@ class HonsshServerTransport(transport.SSHServerTransport):
     ttylog_file = ''
     connectionString = ''
     tabPress = False
+    isPty = False
+    size = 0
+    name = ''
     cfg = config()
     
     def connectionMade(self):
@@ -105,22 +108,45 @@ class HonsshServerTransport(transport.SSHServerTransport):
                         b = self.cfg.get('honeypot', 'spoof_pass').encode('utf-8')
                         payload = payload + struct.pack('>L',len(b))
                         payload = payload + b
+            elif messageNum == 98:
+                num = int(payload[7:8].encode('hex'), 16)
+                data = payload[8:8+num]
+                if data == 'pty-req':
+                    self.isPty = True
+                    ttylog.ttylog_open(self.ttylog_file, time.time())
             elif messageNum == 94:
                 data = payload[8:]
-                if data == '\x0D':
-                    log.msg(self.command)
-                    txtlog.log(self.txtlog_file, "Entered command: %s" % (self.command))
-                    self.command = ""
-                elif data == '\x7f':
-                    self.command = self.command[:-1]
-                elif data == '\x09':
-                    self.tabPress = True
+                if self.isPty:
+                    if data == '\x0d':
+                        log.msg(self.command)
+                        txtlog.log(self.txtlog_file, "Entered command: %s" % (self.command))
+                        self.command = ""
+                    elif data == '\x7f':
+                        self.command = self.command[:-1]
+                    elif data == '\x09':
+                        self.tabPress = True
+                    else:
+                        s = repr(data)
+                        self.command = self.command + s[1:2]
                 else:
-                    s = repr(data)
-                    self.command = self.command + s[1:2]
-            else:    
-                log.msg("INPUT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
-
+                    
+                    
+                    if self.size > 0:
+                        f = open(self.logLocation + '-' + self.name + '.safe', 'ab')
+                        f.write(data)
+                        f.close()
+                        self.size = self.size - len(data)
+                    elif data != '\x00' and data != '\x0a':
+                        txtlog.log(self.txtlog_file, "RAW CLIENT-SERVER: %s" % (repr(data)))
+                    
+                    match = re.match('C\d{4} (\d*) (.*)', data)
+                    if match:
+                        txtlog.log(self.txtlog_file, "Uploading File via SCP: %s" % str(match.group(2)))
+                        self.size = int(match.group(1))
+                        self.name = str(match.group(2))
+                    
+            #else:    
+            #    log.msg("INPUT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
             self.client.sendPacket(messageNum, payload)
         else:
             transport.SSHServerTransport.dispatchMessage(self, messageNum, payload)
