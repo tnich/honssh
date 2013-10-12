@@ -46,6 +46,8 @@ class HonsshServerTransport(transport.SSHServerTransport):
     isPty = False
     size = 0
     name = ''
+    passwdDetected = False
+    newPass = ''
     cfg = config()
     
     def connectionMade(self):
@@ -80,7 +82,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
     def dispatchMessage(self, messageNum, payload):
         if transport.SSHServerTransport.isEncrypted(self, "both"):
             self.tabPress = False
-            
+
             if messageNum == 50: 
                 p = 0
                 num = int(payload[p:p+4].encode('hex'), 16)
@@ -117,20 +119,24 @@ class HonsshServerTransport(transport.SSHServerTransport):
             elif messageNum == 94:
                 data = payload[8:]
                 if self.isPty:
-                    if data == '\x0d':
-                        log.msg(self.command)
+                    if data == '\x0d' or data == '\x03':  #if enter or ctrl+c
+                        if data == '\x03':
+                            self.command = self.command + "^C"
+                        if self.cfg.get('honeypot', 'spoof_login') == 'true' and self.command == 'passwd':
+                            self.passwdDetected = True
+                        if self.passwdDetected == True:
+                            self.newPass = self.command
+                        log.msg("Entered command: %s" % (self.command))
                         txtlog.log(self.txtlog_file, "Entered command: %s" % (self.command))
                         self.command = ""
-                    elif data == '\x7f':
+                    elif data == '\x7f':    #if backspace
                         self.command = self.command[:-1]
-                    elif data == '\x09':
+                    elif data == '\x09':    #if tab
                         self.tabPress = True
                     else:
                         s = repr(data)
-                        self.command = self.command + s[1:2]
+                        self.command = self.command + s[1:-1]
                 else:
-                    
-                    
                     if self.size > 0:
                         f = open(self.logLocation + '-' + self.name + '.safe', 'ab')
                         f.write(data)
@@ -146,7 +152,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
                         self.name = str(match.group(2))
                     
             #else:    
-            #    log.msg("INPUT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+            #    log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
             self.client.sendPacket(messageNum, payload)
         else:
             transport.SSHServerTransport.dispatchMessage(self, messageNum, payload)

@@ -7,6 +7,10 @@ Copyright (C) 2013 Thomas Nicholson
 HonSSH is designed to be used in conjuction with a high interaction honey pot. ConSSH sits between the attacker and the honey pot and creates two separate SSH conncetions.
 
 
+Either copy SSH keys across from the honeypot or generate your own with:
+ckeygen -t rsa -f id_rsa
+
+
 HonSSH is inspired and partly based on Kippo.
 http://code.google.com/p/kippo/
 

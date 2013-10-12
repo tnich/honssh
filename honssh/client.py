@@ -32,11 +32,10 @@ from twisted.internet import protocol, defer
 from honssh import txtlog, extras
 from kippo.core import ttylog
 from kippo.core.config import config
-import datetime, time, os, re
+import datetime, time, os, re, io
 
 
 class HonsshClientTransport(transport.SSHClientTransport):
-    cfg = config()
     firstTry = False
     failedString = ''
     def connectionMade(self):
@@ -55,12 +54,19 @@ class HonsshClientTransport(transport.SSHClientTransport):
     def dispatchMessage(self, messageNum, payload):
         if transport.SSHClientTransport.isEncrypted(self, "both"):
             self.factory.server.sendPacket(messageNum, payload)
-            
+
             if messageNum == 94:
                 data = payload[8:]
                 if self.factory.server.isPty:
                     if(self.factory.server.tabPress):
-                        self.factory.server.command = self.factory.server.command + repr(data)[1:2]
+                        if not '\x0d' in data and not '\x07' in data:
+                            self.factory.server.command = self.factory.server.command + repr(data)[1:-1]
+                    if "passwd: password updated successfully" in repr(data) and self.cfg.get('honeypot', 'spoof_login') == 'true' :
+                        self.factory.server.passDetected = False
+                        self.factory.server.cfg.set('honeypot', 'spoof_pass', self.factory.server.newPass)
+                        f = open('honssh.cfg', 'w')
+                        self.factory.server.cfg.write(f)
+                        f.close()  
                     ttylog.ttylog_write(self.ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
                     for i in self.factory.server.interactors:
                         i.sessionWrite(data)
@@ -90,7 +96,7 @@ class HonsshClientTransport(transport.SSHClientTransport):
                     ttylog.ttylog_close(self.ttylog_file, time.time())
                 txtlog.log(self.txtlog_file, "Lost connection from: %s" % self.factory.server.endIP)
             #else:           
-            #    log.msg("OUTPUT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload).decode("utf-8"))
+            #    log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload).decode("utf-8"))
         else:
             transport.SSHClientTransport.dispatchMessage(self, messageNum, payload)
 
