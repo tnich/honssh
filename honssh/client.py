@@ -61,7 +61,7 @@ class HonsshClientTransport(transport.SSHClientTransport):
                     if(self.factory.server.tabPress):
                         if not '\x0d' in data and not '\x07' in data:
                             self.factory.server.command = self.factory.server.command + repr(data)[1:-1]
-                    if "passwd: password updated successfully" in repr(data) and self.cfg.get('honeypot', 'spoof_login') == 'true' :
+                    if "passwd: password updated successfully" in repr(data) and self.factory.server.cfg.get('honeypot', 'spoof_login') == 'true' :
                         self.factory.server.passDetected = False
                         self.factory.server.cfg.set('honeypot', 'spoof_pass', self.factory.server.newPass)
                         f = open('honssh.cfg', 'w')
