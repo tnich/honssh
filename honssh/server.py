@@ -32,7 +32,7 @@ from twisted.internet import reactor
 from honssh import client, txtlog, extras
 from kippo.core import ttylog
 from kippo.core.config import config
-import datetime, time, os, struct, re
+import datetime, time, os, struct, re, subprocess
 
 class HonsshServerTransport(transport.SSHServerTransport):
     command = ''
@@ -128,6 +128,19 @@ class HonsshServerTransport(transport.SSHServerTransport):
                             self.newPass = self.command
                         log.msg("Entered command: %s" % (self.command))
                         txtlog.log(self.txtlog_file, "Entered command: %s" % (self.command))
+                        if self.cfg.get('extras', 'file_download') == 'true':
+                            file = re.match("wget .*", self.command)
+                            if file:
+                                
+                                if not os.path.exists('downloads'):
+                                    os.makedirs('downloads')
+                                    os.chmod('downloads',0755)                                
+                                
+                                txtlog.log(self.txtlog_file, "wget Download Detected - Downloading File Using: %s" % str(file.group(0)))
+                                wgetCommand = file.group(0).split(' ')
+                                wgetCommand[1:1] = ['-P','downloads']
+                                subprocess.Popen(wgetCommand)
+
                         self.command = ""
                     elif data == '\x7f':    #if backspace
                         self.command = self.command[:-1]
@@ -138,9 +151,10 @@ class HonsshServerTransport(transport.SSHServerTransport):
                         self.command = self.command + s[1:-1]
                 else:
                     if self.size > 0:
-                        f = open(self.logLocation + '-' + self.name + '.safe', 'ab')
-                        f.write(data)
-                        f.close()
+                        if self.cfg.get('extras', 'file_download') == 'true':
+                            f = open(self.logLocation + '-' + self.name + '.safe', 'ab')
+                            f.write(data)
+                            f.close()
                         self.size = self.size - len(data)
                     elif data != '\x00' and data != '\x0a':
                         txtlog.log(self.txtlog_file, "RAW CLIENT-SERVER: %s" % (repr(data)))

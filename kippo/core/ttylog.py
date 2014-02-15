@@ -28,7 +28,7 @@
 
 # Should be compatible with user mode linux
 
-import struct, sys
+import struct, sys, os
 
 OP_OPEN, OP_CLOSE, OP_WRITE, OP_EXEC = 1, 2, 3, 4
 TYPE_INPUT, TYPE_OUTPUT, TYPE_INTERACT = 1, 2, 3
@@ -45,9 +45,12 @@ def ttylog_open(logfile, stamp):
     sec, usec = int(stamp), int(1000000 * (stamp - int(stamp)))
     f.write(struct.pack('<iLiiLL', 1, 0, 0, 0, sec, usec))
     f.close()
+    
+    os.chmod(logfile, 0644)
 
 def ttylog_close(logfile, stamp):
     f = file(logfile, 'ab')
     sec, usec = int(stamp), int(1000000 * (stamp - int(stamp)))
     f.write(struct.pack('<iLiiLL', 2, 0, 0, 0, sec, usec))
     f.close()
+

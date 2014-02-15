@@ -87,6 +87,7 @@ class HonsshClientTransport(transport.SSHClientTransport):
                 extras.successLogin(self.factory.server.endIP)
                 if not os.path.exists(os.path.join('sessions/' + self.factory.server.endIP)):
                     os.makedirs(os.path.join('sessions/' + self.factory.server.endIP))
+                    os.chmod(os.path.join('sessions/' + self.factory.server.endIP),0755)
                 txtlog.log(self.txtlog_file, self.factory.server.connectionString)
                 txtlog.logna(self.txtlog_file, self.failedString)
                 self.failedString = ''
@@ -101,12 +102,8 @@ class HonsshClientTransport(transport.SSHClientTransport):
             transport.SSHClientTransport.dispatchMessage(self, messageNum, payload)
 
 class HonsshClientFactory(protocol.ClientFactory):
-    protocol = HonsshClientTransport  
-    
-    
-    
-    
-    
+    protocol = HonsshClientTransport   
+
 
    
     

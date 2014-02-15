@@ -47,8 +47,10 @@ ssh_addr = cfg.get('honeypot', 'ssh_addr')
 
 if not os.path.exists(cfg.get('honeypot', 'log_path')):
     os.makedirs(cfg.get('honeypot', 'log_path'))
+    os.chmod(cfg.get('honeypot', 'log_path'),0755)
 if not os.path.exists(cfg.get('honeypot', 'session_path')):
     os.makedirs(cfg.get('honeypot', 'session_path'))
+    os.chmod(cfg.get('honeypot', 'session_path'),0755)
 
 with open(cfg.get('honeypot', 'private_key')) as privateBlobFile:
     privateBlob = privateBlobFile.read()
