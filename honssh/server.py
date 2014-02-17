@@ -129,7 +129,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
                         log.msg("Entered command: %s" % (self.command))
                         txtlog.log(self.txtlog_file, "Entered command: %s" % (self.command))
                         if self.cfg.get('extras', 'file_download') == 'true':
-                            file = re.match("wget(.+)((http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp;:/~\+#]*[\w\-\@?^=%&amp;/~\+#])?)", self.command)
+                            file = re.match("wget(.+)((http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp:/~\+#]*[\w\-\@?^=%&amp/~\+#])?)", self.command)
                             if file:
 
                                 if not os.path.exists('downloads'):
