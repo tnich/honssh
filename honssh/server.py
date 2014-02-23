@@ -43,6 +43,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
     ttylog_file = ''
     connectionString = ''
     tabPress = False
+    upArrow = False
     isPty = False
     size = 0
     name = ''
@@ -60,7 +61,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
         reactor.connectTCP(self.cfg.get('honeypot', 'honey_addr'), 22, clientFactory, bindAddress=(self.cfg.get('honeypot', 'client_addr'),self.transport.getPeer().port))
         
         self.endIP = self.transport.getPeer().host
-        self.logLocation = self.cfg.get('honeypot', 'session_path') + "/" + self.endIP + "/" + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.logLocation = self.cfg.get('honeypot', 'session_path') + "/" + self.endIP + "/" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.txtlog_file = self.logLocation + ".log"
         self.connectionString = "Incoming connection from: %s:%s" % (self.endIP,self.transport.getPeer().port)
         
@@ -82,6 +83,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
     def dispatchMessage(self, messageNum, payload):
         if transport.SSHServerTransport.isEncrypted(self, "both"):
             self.tabPress = False
+            self.upArrow = False
 
             if messageNum == 50: 
                 p = 0
@@ -102,7 +104,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
                     num = int(payload[p:p+4].encode('hex'), 16)
                     p = p+4
                     self.currPassword = payload[p:p+num]
-                    txtlog.otherLog(self.cfg.get('honeypot', 'log_path') + "/" + datetime.datetime.now().strftime("%Y-%m-%d"), self.endIP, self.currUsername, self.currPassword)
+                    txtlog.otherLog(self.cfg.get('honeypot', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, self.currUsername, self.currPassword)
                     extras.attemptedLogin(self.currUsername, self.currPassword)
                     if(self.cfg.get('honeypot', 'spoof_login') == 'true'):
                         self.client.failedString = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " - Spoofing Login - Changing %s to %s\n" % (self.currPassword, self.cfg.get('honeypot', 'spoof_pass'))
@@ -137,7 +139,10 @@ class HonsshServerTransport(transport.SSHServerTransport):
                                     os.chmod('downloads',0755)                   
 
                                 txtlog.log(self.txtlog_file, "wget Download Detected - Downloading File Using: %s" % str(file.group(0)))
-                                wgetCommand = "wget -P downloads " + str(file.group(1)) + " " + str(file.group(2))
+                                filename = datetime.datetime.now().strftime("%Y%m%d") + "_" + str(file.group(2)).split("/")[-1]
+                                #Taken out the wget options from the honey pot... just to be sure. Might do some fancy regex to ignore bad ones (-O -P etc.)...maybe.
+                                wgetCommand = "wget -O downloads/" + filename + " " + str(file.group(2))
+                                txtlog.log(self.txtlog_file, "wget Download Detected - Executing command: %s" % wgetCommand)
                                 subprocess.Popen(wgetCommand, shell=True)
 
                         self.command = ""
@@ -145,13 +150,15 @@ class HonsshServerTransport(transport.SSHServerTransport):
                         self.command = self.command[:-1]
                     elif data == '\x09':    #if tab
                         self.tabPress = True
+                    elif data == '\x1b\x5b\x41' or data == '\x1b\x5b\x42':    #up arrow or down arrow...
+                        self.upArrow = True
                     else:
                         s = repr(data)
                         self.command = self.command + s[1:-1]
                 else:
                     if self.size > 0:
                         if self.cfg.get('extras', 'file_download') == 'true':
-                            f = open(self.logLocation + '-' + self.name + '.safe', 'ab')
+                            f = open("downloads/" + datetime.datetime.now().strftime("%Y%m%d") + "_" + self.name, 'ab')
                             f.write(data)
                             f.close()
                         self.size = self.size - len(data)

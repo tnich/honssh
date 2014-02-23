@@ -44,7 +44,7 @@ class Interact(telnet.Telnet):
         self.requestNegotiation(telnet.LINEMODE, telnet.LINEMODE_EDIT + '\0')
         self.will(telnet.ECHO)
 
-        self.transport.write('*** conssh session management console ***\r\n')
+        self.transport.write('*** HonSSH session management console ***\r\n')
         self.cmd_help()
 
     def connectionLost(self, reason):
