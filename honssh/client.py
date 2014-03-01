@@ -55,8 +55,11 @@ class HonsshClientTransport(transport.SSHClientTransport):
         if transport.SSHClientTransport.isEncrypted(self, "both"):
             self.factory.server.sendPacket(messageNum, payload)
 
-            if messageNum == 94:
+            if messageNum == 94 or messageNum == 95:
                 data = payload[8:]
+                if messageNum == 95:
+                    data = payload[16:]
+                    
                 if self.factory.server.isPty:
                     if(self.factory.server.tabPress):
                         if not '\x0d' in data and not '\x07' in data:
@@ -98,8 +101,10 @@ class HonsshClientTransport(transport.SSHClientTransport):
                 if self.factory.server.isPty:
                     ttylog.ttylog_close(self.ttylog_file, time.time())
                 txtlog.log(self.txtlog_file, "Lost connection from: %s" % self.factory.server.endIP)
-            #else:           
-            #    log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload).decode("utf-8"))
+            else:     
+                if messageNum not in [5,6,90,80,91,93,99]: 
+                    txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: %s - %s" % (str(messageNum), repr(payload)))      
+                    log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload).decode("utf-8"))
         else:
             transport.SSHClientTransport.dispatchMessage(self, messageNum, payload)
 

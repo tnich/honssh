@@ -115,11 +115,21 @@ class HonsshServerTransport(transport.SSHServerTransport):
             elif messageNum == 98:
                 num = int(payload[7:8].encode('hex'), 16)
                 data = payload[8:8+num]
-                if data == 'pty-req':
+                if data == 'pty-req' or data == 'exec':
                     self.isPty = True
                     ttylog.ttylog_open(self.ttylog_file, time.time())
-            elif messageNum == 94:
+                    if data == 'exec':
+                        data = ">>> " + payload[17:] + "\n"
+                        ttylog.ttylog_write(self.ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
+                else:
+                    if data != 'shell' and data != 'env':
+                        txtlog.log(self.txtlog_file, "New message 98 type detected - Please raise a HonSSH issue on google code with the details: %s" % (data))
+                        log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+            elif messageNum == 94 or messageNum == 95:
                 data = payload[8:]
+                if messageNum == 95:
+                    data = payload[16:]
+                    
                 if self.isPty:
                     if data == '\x0d' or data == '\x03':  #if enter or ctrl+c
                         if data == '\x03':
@@ -171,8 +181,10 @@ class HonsshServerTransport(transport.SSHServerTransport):
                         self.size = int(match.group(1))
                         self.name = str(match.group(2))
                     
-            #else:    
-            #    log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+            else:
+                if messageNum not in [5,6,90,80,91,93,99]:
+                    txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: %s - %s" % (str(messageNum), repr(payload)))
+                    log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
             self.client.sendPacket(messageNum, payload)
         else:
             transport.SSHServerTransport.dispatchMessage(self, messageNum, payload)
