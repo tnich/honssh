@@ -119,7 +119,8 @@ class HonsshServerTransport(transport.SSHServerTransport):
                     self.isPty = True
                     ttylog.ttylog_open(self.ttylog_file, time.time())
                     if data == 'exec':
-                        data = ">>> " + payload[17:] + "\n"
+                        txtlog.log(self.txtlog_file, "Entered EXEC command: %s" % (repr(payload[17:])[1:-1]))
+                        data = "INPUT: " + payload[17:] + "\n\n\n"
                         ttylog.ttylog_write(self.ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
                 else:
                     if data != 'shell' and data != 'env':
@@ -182,7 +183,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
                         self.name = str(match.group(2))
                     
             else:
-                if messageNum not in [5,6,90,80,91,93,99]:
+                if messageNum not in [1,5,6,90,80,91,93,96,97,98,99]:
                     txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: %s - %s" % (str(messageNum), repr(payload)))
                     log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
             self.client.sendPacket(messageNum, payload)
