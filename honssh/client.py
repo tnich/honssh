@@ -104,7 +104,7 @@ class HonsshClientTransport(transport.SSHClientTransport):
             else:     
                 if messageNum not in [1,5,6,90,80,91,93,96,97,98,99]: 
                     txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: %s - %s" % (str(messageNum), repr(payload)))      
-            log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload).decode("utf-8"))
+                    log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload).decode("utf-8"))
         else:
             transport.SSHClientTransport.dispatchMessage(self, messageNum, payload)
 
