@@ -149,7 +149,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
                                     os.chmod('downloads',0755)                   
 
                                 txtlog.log(self.txtlog_file, "wget Download Detected - Downloading File Using: %s" % str(file.group(0)))
-                                filename = datetime.datetime.now().strftime("%Y%m%d") + "_" + str(file.group(2)).split("/")[-1]
+                                filename = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + str(file.group(2)).split("/")[-1]
                                 #Taken out the wget options from the honey pot... just to be sure. Might do some fancy regex to ignore bad ones (-O -P etc.)...maybe.
                                 wgetCommand = "wget -O downloads/" + filename + " " + str(file.group(2))
                                 txtlog.log(self.txtlog_file, "wget Download Detected - Executing command: %s" % wgetCommand)
@@ -168,7 +168,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
                 else:
                     if self.size > 0:
                         if self.cfg.get('extras', 'file_download') == 'true':
-                            f = open("downloads/" + datetime.datetime.now().strftime("%Y%m%d") + "_" + self.name, 'ab')
+                            f = open("downloads/" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + self.name, 'ab')
                             f.write(data)
                             f.close()
                         self.size = self.size - len(data)
