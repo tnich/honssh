@@ -80,6 +80,11 @@ class HonsshServerTransport(transport.SSHServerTransport):
         self.connectionString = self.connectionString + " - " + self.otherVersionString
         return transport.SSHServerTransport.ssh_KEXINIT(self, packet)
     
+    def makeSessionFolder(self):
+        if not os.path.exists(os.path.join('sessions/' + self.endIP)):
+            os.makedirs(os.path.join('sessions/' + self.endIP))
+            os.chmod(os.path.join('sessions/' + self.endIP),0755)
+    
     def dispatchMessage(self, messageNum, payload):
         if transport.SSHServerTransport.isEncrypted(self, "both"):
             self.tabPress = False
@@ -183,9 +188,16 @@ class HonsshServerTransport(transport.SSHServerTransport):
                         self.name = str(match.group(2))
                     
             else:
-                if messageNum not in [1,5,6,90,80,91,93,96,97,98,99]:
-                    txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: %s - %s" % (str(messageNum), repr(payload)))
-                    log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+                if self.cfg.get('extras', 'adv_logging') == 'false':
+                    if messageNum not in [1,2,5,6,20,21,90,80,91,93,96,97,98,99] and messageNum not in range(30,49):
+                        self.makeSessionFolder()
+                        txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: SERVER %s - %s" % (str(messageNum), repr(payload)))
+                        log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+                    
+            if self.cfg.get('extras', 'adv_logging') == 'true':
+                self.makeSessionFolder()
+                txtlog.log(self.txtlog_file[:self.txtlog_file.rfind('.')] + "-adv.log", "SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+                
             self.client.sendPacket(messageNum, payload)
         else:
             transport.SSHServerTransport.dispatchMessage(self, messageNum, payload)

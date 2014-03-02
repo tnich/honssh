@@ -65,17 +65,17 @@ serverFactory.privateKeys = {'ssh-rsa': privateKey}
 serverFactory.publicKeys = {'ssh-rsa': publicKey}
 
 
-application = service.Application('honeypot')
-service = internet.TCPServer(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
-service.setServiceParent(application)
-#reactor.listenTCP(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
+#application = service.Application('honeypot')
+#service = internet.TCPServer(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
+#service.setServiceParent(application)
+reactor.listenTCP(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
 
 if cfg.get('honeypot', 'interact_enabled').lower() in ('yes', 'true', 'on'):
     iport = int(cfg.get('honeypot', 'interact_port'))
     from kippo.core import interact
     from twisted.internet import protocol
-    service = internet.TCPServer(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('honeypot', 'interact_interface'))
-    service.setServiceParent(application)
-    #reactor.listenTCP(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('honeypot', 'interact_interface'))
+    #service = internet.TCPServer(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('honeypot', 'interact_interface'))
+    #service.setServiceParent(application)
+    reactor.listenTCP(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('honeypot', 'interact_interface'))
 
-#reactor.run()
+reactor.run()
