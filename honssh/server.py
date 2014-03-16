@@ -69,13 +69,13 @@ class HonsshServerTransport(transport.SSHServerTransport):
 
         transport.SSHServerTransport.connectionMade(self)
         
-    def connectionLost(self, reason):       
+    def connectionLost(self, reason):
+        self.client.loseConnection()       
         for i in self.interactors:
             i.sessionClosed()
         if self.transport.sessionno in self.factory.sessions:
             del self.factory.sessions[self.transport.sessionno]
         transport.SSHServerTransport.connectionLost(self, reason)
-        self.client.loseConnection()
         
     def ssh_KEXINIT(self, packet):
         self.connectionString = self.connectionString + " - " + self.otherVersionString
