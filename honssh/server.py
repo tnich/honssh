@@ -66,7 +66,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
         self.connectionString = "Incoming connection from: %s:%s" % (self.endIP,self.transport.getPeer().port)
         
         self.ttylog_file = self.logLocation + ".tty"
-        
+
         transport.SSHServerTransport.connectionMade(self)
         
     def connectionLost(self, reason):       
@@ -75,6 +75,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
         if self.transport.sessionno in self.factory.sessions:
             del self.factory.sessions[self.transport.sessionno]
         transport.SSHServerTransport.connectionLost(self, reason)
+        self.client.loseConnection()
         
     def ssh_KEXINIT(self, packet):
         self.connectionString = self.connectionString + " - " + self.otherVersionString
@@ -84,6 +85,42 @@ class HonsshServerTransport(transport.SSHServerTransport):
         if not os.path.exists(os.path.join('sessions/' + self.endIP)):
             os.makedirs(os.path.join('sessions/' + self.endIP))
             os.chmod(os.path.join('sessions/' + self.endIP),0755)
+            
+    def processCommand(self, theCommand):
+        txtlog.log(self.txtlog_file, "Entered command: %s" % (theCommand))
+        if self.cfg.get('extras', 'file_download') == 'true':
+            match = re.finditer("wget .*?((?:http|ftp|https):\/\/[\w\-_]+(?:\.[\w\-_]+)+(?:[\w\-\.,@?^=%&amp:/~\+#]*[\w\-\@?^=%&amp/~\+#])?)", theCommand)
+                            
+            if not os.path.exists('downloads'):
+                os.makedirs('downloads')
+                os.chmod('downloads',0755)  
+                               
+            args = ''                  
+            for m in match:
+                argMatch = re.search("--user=(.*?) ", m.group(0))
+                if argMatch:
+                    args = args + argMatch.group(0)
+                argMatch = re.search("--password=(.*?) ", m.group(0))
+                if argMatch:
+                    args = args + argMatch.group(0)
+                argMatch = re.search("--http-user=(.*?) ", m.group(0))
+                if argMatch:
+                    args = args + argMatch.group(0)
+                argMatch = re.search("--http-password=(.*?) ", m.group(0))
+                if argMatch:
+                    args = args + argMatch.group(0)   
+                argMatch = re.search("--ftp-user=(.*?) ", m.group(0))
+                if argMatch:
+                    args = args + argMatch.group(0)
+                argMatch = re.search("--ftp-password=(.*?) ", m.group(0))
+                if argMatch:
+                    args = args + argMatch.group(0)
+                
+                txtlog.log(self.txtlog_file, "wget Download Detected - %s" % str(m.group(0)))
+                filename = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + str(m.group(1)).split("/")[-1]
+                wgetCommand = "wget -O downloads/" + filename + " " + args + str(m.group(1))
+                txtlog.log(self.txtlog_file, "wget Download Detected - Executing command: %s" % wgetCommand)
+                subprocess.Popen(wgetCommand, shell=True)
     
     def dispatchMessage(self, messageNum, payload):
         if transport.SSHServerTransport.isEncrypted(self, "both"):
@@ -124,7 +161,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
                     self.isPty = True
                     ttylog.ttylog_open(self.ttylog_file, time.time())
                     if data == 'exec':
-                        txtlog.log(self.txtlog_file, "Entered EXEC command: %s" % (repr(payload[17:])[1:-1]))
+                        self.processCommand(repr(payload[17:])[1:-1])
                         data = "INPUT: " + payload[17:] + "\n\n\n"
                         ttylog.ttylog_write(self.ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
                 else:
@@ -144,23 +181,8 @@ class HonsshServerTransport(transport.SSHServerTransport):
                             self.passwdDetected = True
                         if self.passwdDetected == True:
                             self.newPass = self.command
-                        log.msg("Entered command: %s" % (self.command))
-                        txtlog.log(self.txtlog_file, "Entered command: %s" % (self.command))
-                        if self.cfg.get('extras', 'file_download') == 'true':
-                            file = re.match("wget(.+)((http|ftp|https):\/\/[\w\-_]+(\.[\w\-_]+)+([\w\-\.,@?^=%&amp:/~\+#]*[\w\-\@?^=%&amp/~\+#])?)", self.command)
-                            if file:
-
-                                if not os.path.exists('downloads'):
-                                    os.makedirs('downloads')
-                                    os.chmod('downloads',0755)                   
-
-                                txtlog.log(self.txtlog_file, "wget Download Detected - Downloading File Using: %s" % str(file.group(0)))
-                                filename = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + str(file.group(2)).split("/")[-1]
-                                #Taken out the wget options from the honey pot... just to be sure. Might do some fancy regex to ignore bad ones (-O -P etc.)...maybe.
-                                wgetCommand = "wget -O downloads/" + filename + " " + str(file.group(2))
-                                txtlog.log(self.txtlog_file, "wget Download Detected - Executing command: %s" % wgetCommand)
-                                subprocess.Popen(wgetCommand, shell=True)
-
+                        #log.msg("Entered command: %s" % (self.command))
+                        self.processCommand(self.command)
                         self.command = ""
                     elif data == '\x7f':    #if backspace
                         self.command = self.command[:-1]
@@ -189,15 +211,15 @@ class HonsshServerTransport(transport.SSHServerTransport):
                     
             else:
                 if self.cfg.get('extras', 'adv_logging') == 'false':
-                    if messageNum not in [1,2,5,6,20,21,90,80,91,93,96,97,98,99] and messageNum not in range(30,49):
+                    if messageNum not in [1,2,5,6,20,21,90,80,91,93] and messageNum not in range(30,49) and messageNum not in range(96,100):
                         self.makeSessionFolder()
                         txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: SERVER %s - %s" % (str(messageNum), repr(payload)))
-                        log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+                        #log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
                     
             if self.cfg.get('extras', 'adv_logging') == 'true':
                 self.makeSessionFolder()
                 txtlog.log(self.txtlog_file[:self.txtlog_file.rfind('.')] + "-adv.log", "SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
-                
+            
             self.client.sendPacket(messageNum, payload)
         else:
             transport.SSHServerTransport.dispatchMessage(self, messageNum, payload)

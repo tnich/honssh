@@ -41,8 +41,6 @@ if not os.path.exists('honssh.cfg'):
 log.startLogging(sys.stdout, setStdout=0)
 cfg = config()
 
-#TODO: If extras voice check for python-espeak
-
 ssh_addr = cfg.get('honeypot', 'ssh_addr')
 
 if not os.path.exists(cfg.get('honeypot', 'log_path')):

@@ -32,8 +32,7 @@ from twisted.internet import protocol, defer
 from honssh import txtlog, extras
 from kippo.core import ttylog
 from kippo.core.config import config
-import datetime, time, os, re, io
-
+import datetime, time, os, re, io  
 
 class HonsshClientTransport(transport.SSHClientTransport):
     firstTry = False
@@ -44,6 +43,7 @@ class HonsshClientTransport(transport.SSHClientTransport):
         transport.SSHClientTransport.connectionMade(self)
         self.txtlog_file = self.factory.server.txtlog_file
         self.ttylog_file = self.factory.server.ttylog_file
+        self.cfg = self.factory.server.cfg
         
     def verifyHostKey(self, pubKey, fingerprint):
         return defer.succeed(True)
@@ -53,8 +53,7 @@ class HonsshClientTransport(transport.SSHClientTransport):
         
     def dispatchMessage(self, messageNum, payload):
         if transport.SSHClientTransport.isEncrypted(self, "both"):
-            self.factory.server.sendPacket(messageNum, payload)
-
+            
             if messageNum == 94 or messageNum == 95:
                 data = payload[8:]
                 if messageNum == 95:
@@ -66,11 +65,11 @@ class HonsshClientTransport(transport.SSHClientTransport):
                             self.factory.server.command = self.factory.server.command + repr(data)[1:-1]
                     if(self.factory.server.upArrow):
                         self.factory.server.command = repr(data)[1:-1]
-                    if "passwd: password updated successfully" in repr(data) and self.factory.server.cfg.get('honeypot', 'spoof_login') == 'true' :
+                    if "passwd: password updated successfully" in repr(data) and self.cfg.get('honeypot', 'spoof_login') == 'true' :
                         self.factory.server.passDetected = False
-                        self.factory.server.cfg.set('honeypot', 'spoof_pass', self.factory.server.newPass)
+                        self.cfg.set('honeypot', 'spoof_pass', self.factory.server.newPass)
                         f = open('honssh.cfg', 'w')
-                        self.factory.server.cfg.write(f)
+                        self.cfg.write(f)
                         f.close()  
                     ttylog.ttylog_write(self.ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
                     for i in self.factory.server.interactors:
@@ -100,25 +99,52 @@ class HonsshClientTransport(transport.SSHClientTransport):
             elif messageNum == 97:
                 if self.factory.server.isPty:
                     ttylog.ttylog_close(self.ttylog_file, time.time())
+                    if self.cfg.get('extras', 'mail_enable') == 'true': #Start send mail code - provided by flofrihandy, modified by peg
+                        import smtplib
+                        from email.mime.base import MIMEBase
+                        from email.mime.multipart import MIMEMultipart
+                        from email.mime.text import MIMEText
+                        from email import Encoders
+                        msg = MIMEMultipart()
+                        msg['Subject'] = 'HonSSH - Attack logged'
+                        msg['From'] = self.cfg.get('extras', 'mail_from')
+                        msg['To'] = self.cfg.get('extras', 'mail_to')
+                        fp = open(self.txtlog_file, 'rb')
+                        msg_text = MIMEText(fp.read())
+                        fp.close()
+                        msg.attach(msg_text)
+                        fp = open(self.ttylog_file, 'rb')
+                        logdata = MIMEBase('application', "octet-stream")
+                        logdata.set_payload(fp.read())
+                        fp.close()
+                        Encoders.encode_base64(logdata)
+                        logdata.add_header('Content-Disposition', 'attachment', filename=os.path.basename(self.ttylog_file))
+                        msg.attach(logdata)
+                        s = smtplib.SMTP(self.cfg.get('extras', 'mail_host'), int(self.cfg.get('extras', 'mail_port')))
+                        if self.cfg.get('extras', 'mail_username') != '' and self.cfg.get('extras', 'mail_password') != '':
+                            s.ehlo()
+                            s.starttls()
+                            s.login(self.cfg.get('extras', 'mail_username'), self.cfg.get('extras', 'mail_password'))
+                        s.sendmail(msg['From'], msg['To'], msg.as_string())
+                        s.quit() #End send mail code
                 txtlog.log(self.txtlog_file, "Lost connection from: %s" % self.factory.server.endIP)
             else:     
-                if self.factory.server.cfg.get('extras', 'adv_logging') == 'false':
-                    if messageNum not in [1,2,5,6,20,21,90,80,91,93,96,97,98,99] and messageNum not in range(30,49):
+                if self.cfg.get('extras', 'adv_logging') == 'false':
+                    if messageNum not in [1,2,5,6,20,21,90,80,91,93] and messageNum not in range(30,49) and messageNum not in range(96,100):
                         self.factory.server.makeSessionFolder()
                         txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: CLIENT %s - %s" % (str(messageNum), repr(payload)))      
-                        log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+                        #log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
                     
-            if self.factory.server.cfg.get('extras', 'adv_logging') == 'true':
+            if self.cfg.get('extras', 'adv_logging') == 'true':
                 self.factory.server.makeSessionFolder()
                 txtlog.log(self.txtlog_file[:self.txtlog_file.rfind('.')] + "-adv.log" , "CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+                
+            self.factory.server.sendPacket(messageNum, payload)
         else:
             transport.SSHClientTransport.dispatchMessage(self, messageNum, payload)
 
 class HonsshClientFactory(protocol.ClientFactory):
     protocol = HonsshClientTransport   
-
-
-   
     
 class HonsshSlimClientTransport(transport.SSHClientTransport):
     def dataReceived(self, data):
