@@ -171,7 +171,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
             elif messageNum == 94 or messageNum == 95:
                 data = payload[8:]
                 if messageNum == 95:
-                    data = payload[16:]
+                    data = payload[12:]
                     
                 if self.isPty:
                     if data == '\x0d' or data == '\x03':  #if enter or ctrl+c

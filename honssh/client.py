@@ -57,7 +57,7 @@ class HonsshClientTransport(transport.SSHClientTransport):
             if messageNum == 94 or messageNum == 95:
                 data = payload[8:]
                 if messageNum == 95:
-                    data = payload[16:]
+                    data = payload[12:]
                     
                 if self.factory.server.isPty:
                     if(self.factory.server.tabPress):
