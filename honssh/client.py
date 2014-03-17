@@ -125,7 +125,7 @@ class HonsshClientTransport(transport.SSHClientTransport):
                             s.ehlo()
                             s.starttls()
                             s.login(self.cfg.get('extras', 'mail_username'), self.cfg.get('extras', 'mail_password'))
-                        s.sendmail(msg['From'], msg['To'], msg.as_string())
+                        s.sendmail(msg['From'], msg['To'].split(','), msg.as_string())
                         s.quit() #End send mail code
                 txtlog.log(self.txtlog_file, "Lost connection from: %s" % self.factory.server.endIP)
             else:     
