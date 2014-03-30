@@ -70,12 +70,51 @@ class HonsshServerTransport(transport.SSHServerTransport):
         transport.SSHServerTransport.connectionMade(self)
         
     def connectionLost(self, reason):
-        self.client.loseConnection()       
+        try:
+            self.client.loseConnection()       
+        except:
+            pass
         for i in self.interactors:
             i.sessionClosed()
         if self.transport.sessionno in self.factory.sessions:
             del self.factory.sessions[self.transport.sessionno]
         transport.SSHServerTransport.connectionLost(self, reason)
+        log.msg("Lost connection with the attacker: %s" % self.endIP)
+        txtlog.log(self.txtlog_file, "Lost connection with the attacker: %s" % self.endIP)
+
+        if self.isPty:
+            ttylog.ttylog_close(self.ttylog_file, time.time())
+            if self.cfg.get('extras', 'mail_enable') == 'true': #Start send mail code - provided by flofrihandy, modified by peg
+                log.msg("Sending email")
+                import smtplib
+                from email.mime.base import MIMEBase
+                from email.mime.multipart import MIMEMultipart
+                from email.mime.text import MIMEText
+                from email import Encoders
+                msg = MIMEMultipart()
+                msg['Subject'] = 'HonSSH - Attack logged'
+                msg['From'] = self.cfg.get('extras', 'mail_from')
+                msg['To'] = self.cfg.get('extras', 'mail_to')
+                fp = open(self.txtlog_file, 'rb')
+                msg_text = MIMEText(fp.read())
+                fp.close()
+                msg.attach(msg_text)
+                fp = open(self.ttylog_file, 'rb')
+                logdata = MIMEBase('application', "octet-stream")
+                logdata.set_payload(fp.read())
+                fp.close()
+                Encoders.encode_base64(logdata)
+                logdata.add_header('Content-Disposition', 'attachment', filename=os.path.basename(self.ttylog_file))
+                msg.attach(logdata)
+                s = smtplib.SMTP(self.cfg.get('extras', 'mail_host'), int(self.cfg.get('extras', 'mail_port')))
+                if self.cfg.get('extras', 'mail_username') != '' and self.cfg.get('extras', 'mail_password') != '':
+                    s.ehlo()
+                    if self.cfg.get('extras', 'mail_use_tls') == 'true':
+                        s.starttls()
+                    s.login(self.cfg.get('extras', 'mail_username'), self.cfg.get('extras', 'mail_password'))
+                s.sendmail(msg['From'], msg['To'].split(','), msg.as_string())
+                s.quit() #End send mail code
+                log.msg("Finished sending email")
         
     def ssh_KEXINIT(self, packet):
         self.connectionString = self.connectionString + " - " + self.otherVersionString
@@ -91,9 +130,9 @@ class HonsshServerTransport(transport.SSHServerTransport):
         if self.cfg.get('extras', 'file_download') == 'true':
             match = re.finditer("wget .*?((?:http|ftp|https):\/\/[\w\-_]+(?:\.[\w\-_]+)+(?:[\w\-\.,@?^=%&amp:/~\+#]*[\w\-\@?^=%&amp/~\+#])?)", theCommand)
                             
-            if not os.path.exists('downloads'):
-                os.makedirs('downloads')
-                os.chmod('downloads',0755)  
+            if not os.path.exists('downloads/' + self.endIP):
+                os.makedirs('downloads/' + self.endIP)
+                os.chmod('downloads/' + self.endIP,0755)  
                                
             args = ''                  
             for m in match:
@@ -118,12 +157,13 @@ class HonsshServerTransport(transport.SSHServerTransport):
                 
                 txtlog.log(self.txtlog_file, "wget Download Detected - %s" % str(m.group(0)))
                 filename = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + str(m.group(1)).split("/")[-1]
-                wgetCommand = "wget -O downloads/" + filename + " " + args + str(m.group(1))
+                wgetCommand = "wget -O downloads/" + self.endIP + "/" + filename + " " + args + str(m.group(1))
                 txtlog.log(self.txtlog_file, "wget Download Detected - Executing command: %s" % wgetCommand)
                 subprocess.Popen(wgetCommand, shell=True)
     
     def dispatchMessage(self, messageNum, payload):
         if transport.SSHServerTransport.isEncrypted(self, "both"):
+            self.sendOn = True
             self.tabPress = False
             self.upArrow = False
 
@@ -164,10 +204,30 @@ class HonsshServerTransport(transport.SSHServerTransport):
                         self.processCommand(repr(payload[17:])[1:-1])
                         data = "INPUT: " + payload[17:] + "\n\n\n"
                         ttylog.ttylog_write(self.ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
+                elif data == 'subsystem' and 'sftp' in repr(payload):
+                    log.msg("Detected SFTP - Disabling")
+                    self.sendOn = False
+                    self.sendPacket(100, '\x00\x00\x00\x00') #Might be OpenSSH specific replies - fingerprinting issue?
+                    #TODO: Code proper handling of SFTP - capture commands and uploads etc.
                 else:
                     if data != 'shell' and data != 'env':
                         txtlog.log(self.txtlog_file, "New message 98 type detected - Please raise a HonSSH issue on google code with the details: %s" % (data))
                         log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+            elif messageNum == 90:
+                if 'direct-tcpip' in repr(payload) or 'forwarded-tcpip' in repr(payload):
+                    log.msg("Detected Port Forwarding - disabling")
+                    num = int(payload[0:4].encode('hex'), 16)
+                    channel = int(payload[4+num:4+num+4].encode('hex'), 16)
+                    self.sendOn = False
+                    p = struct.pack('>L',channel)
+                    self.sendPacket(92, p + '\x00\x00\x00\x01\x00\x00\x00\x0bopen failed\x00\x00\x00\x00')  #Might be OpenSSH specific replies - fingerprinting issue?
+            elif messageNum == 80:
+                if 'tcpip-forward' in repr(payload):
+                    log.msg("Detected Remote Forwarding - disabling")
+                    self.sendOn = False
+                    self.sendPacket(4,'\x00\x00\x00\x00$Server has disabled port forwarding.\x00\x00\x00\x00')  #Might be OpenSSH specific replies - fingerprinting issue?
+            elif messageNum == 97:
+                log.msg("Disconnect received from the attacker: %s" % self.endIP)
             elif messageNum == 94 or messageNum == 95:
                 data = payload[8:]
                 if messageNum == 95:
@@ -181,7 +241,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
                             self.passwdDetected = True
                         if self.passwdDetected == True:
                             self.newPass = self.command
-                        #log.msg("Entered command: %s" % (self.command))
+                        log.msg("Entered command: %s" % (self.command))
                         self.processCommand(self.command)
                         self.command = ""
                     elif data == '\x7f':    #if backspace
@@ -211,16 +271,19 @@ class HonsshServerTransport(transport.SSHServerTransport):
                     
             else:
                 if self.cfg.get('extras', 'adv_logging') == 'false':
-                    if messageNum not in [1,2,5,6,20,21,90,80,91,93] and messageNum not in range(30,49) and messageNum not in range(96,100):
+                    if messageNum not in [1,2,5,6,20,21,80,91,93] and messageNum not in range(30,49) and messageNum not in range(96,100):
                         self.makeSessionFolder()
                         txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: SERVER %s - %s" % (str(messageNum), repr(payload)))
-                        #log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+                        log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
                     
             if self.cfg.get('extras', 'adv_logging') == 'true':
                 self.makeSessionFolder()
                 txtlog.log(self.txtlog_file[:self.txtlog_file.rfind('.')] + "-adv.log", "SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
             
-            self.client.sendPacket(messageNum, payload)
+            #log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+
+            if self.sendOn:
+                self.client.sendPacket(messageNum, payload)
         else:
             transport.SSHServerTransport.dispatchMessage(self, messageNum, payload)
     
@@ -229,6 +292,11 @@ class HonsshServerTransport(transport.SSHServerTransport):
 
     def delInteractor(self, interactor):
         self.interactors.remove(interactor)
+        
+    def sendPacket(self, messageNum, payload):
+        #log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+        transport.SSHServerTransport.sendPacket(self, messageNum, payload)
+
 
 
 class HonsshServerFactory(factory.SSHFactory):

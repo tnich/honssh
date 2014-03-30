@@ -32,7 +32,7 @@ from twisted.internet import protocol, defer
 from honssh import txtlog, extras
 from kippo.core import ttylog
 from kippo.core.config import config
-import datetime, time, os, re, io  
+import datetime, time, os, re, io, struct
 
 class HonsshClientTransport(transport.SSHClientTransport):
     firstTry = False
@@ -51,6 +51,10 @@ class HonsshClientTransport(transport.SSHClientTransport):
     def connectionSecure(self):
         log.msg('Client Connection Secured')
         
+    def connectionLost(self, reason):
+        transport.SSHClientTransport.connectionLost(self, reason)
+        log.msg("Lost connection with the honeypot: %s" % self.cfg.get('honeypot', 'honey_addr'))
+
     def dispatchMessage(self, messageNum, payload):
         if transport.SSHClientTransport.isEncrypted(self, "both"):
             
@@ -87,6 +91,11 @@ class HonsshClientTransport(transport.SSHClientTransport):
                     self.failedString = self.failedString +  datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " - Failed login - Username:%s Password:%s\n" % (self.factory.server.currUsername, self.factory.server.currPassword)
                 else:
                     self.firstTry = True
+                if 'publickey' in  repr(payload):
+                    log.msg("Detected Public Key authentication - disabling")   
+                    b = 'password'.encode('utf-8')
+                    payload = struct.pack('>L',len(b))
+                    payload = payload + b + '\x00'   
             elif messageNum == 52:
                 extras.successLogin(self.factory.server.endIP)
                 if not os.path.exists(os.path.join('sessions/' + self.factory.server.endIP)):
@@ -97,48 +106,19 @@ class HonsshClientTransport(transport.SSHClientTransport):
                 self.failedString = ''
                 txtlog.log(self.txtlog_file, "Successful login - Username:%s Password:%s" % (self.factory.server.currUsername, self.factory.server.currPassword))
             elif messageNum == 97:
-                if self.factory.server.isPty:
-                    ttylog.ttylog_close(self.ttylog_file, time.time())
-                    if self.cfg.get('extras', 'mail_enable') == 'true': #Start send mail code - provided by flofrihandy, modified by peg
-                        import smtplib
-                        from email.mime.base import MIMEBase
-                        from email.mime.multipart import MIMEMultipart
-                        from email.mime.text import MIMEText
-                        from email import Encoders
-                        msg = MIMEMultipart()
-                        msg['Subject'] = 'HonSSH - Attack logged'
-                        msg['From'] = self.cfg.get('extras', 'mail_from')
-                        msg['To'] = self.cfg.get('extras', 'mail_to')
-                        fp = open(self.txtlog_file, 'rb')
-                        msg_text = MIMEText(fp.read())
-                        fp.close()
-                        msg.attach(msg_text)
-                        fp = open(self.ttylog_file, 'rb')
-                        logdata = MIMEBase('application', "octet-stream")
-                        logdata.set_payload(fp.read())
-                        fp.close()
-                        Encoders.encode_base64(logdata)
-                        logdata.add_header('Content-Disposition', 'attachment', filename=os.path.basename(self.ttylog_file))
-                        msg.attach(logdata)
-                        s = smtplib.SMTP(self.cfg.get('extras', 'mail_host'), int(self.cfg.get('extras', 'mail_port')))
-                        if self.cfg.get('extras', 'mail_username') != '' and self.cfg.get('extras', 'mail_password') != '':
-                            s.ehlo()
-                            s.starttls()
-                            s.login(self.cfg.get('extras', 'mail_username'), self.cfg.get('extras', 'mail_password'))
-                        s.sendmail(msg['From'], msg['To'].split(','), msg.as_string())
-                        s.quit() #End send mail code
-                txtlog.log(self.txtlog_file, "Lost connection from: %s" % self.factory.server.endIP)
+                log.msg("Disconnect received from the honeypot: %s" % self.cfg.get('honeypot', 'honey_addr'))
             else:     
                 if self.cfg.get('extras', 'adv_logging') == 'false':
                     if messageNum not in [1,2,5,6,20,21,90,80,91,93] and messageNum not in range(30,49) and messageNum not in range(96,100):
                         self.factory.server.makeSessionFolder()
                         txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: CLIENT %s - %s" % (str(messageNum), repr(payload)))      
-                        #log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
                     
             if self.cfg.get('extras', 'adv_logging') == 'true':
                 self.factory.server.makeSessionFolder()
                 txtlog.log(self.txtlog_file[:self.txtlog_file.rfind('.')] + "-adv.log" , "CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
-                
+                log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+            
+            #log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))    
             self.factory.server.sendPacket(messageNum, payload)
         else:
             transport.SSHClientTransport.dispatchMessage(self, messageNum, payload)

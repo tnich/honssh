@@ -60,18 +60,16 @@ then
 fi
 
 
-if [ ! -e id_rsa.pub ]
-then
-    echo "WARNING: Unable to find id_rsa.pub, generating it now..."
-    ckeygen -t rsa -f id_rsa
-fi
-
-
-# ----- Start HonSSh
+# ----- Start HonSSH
 function start_honssh()
 {
     if [ ! -e $honssh_pid ]
     then
+	if [ ! -e id_rsa.pub ]
+	then
+	    echo "WARNING: Unable to find id_rsa.pub, generating it now..."
+	    ckeygen -t rsa -f id_rsa
+	fi
         echo "Starting honssh in background..."
         twistd -y $honssh_tac -l $honssh_log --pidfile $honssh_pid
     else
