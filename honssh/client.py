@@ -111,12 +111,12 @@ class HonsshClientTransport(transport.SSHClientTransport):
                 if self.cfg.get('extras', 'adv_logging') == 'false':
                     if messageNum not in [1,2,5,6,20,21,90,80,91,93] and messageNum not in range(30,49) and messageNum not in range(96,100):
                         self.factory.server.makeSessionFolder()
-                        txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: CLIENT %s - %s" % (str(messageNum), repr(payload)))      
+                        txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: CLIENT %s - %s" % (str(messageNum), repr(payload)))     
+                        log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
                     
             if self.cfg.get('extras', 'adv_logging') == 'true':
                 self.factory.server.makeSessionFolder()
                 txtlog.log(self.txtlog_file[:self.txtlog_file.rfind('.')] + "-adv.log" , "CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
-                log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
             
             #log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))    
             self.factory.server.sendPacket(messageNum, payload)
