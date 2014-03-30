@@ -80,7 +80,8 @@ class HonsshServerTransport(transport.SSHServerTransport):
             del self.factory.sessions[self.transport.sessionno]
         transport.SSHServerTransport.connectionLost(self, reason)
         log.msg("Lost connection with the attacker: %s" % self.endIP)
-        txtlog.log(self.txtlog_file, "Lost connection with the attacker: %s" % self.endIP)
+        if os.path.exists(self.txtlog_file):
+            txtlog.log(self.txtlog_file, "Lost connection with the attacker: %s" % self.endIP)
 
         if self.isPty:
             ttylog.ttylog_close(self.ttylog_file, time.time())
@@ -124,15 +125,17 @@ class HonsshServerTransport(transport.SSHServerTransport):
         if not os.path.exists(os.path.join('sessions/' + self.endIP)):
             os.makedirs(os.path.join('sessions/' + self.endIP))
             os.chmod(os.path.join('sessions/' + self.endIP),0755)
+    def makeDownloadsFolder(self):
+        if not os.path.exists('sessions/' + self.endIP + '/downloads'):
+            os.makedirs('sessions/' + self.endIP + '/downloads')
+            os.chmod('sessions/' + self.endIP + '/downloads',0755) 
             
     def processCommand(self, theCommand):
         txtlog.log(self.txtlog_file, "Entered command: %s" % (theCommand))
         if self.cfg.get('extras', 'file_download') == 'true':
             match = re.finditer("wget .*?((?:http|ftp|https):\/\/[\w\-_]+(?:\.[\w\-_]+)+(?:[\w\-\.,@?^=%&amp:/~\+#]*[\w\-\@?^=%&amp/~\+#])?)", theCommand)
                             
-            if not os.path.exists('downloads/' + self.endIP):
-                os.makedirs('downloads/' + self.endIP)
-                os.chmod('downloads/' + self.endIP,0755)  
+            self.makeDownloadsFolder()
                                
             args = ''                  
             for m in match:
@@ -157,7 +160,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
                 
                 txtlog.log(self.txtlog_file, "wget Download Detected - %s" % str(m.group(0)))
                 filename = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + str(m.group(1)).split("/")[-1]
-                wgetCommand = "wget -O downloads/" + self.endIP + "/" + filename + " " + args + str(m.group(1))
+                wgetCommand = 'wget -O sessions/' + self.endIP + '/downloads/' + filename + " " + args + str(m.group(1))
                 txtlog.log(self.txtlog_file, "wget Download Detected - Executing command: %s" % wgetCommand)
                 subprocess.Popen(wgetCommand, shell=True)
     
@@ -256,7 +259,8 @@ class HonsshServerTransport(transport.SSHServerTransport):
                 else:
                     if self.size > 0:
                         if self.cfg.get('extras', 'file_download') == 'true':
-                            f = open("downloads/" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + self.name, 'ab')
+                            self.makeDownloadsFolder()
+                            f = open('sessions/' + self.endIP + '/downloads/' + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + self.name, 'ab')
                             f.write(data)
                             f.close()
                         self.size = self.size - len(data)
