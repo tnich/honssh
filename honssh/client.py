@@ -29,8 +29,6 @@
 from twisted.conch.ssh import transport, service
 from twisted.python import log
 from twisted.internet import protocol, defer
-from honssh import txtlog, extras
-from kippo.core import ttylog
 from kippo.core.config import config
 import datetime, time, os, re, io, struct
 
@@ -41,9 +39,8 @@ class HonsshClientTransport(transport.SSHClientTransport):
         log.msg('New client connection')
         self.factory.server.client = self
         transport.SSHClientTransport.connectionMade(self)
-        self.txtlog_file = self.factory.server.txtlog_file
-        self.ttylog_file = self.factory.server.ttylog_file
         self.cfg = self.factory.server.cfg
+        self.out = self.factory.server.out
         
     def verifyHostKey(self, pubKey, fingerprint):
         return defer.succeed(True)
@@ -58,65 +55,82 @@ class HonsshClientTransport(transport.SSHClientTransport):
     def dispatchMessage(self, messageNum, payload):
         if transport.SSHClientTransport.isEncrypted(self, "both"):
             
-            if messageNum == 94 or messageNum == 95:
+            if messageNum == 94:
                 data = payload[8:]
-                if messageNum == 95:
-                    data = payload[12:]
-                    
+                   
                 if self.factory.server.isPty:
                     if(self.factory.server.tabPress):
                         if not '\x0d' in data and not '\x07' in data:
                             self.factory.server.command = self.factory.server.command + repr(data)[1:-1]
+                            self.factory.server.pointer = self.factory.server.pointer + len(repr(data)[1:-1])
                     if(self.factory.server.upArrow):
-                        self.factory.server.command = repr(data)[1:-1]
-                    if "passwd: password updated successfully" in repr(data) and self.cfg.get('honeypot', 'spoof_login') == 'true' :
+                        numOfBackspaces = data.count('\x08')
+                        numOfRightArrows = data.count('\x1b\x5b\x43')
+                        com = data
+                        if numOfBackspaces != 0:
+                            self.factory.server.command = self.factory.server.command[:0-numOfBackspaces]
+                            self.factory.server.pointer = self.factory.server.pointer - numOfBackspaces
+                            com = com[numOfBackspaces:]
+                        if numOfRightArrows != 0:
+                            log.msg("FACCom " + self.factory.server.command)
+                            self.factory.server.command = self.factory.server.command[:numOfRightArrows-17]
+                            log.msg("FACCom " + self.factory.server.command)
+                            self.factory.server.pointer = numOfRightArrows-17
+                            com = com[(numOfRightArrows*3)+1:]
+                        log.msg("Com " + repr(com))
+                        if '\x1b\x5b\x4b' in com:
+                            com = com[:com.index('\x1b\x5b\x4b')] + com[com.index('\x1b\x5b\x4b')+3:]
+                        if '\x1b\x5b\x36\x50' in com:
+                            com = com[:com.index('\x1b\x5b\x36\x50')] + com[com.index('\x1b\x5b\x36\x50')+4:]
+                        
+                        if com != '\x07':
+                            log.msg("Com " + repr(com))
+                            com = repr(com)[1:-1]
+                            self.factory.server.command = self.factory.server.command + com
+                            self.factory.server.pointer = self.factory.server.pointer + len(com)
+                    if "passwd: password updated successfully" in repr(data) and self.cfg.get('spoof', 'enabled') == 'true' :
                         self.factory.server.passDetected = False
-                        self.cfg.set('honeypot', 'spoof_pass', self.factory.server.newPass)
+                        self.cfg.set('spoof', 'pass', self.factory.server.newPass)
                         f = open('honssh.cfg', 'w')
                         self.cfg.write(f)
-                        f.close()  
-                    ttylog.ttylog_write(self.ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
+                        f.close()
+                         
+                    self.out.input(data)
+                    
                     for i in self.factory.server.interactors:
                         i.sessionWrite(data)
                 else:
                     if self.factory.server.size > 0 and data != '\x00' and data != '\x0a':
-                        txtlog.log(self.txtlog_file, "RAW SERVER-CLIENT: %s" % (repr(data)))
+                        self.out.genericLog("RAW SERVER-CLIENT: %s" % (repr(data)))
                         
                     match = re.match('C\d{4} (\d*) (.*)', data)
                     if match:
-                        txtlog.log(self.txtlog_file, "Downloading File via SCP: %s" % str(match.group(2)))
+                        self.out.genericLog("Downloading File via SCP: %s" % str(match.group(2)))
                     
+            elif messageNum == 95:
+                data = payload[12:]
+                self.out.input(data)
             elif messageNum == 51:
-                if self.firstTry:
-                    self.failedString = self.failedString +  datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " - Failed login - Username:%s Password:%s\n" % (self.factory.server.currUsername, self.factory.server.currPassword)
-                else:
-                    self.firstTry = True
+                if self.factory.server.currUsername != '' and self.factory.server.currPassword != '':
+                    self.out.loginFailed(self.factory.server.currUsername, self.factory.server.currPassword)
                 if 'publickey' in  repr(payload):
                     log.msg("Detected Public Key authentication - disabling")   
                     b = 'password'.encode('utf-8')
                     payload = struct.pack('>L',len(b))
                     payload = payload + b + '\x00'   
             elif messageNum == 52:
-                extras.successLogin(self.factory.server.endIP)
-                if not os.path.exists(os.path.join('sessions/' + self.factory.server.endIP)):
-                    os.makedirs(os.path.join('sessions/' + self.factory.server.endIP))
-                    os.chmod(os.path.join('sessions/' + self.factory.server.endIP),0755)
-                txtlog.log(self.txtlog_file, self.factory.server.connectionString)
-                txtlog.logna(self.txtlog_file, self.failedString)
-                self.failedString = ''
-                txtlog.log(self.txtlog_file, "Successful login - Username:%s Password:%s" % (self.factory.server.currUsername, self.factory.server.currPassword))
+                if self.factory.server.currUsername != '' and self.factory.server.currPassword != '':
+                    self.out.loginSuccessful(self.factory.server.currUsername, self.factory.server.currPassword)
             elif messageNum == 97:
                 log.msg("Disconnect received from the honeypot: %s" % self.cfg.get('honeypot', 'honey_addr'))
             else:     
-                if self.cfg.get('extras', 'adv_logging') == 'false':
+                if self.cfg.get('packets', 'enabled') == 'false':
                     if messageNum not in [1,2,5,6,20,21,90,80,91,93] and messageNum not in range(30,49) and messageNum not in range(96,100):
-                        self.factory.server.makeSessionFolder()
-                        txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: CLIENT %s - %s" % (str(messageNum), repr(payload)))     
+                        self.out.errLog("Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: CLIENT %s - %s" % (str(messageNum), repr(payload)))     
                         log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
                     
-            if self.cfg.get('extras', 'adv_logging') == 'true':
-                self.factory.server.makeSessionFolder()
-                txtlog.log(self.txtlog_file[:self.txtlog_file.rfind('.')] + "-adv.log" , "CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+            if self.cfg.get('packets', 'enabled') == 'true':
+                self.out.advancedLog("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
             
             #log.msg("CLIENT: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))    
             self.factory.server.sendPacket(messageNum, payload)

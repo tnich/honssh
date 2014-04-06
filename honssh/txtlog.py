@@ -44,12 +44,7 @@ def log(logfile, message):
     if(setPermissions):
         os.chmod(logfile, 0644)
     
-def logna(logfile, message):
-    
-    f = file(logfile, 'a')
-    f.write(message)
-    f.close()
-    
+ 
 def otherLog(logfile, ip, username, password):
     
     setPermissions = False

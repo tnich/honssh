@@ -29,27 +29,25 @@ from twisted.conch.ssh import factory, transport, service
 from twisted.conch.ssh.transport import SSHCiphers
 from twisted.python import log
 from twisted.internet import reactor
-from honssh import client, txtlog, extras
-from kippo.core import ttylog
+from honssh import client, output
 from kippo.core.config import config
-import datetime, time, os, struct, re, subprocess
+import datetime, time, os, struct, re, subprocess, random
 
 class HonsshServerTransport(transport.SSHServerTransport):
     command = ''
     currUsername = ''
     currPassword = ''
-    endIP = ''
-    txtlog_file = ''
-    ttylog_file = ''
-    connectionString = ''
+
     tabPress = False
     upArrow = False
     isPty = False
+    pointer = 0
     size = 0
     name = ''
     passwdDetected = False
     newPass = ''
     cfg = config()
+
     
     def connectionMade(self):
         self.interactors = []
@@ -60,12 +58,9 @@ class HonsshServerTransport(transport.SSHServerTransport):
              
         reactor.connectTCP(self.cfg.get('honeypot', 'honey_addr'), 22, clientFactory, bindAddress=(self.cfg.get('honeypot', 'client_addr'),self.transport.getPeer().port))
         
+        self.out = output.Output()
         self.endIP = self.transport.getPeer().host
-        self.logLocation = self.cfg.get('honeypot', 'session_path') + "/" + self.endIP + "/" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.txtlog_file = self.logLocation + ".log"
-        self.connectionString = "Incoming connection from: %s:%s" % (self.endIP,self.transport.getPeer().port)
-        
-        self.ttylog_file = self.logLocation + ".tty"
+        self.out.connectionMade(self.endIP, self.transport.getPeer().port)
 
         transport.SSHServerTransport.connectionMade(self)
         
@@ -79,90 +74,31 @@ class HonsshServerTransport(transport.SSHServerTransport):
         if self.transport.sessionno in self.factory.sessions:
             del self.factory.sessions[self.transport.sessionno]
         transport.SSHServerTransport.connectionLost(self, reason)
-        log.msg("Lost connection with the attacker: %s" % self.endIP)
-        if os.path.exists(self.txtlog_file):
-            txtlog.log(self.txtlog_file, "Lost connection with the attacker: %s" % self.endIP)
-
-        if self.isPty:
-            ttylog.ttylog_close(self.ttylog_file, time.time())
-            if self.cfg.get('extras', 'mail_enable') == 'true': #Start send mail code - provided by flofrihandy, modified by peg
-                log.msg("Sending email")
-                import smtplib
-                from email.mime.base import MIMEBase
-                from email.mime.multipart import MIMEMultipart
-                from email.mime.text import MIMEText
-                from email import Encoders
-                msg = MIMEMultipart()
-                msg['Subject'] = 'HonSSH - Attack logged'
-                msg['From'] = self.cfg.get('extras', 'mail_from')
-                msg['To'] = self.cfg.get('extras', 'mail_to')
-                fp = open(self.txtlog_file, 'rb')
-                msg_text = MIMEText(fp.read())
-                fp.close()
-                msg.attach(msg_text)
-                fp = open(self.ttylog_file, 'rb')
-                logdata = MIMEBase('application', "octet-stream")
-                logdata.set_payload(fp.read())
-                fp.close()
-                Encoders.encode_base64(logdata)
-                logdata.add_header('Content-Disposition', 'attachment', filename=os.path.basename(self.ttylog_file))
-                msg.attach(logdata)
-                s = smtplib.SMTP(self.cfg.get('extras', 'mail_host'), int(self.cfg.get('extras', 'mail_port')))
-                if self.cfg.get('extras', 'mail_username') != '' and self.cfg.get('extras', 'mail_password') != '':
-                    s.ehlo()
-                    if self.cfg.get('extras', 'mail_use_tls') == 'true':
-                        s.starttls()
-                    s.login(self.cfg.get('extras', 'mail_username'), self.cfg.get('extras', 'mail_password'))
-                s.sendmail(msg['From'], msg['To'].split(','), msg.as_string())
-                s.quit() #End send mail code
-                log.msg("Finished sending email")
+               
+        self.out.connectionLost(self.isPty)
         
     def ssh_KEXINIT(self, packet):
-        self.connectionString = self.connectionString + " - " + self.otherVersionString
+        self.out.setVersion(self.otherVersionString)
         return transport.SSHServerTransport.ssh_KEXINIT(self, packet)
-    
-    def makeSessionFolder(self):
-        if not os.path.exists(os.path.join('sessions/' + self.endIP)):
-            os.makedirs(os.path.join('sessions/' + self.endIP))
-            os.chmod(os.path.join('sessions/' + self.endIP),0755)
-    def makeDownloadsFolder(self):
-        if not os.path.exists('sessions/' + self.endIP + '/downloads'):
-            os.makedirs('sessions/' + self.endIP + '/downloads')
-            os.chmod('sessions/' + self.endIP + '/downloads',0755) 
+
             
     def processCommand(self, theCommand):
-        txtlog.log(self.txtlog_file, "Entered command: %s" % (theCommand))
-        if self.cfg.get('extras', 'file_download') == 'true':
-            match = re.finditer("wget .*?((?:http|ftp|https):\/\/[\w\-_]+(?:\.[\w\-_]+)+(?:[\w\-\.,@?^=%&amp:/~\+#]*[\w\-\@?^=%&amp/~\+#])?)", theCommand)
-                            
-            self.makeDownloadsFolder()
-                               
-            args = ''                  
+        self.out.commandEntered(theCommand)
+        if self.cfg.get('download', 'enabled') == 'true':
+            match = re.finditer("wget ([^;&|]+)", theCommand)
+               
+            user = ''
+            password = ''                
             for m in match:
-                argMatch = re.search("--user=(.*?) ", m.group(0))
+                argMatch = re.search("-user=(.*?) ", m.group(0))
                 if argMatch:
-                    args = args + argMatch.group(0)
-                argMatch = re.search("--password=(.*?) ", m.group(0))
+                    user = m.group(0)
+                argMatch = re.search("-password=(.*?) ", m.group(0))
                 if argMatch:
-                    args = args + argMatch.group(0)
-                argMatch = re.search("--http-user=(.*?) ", m.group(0))
-                if argMatch:
-                    args = args + argMatch.group(0)
-                argMatch = re.search("--http-password=(.*?) ", m.group(0))
-                if argMatch:
-                    args = args + argMatch.group(0)   
-                argMatch = re.search("--ftp-user=(.*?) ", m.group(0))
-                if argMatch:
-                    args = args + argMatch.group(0)
-                argMatch = re.search("--ftp-password=(.*?) ", m.group(0))
-                if argMatch:
-                    args = args + argMatch.group(0)
+                    password = m.group(0)               
                 
-                txtlog.log(self.txtlog_file, "wget Download Detected - %s" % str(m.group(0)))
-                filename = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + str(m.group(1)).split("/")[-1]
-                wgetCommand = 'wget -O sessions/' + self.endIP + '/downloads/' + filename + " " + args + str(m.group(1))
-                txtlog.log(self.txtlog_file, "wget Download Detected - Executing command: %s" % wgetCommand)
-                subprocess.Popen(wgetCommand, shell=True)
+                self.out.fileDownload(m.group(0), m.group(0).split(' ')[-1], user, password)
+                
     
     def dispatchMessage(self, messageNum, payload):
         if transport.SSHServerTransport.isEncrypted(self, "both"):
@@ -189,32 +125,34 @@ class HonsshServerTransport(transport.SSHServerTransport):
                     num = int(payload[p:p+4].encode('hex'), 16)
                     p = p+4
                     self.currPassword = payload[p:p+num]
-                    txtlog.otherLog(self.cfg.get('honeypot', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, self.currUsername, self.currPassword)
-                    extras.attemptedLogin(self.currUsername, self.currPassword)
-                    if(self.cfg.get('honeypot', 'spoof_login') == 'true'):
-                        self.client.failedString = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " - Spoofing Login - Changing %s to %s\n" % (self.currPassword, self.cfg.get('honeypot', 'spoof_pass'))
-                        payload = payload[0:pos]
-                        b = self.cfg.get('honeypot', 'spoof_pass').encode('utf-8')
-                        payload = payload + struct.pack('>L',len(b))
-                        payload = payload + b
+                    if(self.cfg.get('spoof', 'enabled') == 'true'):
+                        rand = random.randrange(1, int(self.cfg.get('spoof', 'chance')))
+                        if rand == 1:
+                            self.client.failedString = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " - Spoofing Login - Changing %s to %s\n" % (self.currPassword, self.cfg.get('spoof', 'pass'))
+                            payload = payload[0:pos]
+                            b = self.cfg.get('spoof', 'pass').encode('utf-8')
+                            payload = payload + struct.pack('>L',len(b))
+                            payload = payload + b
             elif messageNum == 98:
                 num = int(payload[7:8].encode('hex'), 16)
                 data = payload[8:8+num]
-                if data == 'pty-req' or data == 'exec':
+                if data == 'pty-req':
                     self.isPty = True
-                    ttylog.ttylog_open(self.ttylog_file, time.time())
-                    if data == 'exec':
+                    self.out.openTTY()
+                elif data == 'exec':
+                    if 'scp' not in payload[17:]:
+                        self.out.openTTY()
                         self.processCommand(repr(payload[17:])[1:-1])
                         data = "INPUT: " + payload[17:] + "\n\n\n"
-                        ttylog.ttylog_write(self.ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
+                        self.out.input(data)
                 elif data == 'subsystem' and 'sftp' in repr(payload):
                     log.msg("Detected SFTP - Disabling")
                     self.sendOn = False
                     self.sendPacket(100, '\x00\x00\x00\x00') #Might be OpenSSH specific replies - fingerprinting issue?
                     #TODO: Code proper handling of SFTP - capture commands and uploads etc.
                 else:
-                    if data != 'shell' and data != 'env':
-                        txtlog.log(self.txtlog_file, "New message 98 type detected - Please raise a HonSSH issue on google code with the details: %s" % (data))
+                    if data != 'shell' and data != 'env' and 'putty' not in data:
+                        self.out.errLog("New message 98 type detected - Please raise a HonSSH issue on google code with the details: %s" % data)
                         log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
             elif messageNum == 90:
                 if 'direct-tcpip' in repr(payload) or 'forwarded-tcpip' in repr(payload):
@@ -237,52 +175,66 @@ class HonsshServerTransport(transport.SSHServerTransport):
                     data = payload[12:]
                     
                 if self.isPty:
-                    if data == '\x0d' or data == '\x03':  #if enter or ctrl+c
+                    if data == '\x0d' or data == '\x03' or data == '\x18' or data == '\x1a':  #if enter or ctrl+c or ctrl+x or ctrl+z
                         if data == '\x03':
                             self.command = self.command + "^C"
-                        if self.cfg.get('honeypot', 'spoof_login') == 'true' and self.command == 'passwd':
+                        if data == '\x18':
+                            self.command = self.command + "^X"
+                        if data == '\x1a':
+                            self.command = self.command + "^Z"
+                        if self.cfg.get('spoof', 'enabled') == 'true' and self.command == 'passwd':
                             self.passwdDetected = True
                         if self.passwdDetected == True:
                             self.newPass = self.command
                         log.msg("Entered command: %s" % (self.command))
                         self.processCommand(self.command)
                         self.command = ""
+                        self.pointer = 0
                     elif data == '\x7f':    #if backspace
-                        self.command = self.command[:-1]
+                        self.command = self.command[:self.pointer-1] + self.command[self.pointer:]
+                        self.pointer = self.pointer - 1
                     elif data == '\x09':    #if tab
                         self.tabPress = True
                     elif data == '\x1b\x5b\x41' or data == '\x1b\x5b\x42':    #up arrow or down arrow...
                         self.upArrow = True
+                    elif data == '\x1b\x5b\x43': #right
+                        if self.pointer != len(self.command):
+                            self.pointer = self.pointer + 1
+                    elif data == '\x1b\x5b\x44': #left
+                        if self.pointer >= 0:
+                            log.msg(self.pointer)
+                            self.pointer = self.pointer - 1
                     else:
                         s = repr(data)
-                        self.command = self.command + s[1:-1]
+                        self.command = self.command[:self.pointer] + s[1:-1] + self.command[self.pointer:]
+                        self.pointer = self.pointer + len(s[1:-1])
                 else:
                     if self.size > 0:
-                        if self.cfg.get('extras', 'file_download') == 'true':
-                            self.makeDownloadsFolder()
-                            f = open('sessions/' + self.endIP + '/downloads/' + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + self.name, 'ab')
+                        if self.cfg.get('download', 'enabled') == 'true':
+                            self.out.makeDownloadsFolder()
+                            outfile = self.cfg.get('folders','session_path') + '/' + self.endIP + '/downloads/' + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + self.name
+                            f = open(outfile, 'ab')
                             f.write(data)
                             f.close()
+                            self.out.fileDownloaded((True, '', outfile, None))
                         self.size = self.size - len(data)
                     elif data != '\x00' and data != '\x0a':
-                        txtlog.log(self.txtlog_file, "RAW CLIENT-SERVER: %s" % (repr(data)))
-                    
+                        self.out.genericLog("RAW CLIENT-SERVER: %s" % repr(data))
+
                     match = re.match('C\d{4} (\d*) (.*)', data)
                     if match:
-                        txtlog.log(self.txtlog_file, "Uploading File via SCP: %s" % str(match.group(2)))
+                        self.out.genericLog("Uploading File via SCP: %s" % match.group(2))
                         self.size = int(match.group(1))
                         self.name = str(match.group(2))
                     
             else:
-                if self.cfg.get('extras', 'adv_logging') == 'false':
+                if self.cfg.get('packets', 'enabled') == 'false':
                     if messageNum not in [1,2,5,6,20,21,80,91,93] and messageNum not in range(30,49) and messageNum not in range(96,100):
-                        self.makeSessionFolder()
-                        txtlog.log(self.txtlog_file, "Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: SERVER %s - %s" % (str(messageNum), repr(payload)))
+                        self.out.errLog("Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: SERVER %s - %s" % (str(messageNum), repr(payload)))
                         log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
                     
-            if self.cfg.get('extras', 'adv_logging') == 'true':
-                self.makeSessionFolder()
-                txtlog.log(self.txtlog_file[:self.txtlog_file.rfind('.')] + "-adv.log", "SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+            if self.cfg.get('packets', 'enabled') == 'true':
+                self.out.advancedLog("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
             
             #log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
 
@@ -305,7 +257,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
 
 class HonsshServerFactory(factory.SSHFactory):
     cfg = config()      
-    otherVersionString=''
+    otherVersionString = ''
     sessions = {}
     def __init__(self):
         clientFactory = client.HonsshSlimClientFactory()

@@ -43,12 +43,12 @@ cfg = config()
 
 ssh_addr = cfg.get('honeypot', 'ssh_addr')
 
-if not os.path.exists(cfg.get('honeypot', 'log_path')):
-    os.makedirs(cfg.get('honeypot', 'log_path'))
-    os.chmod(cfg.get('honeypot', 'log_path'),0755)
-if not os.path.exists(cfg.get('honeypot', 'session_path')):
-    os.makedirs(cfg.get('honeypot', 'session_path'))
-    os.chmod(cfg.get('honeypot', 'session_path'),0755)
+if not os.path.exists(cfg.get('folders', 'log_path')):
+    os.makedirs(cfg.get('folders', 'log_path'))
+    os.chmod(cfg.get('folders', 'log_path'),0755)
+if not os.path.exists(cfg.get('folders', 'session_path')):
+    os.makedirs(cfg.get('folders', 'session_path'))
+    os.chmod(cfg.get('folders', 'session_path'),0755)
 
 with open(cfg.get('honeypot', 'private_key')) as privateBlobFile:
     privateBlob = privateBlobFile.read()
@@ -68,12 +68,12 @@ service = internet.TCPServer(int(cfg.get('honeypot', 'ssh_port')), serverFactory
 service.setServiceParent(application)
 #reactor.listenTCP(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
 
-if cfg.get('honeypot', 'interact_enabled').lower() in ('yes', 'true', 'on'):
-    iport = int(cfg.get('honeypot', 'interact_port'))
+if cfg.get('interact', 'enabled').lower() in ('yes', 'true', 'on'):
+    iport = int(cfg.get('interact', 'port'))
     from kippo.core import interact
     from twisted.internet import protocol
-    service = internet.TCPServer(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('honeypot', 'interact_interface'))
+    service = internet.TCPServer(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
     service.setServiceParent(application)
-    #reactor.listenTCP(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('honeypot', 'interact_interface'))
+    #reactor.listenTCP(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
 
 #reactor.run()
