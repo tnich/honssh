@@ -53,7 +53,8 @@ class Output():
     def connectionLost(self, isPty):
         log.msg("Lost connection with the attacker: %s" % self.endIP)
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            txtlog.log(self.txtlog_file, "Lost connection with the attacker: %s" % self.endIP)
+            if os.path.exists(self.txtlog_file):
+                txtlog.log(self.txtlog_file, "Lost connection with the attacker: %s" % self.endIP)
         
         if isPty:
             ttylog.ttylog_close(self.ttylog_file, time.time())
