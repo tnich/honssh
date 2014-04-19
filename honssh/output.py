@@ -37,7 +37,8 @@ class Output():
     cfg = config()
     
     def connectionMade(self, ip, port):
-        self.logLocation = self.cfg.get('folders', 'session_path') + "/" + ip + "/" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.logLocation = self.cfg.get('folders', 'session_path') + "/" + ip + "/" + dt
         self.ttylog_file = self.logLocation + ".tty"      
         self.txtlog_file = self.logLocation + ".log"  
         self.endIP = ip
@@ -49,6 +50,10 @@ class Output():
             self.dbLog = mysql.DBLogger()
             self.dbLog.start(self.cfg)
             self.sid = self.dbLog.createSession(ip, port, self.cfg.get('honeypot', 'ssh_addr'), self.cfg.get('honeypot', 'ssh_port'))
+        
+        if self.cfg.has_option('app_hooks', 'connection_made'):
+            cmdString = self.cfg.get('app_hooks', 'connection_made') + " CONNECTION_MADE " + dt + " " + self.endIP + " " + str(port)
+            threads.deferToThread(self.runCommand, cmdString)    
         
     def connectionLost(self, isPty):
         log.msg("Lost connection with the attacker: %s" % self.endIP)
@@ -65,6 +70,11 @@ class Output():
         else:
             if self.cfg.get('database_mysql', 'enabled') == 'true':
                 self.dbLog.handleConnectionLost(self.sid)
+        
+        dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        if self.cfg.has_option('app_hooks', 'connection_lost'):
+            cmdString = self.cfg.get('app_hooks', 'connection_lost') + " CONNECTION_LOST " + dt + " " + self.endIP
+            threads.deferToThread(self.runCommand, cmdString)
             
     def setVersion(self, version):
         self.version = version
@@ -74,9 +84,10 @@ class Output():
             self.dbLog.handleClientVersion(self.sid, self.version)
 
     def loginSuccessful(self, username, password):
+        dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.makeSessionFolder()
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password)
+            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + dt, self.endIP, username, password)
             txtlog.log(self.txtlog_file, self.connectionString)
             txtlog.log(self.txtlog_file, "Successful login - Username:%s Password:%s" % (username, password))
         
@@ -85,25 +96,41 @@ class Output():
         
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog.handleLoginSucceeded(self.sid, username, password)
+            
+        if self.cfg.has_option('app_hooks', 'login_successful'):
+            cmdString = self.cfg.get('app_hooks', 'login_successful') + " LOGIN_SUCCESSFUL " + dt + " " + self.endIP + " " + username + " " + password
+            threads.deferToThread(self.runCommand, cmdString)
         
     def loginFailed(self, username, password):
+        dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password)
+            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + dt, self.endIP, username, password)
         
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog.handleLoginFailed(self.sid, username, password)
+            
+        if self.cfg.has_option('app_hooks', 'login_failed'):
+            cmdString = self.cfg.get('app_hooks', 'login_failed') + " LOGIN_FAILED " + dt + " " + self.endIP + " " + username + " " + password
+            threads.deferToThread(self.runCommand, cmdString)
         
     def commandEntered(self, theCommand):
         if self.cfg.get('txtlog', 'enabled') == 'true':
             txtlog.log(self.txtlog_file, "Entered command: %s" % (theCommand))
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog.handleCommand(self.sid, theCommand)
+            
+        dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        if self.cfg.has_option('app_hooks', 'command_entered'):
+            cmdString = self.cfg.get('app_hooks', 'command_entered') + " COMMAND_ENTERED " + dt + " " + self.endIP + " " + theCommand
+            threads.deferToThread(self.runCommand, cmdString)       
     
     def fileDownload(self, theCommand, link, user, password):
+        dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
         self.makeDownloadsFolder()
         if self.cfg.get('txtlog', 'enabled') == 'true':
             txtlog.log(self.txtlog_file, "wget Download Detected - %s" % theCommand)
-        filename = datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + link.split("/")[-1]
+        filename = dt + "-" + link.split("/")[-1]
         fileOut =self.cfg.get('folders', 'session_path') + '/' + self.endIP + '/downloads/' + filename
         wgetCommand = 'wget -O ' + fileOut + " "
         if user != '':
@@ -114,14 +141,24 @@ class Output():
         
         d = threads.deferToThread(self.wget, wgetCommand, link, fileOut)
         d.addCallback(self.fileDownloaded)
+        
+        if self.cfg.has_option('app_hooks', 'download_started'):
+            cmdString = self.cfg.get('app_hooks', 'download_started') + " DOWNLOAD_STARTED " + dt + " " + self.endIP + " " + link + " " + fileOut
+            threads.deferToThread(self.runCommand, cmdString)  
 
     def fileDownloaded(self, input):
+        dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
         success, link, file, wgetError = input
         if success:
             if self.cfg.get('txtlog', 'enabled') == 'true':
                 txtlog.log(self.txtlog_file, "Finished Downloading file - %s %s" % (link, file))
             if self.cfg.get('database_mysql', 'enabled') == 'true':
                 self.dbLog.handleFileDownload(self.sid, link, file)
+                
+            if self.cfg.has_option('app_hooks', 'download_finished'):
+                cmdString = self.cfg.get('app_hooks', 'download_finished') + " DOWNLOAD_FINISHED " + dt + " " + self.endIP + " " + link + " " + file
+                threads.deferToThread(self.runCommand, cmdString)  
         else:
             log.msg("FILE DOWNLOAD FAILED")
             log.msg(wgetError)
@@ -149,6 +186,7 @@ class Output():
         if not os.path.exists(os.path.join(self.cfg.get('folders', 'session_path') + '/' + self.endIP)):
             os.makedirs(os.path.join(self.cfg.get('folders', 'session_path') + '/' + self.endIP))
             os.chmod(os.path.join(self.cfg.get('folders', 'session_path') + '/' + self.endIP),0755)
+            
     def makeDownloadsFolder(self):
         if not os.path.exists(self.cfg.get('folders', 'session_path') + '/' + self.endIP + '/downloads'):
             os.makedirs(self.cfg.get('folders', 'session_path') + '/' + self.endIP + '/downloads')
@@ -193,3 +231,8 @@ class Output():
             return True, link, fileOut, None
         else:
             return False, link, None, result[0]
+        
+    def runCommand(self, command):
+        log.msg(command)
+        sp = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        sp.communicate()

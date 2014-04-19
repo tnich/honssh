@@ -31,7 +31,7 @@ from twisted.conch.ssh.keys import Key
 from twisted.python import log
 from twisted.application import internet, service
 import sys, os
-from honssh import server
+from honssh import server, networking
 from kippo.core.config import config
 
 if not os.path.exists('honssh.cfg'):
@@ -61,7 +61,6 @@ with open(cfg.get('honeypot', 'public_key')) as publicBlobFile:
 serverFactory = server.HonsshServerFactory()
 serverFactory.privateKeys = {'ssh-rsa': privateKey}
 serverFactory.publicKeys = {'ssh-rsa': publicKey}
-
 
 application = service.Application('honeypot')
 service = internet.TCPServer(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)

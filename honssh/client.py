@@ -33,8 +33,7 @@ from kippo.core.config import config
 import datetime, time, os, re, io, struct
 
 class HonsshClientTransport(transport.SSHClientTransport):
-    firstTry = False
-    failedString = ''
+    
     def connectionMade(self):
         log.msg('New client connection')
         self.factory.server.client = self

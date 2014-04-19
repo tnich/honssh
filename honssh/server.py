@@ -29,7 +29,7 @@ from twisted.conch.ssh import factory, transport, service
 from twisted.conch.ssh.transport import SSHCiphers
 from twisted.python import log
 from twisted.internet import reactor
-from honssh import client, output
+from honssh import client, output, networking
 from kippo.core.config import config
 import datetime, time, os, struct, re, subprocess, random
 
@@ -55,11 +55,15 @@ class HonsshServerTransport(transport.SSHServerTransport):
         clientFactory.server = self
 
         self.factory.sessions[self.transport.sessionno] = self
-             
-        reactor.connectTCP(self.cfg.get('honeypot', 'honey_addr'), 22, clientFactory, bindAddress=(self.cfg.get('honeypot', 'client_addr'),self.transport.getPeer().port))
         
         self.out = output.Output()
-        self.endIP = self.transport.getPeer().host
+        self.net = networking.Networking()
+        
+        self.endIP = self.transport.getPeer().host   
+
+        self.bindIP = self.net.setupNetworking(self.endIP)
+        reactor.connectTCP(self.cfg.get('honeypot', 'honey_addr'), 22, clientFactory, bindAddress=(self.bindIP, self.transport.getPeer().port))
+        
         self.out.connectionMade(self.endIP, self.transport.getPeer().port)
 
         transport.SSHServerTransport.connectionMade(self)
@@ -76,6 +80,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
         transport.SSHServerTransport.connectionLost(self, reason)
                
         self.out.connectionLost(self.isPty)
+        self.net.removeNetworking(self.factory.sessions)
         
     def ssh_KEXINIT(self, packet):
         self.out.setVersion(self.otherVersionString)
@@ -128,7 +133,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
                     if(self.cfg.get('spoof', 'enabled') == 'true'):
                         rand = random.randrange(1, int(self.cfg.get('spoof', 'chance')))
                         if rand == 1:
-                            self.client.failedString = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " - Spoofing Login - Changing %s to %s\n" % (self.currPassword, self.cfg.get('spoof', 'pass'))
+                            self.out.genericLog("Spoofing Login - Changing %s to %s" % (self.currPassword, self.cfg.get('spoof', 'pass')))
                             payload = payload[0:pos]
                             b = self.cfg.get('spoof', 'pass').encode('utf-8')
                             payload = payload + struct.pack('>L',len(b))
