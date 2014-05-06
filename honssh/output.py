@@ -87,7 +87,7 @@ class Output():
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.makeSessionFolder()
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + dt, self.endIP, username, password)
+            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password)
             txtlog.log(self.txtlog_file, self.connectionString)
             txtlog.log(self.txtlog_file, "Successful login - Username:%s Password:%s" % (username, password))
         
@@ -104,7 +104,7 @@ class Output():
     def loginFailed(self, username, password):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + dt, self.endIP, username, password)
+            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password)
         
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog.handleLoginFailed(self.sid, username, password)
