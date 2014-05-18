@@ -8,10 +8,9 @@ shopt -s -o nounset
 #   HonSSH management script.
 #
 #   Date:       2014, March 1
-#   Version:    1.2.2
-#   Plattform:  n/a
+#   Version:    1.2.3
 #
-#   Copyright (c) 2014, Black September - Honeypot Development
+#   Copyright (c) 2014, Are Hansen - Honeypot Development.
 # 
 #   All rights reserved.
 # 
@@ -35,7 +34,14 @@ shopt -s -o nounset
 #   STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF
 #   THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
+#   --------------------------------------------------------------
 #
+#   - 1.2.3:
+#   Enclosed lines 56 - 60 in the pki_check function.
+#   This will prevent the keys to be generated if the user passes the HELP argument.
+#   The pki_check function should now only be executed prior to calling the start_honssh.
+#
+
 
 declare -rx Script="${0##*/}"
 declare honssh_tac="honssh.tac"
@@ -43,7 +49,7 @@ declare honssh_log="logs/honssh.log"
 declare honssh_pid="honssh.pid"
 
 
-# ----- We require one argument
+# ----- We require one argument.
 if [ $# != 1 ]
 then
     echo 'ERROR: This script requiers one argument'
@@ -52,24 +58,21 @@ then
 fi
 
 
-# ----- If the public/private keys are missing, generate them
-if [ ! -e id_rsa ]
-then
-    echo "WARNING: Unable to find id_rsa, generating it now..."
-    ckeygen -t rsa -f id_rsa
-fi
-
+# ----- If the public/private keys are missing, generate them now.
+function pki_check()
+{
+    if [ ! -e id_rsa ]
+    then
+        echo "WARNING: Unable to find id_rsa, generating it now..."
+        ckeygen -t rsa -f id_rsa
+    fi
+}
 
 # ----- Start HonSSH
 function start_honssh()
 {
     if [ ! -e $honssh_pid ]
     then
-	if [ ! -e id_rsa.pub ]
-	then
-	    echo "WARNING: Unable to find id_rsa.pub, generating it now..."
-	    ckeygen -t rsa -f id_rsa
-	fi
         echo "Starting honssh in background..."
         twistd -y $honssh_tac -l $honssh_log --pidfile $honssh_pid
     else
@@ -120,6 +123,7 @@ _EOF_
 # ----- Check for known arguments, let the user know if they missed anything
 if [ $1 = 'START' ]
 then
+    pki_check
     start_honssh
 fi
 
@@ -134,6 +138,7 @@ if [ $1 = 'RESTART' ]
 then
     stop_honssh
     sleep 0.5
+    pki_check
     start_honssh
 fi
 

@@ -26,7 +26,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-import ConfigParser, os
+import ConfigParser, os, re
 
 def config():
     cfg = ConfigParser.ConfigParser()
@@ -34,3 +34,119 @@ def config():
         cfg.read('honssh.cfg')
         return cfg
     return None
+
+def validateConfig(cfg):
+    validConfig = True
+    
+    #Check prop exists and is an IP address
+    props = [['honeypot','ssh_addr'], ['honeypot','client_addr'], ['honeypot','honey_addr']]
+    for prop in props:
+        if not checkExist(cfg,prop) or not checkValidIP(cfg,prop):
+            validConfig = False
+        
+    #Check prop exists and is a port number
+    prop = ['honeypot','ssh_port']
+    if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
+        validConfig = False
+        
+    #Check prop exists
+    props = [['honeypot','public_key'], ['honeypot','private_key'], ['folders','log_path'], ['folders','session_path']]
+    for prop in props:
+        if not checkExist(cfg,prop):
+            validConfig = False
+            
+    #Check prop exists and is true/false
+    props = [['advNet','enabled'], ['interact','enabled'], ['spoof','enabled'], ['txtlog','enabled'], ['database_mysql','enabled'], ['email','login'], ['email','attack'], ['download','enabled'], ['packets','enabled']]
+    for prop in props:
+        if not checkExist(cfg,prop) or not checkValidBool(cfg, prop):
+            validConfig = False
+    
+    #If interact is enabled check it's config
+    if cfg.get('interact','enabled') == 'true':
+        prop = ['interact','interface']
+        if not checkExist(cfg,prop) or not checkValidIP(cfg,prop):
+            validConfig = False            
+        prop = ['interact','port']
+        if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
+            validConfig = False    
+    
+    #If spoof is enabled check it's config
+    if cfg.get('spoof','enabled') == 'true':
+        prop = ['spoof','password']
+        if not checkExist(cfg,prop):
+            validConfig = False
+        prop = ['spoof','chance']
+        if not checkExist(cfg,prop) or not checkValidChance(cfg,prop):
+            validConfig = False
+    
+    #If database_mysql is enabled check it's config
+    if cfg.get('database_mysql','enabled') == 'true':
+        prop = ['database_mysql','port']
+        if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
+            validConfig = False
+        props = [['database_mysql','host'], ['database_mysql','database'], ['database_mysql','username'], ['database_mysql','password']]
+        for prop in props:
+            if not checkExist(cfg,prop):
+                validConfig = False
+                
+    #If email is enabled check it's config            
+    if cfg.get('email','login') == 'true' or cfg.get('email','login') == 'attack':
+        prop = ['email','port']
+        if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
+            validConfig = False
+        prop = ['email','use_tls']
+        if not checkExist(cfg,prop) or not checkValidBool(cfg,prop):
+            validConfig = False
+        props = [['email','host'], ['email','username'], ['email','password'], ['email','from'], ['email','to']]
+        for prop in props:
+            if not checkExist(cfg,prop):
+                validConfig = False
+
+    return validConfig
+    
+def checkExist(cfg, property): 
+    if cfg.has_option(property[0], property[1]):   
+        if not cfg.get(property[0], property[1]) == '':
+            return True
+        else:
+            print '[' + property[0] + '][' + property[1] + '] must not be blank.'
+            return False
+    else:
+        print '[' + property[0] + '][' + property[1] + '] must exist.'
+        return False
+    
+def checkValidIP(cfg, property):
+    match = re.match('^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$', cfg.get(property[0], property[1]))
+    if match:
+        return True
+    else:
+        print '[' + property[0] + '][' + property[1] + '] should be a valid IP address'
+        return False
+    
+def checkValidPort(cfg, property):
+    if checkValidNumber(cfg, property):
+        if 1 <= int(cfg.get(property[0], property[1])) <= 65535:
+            return True
+        else:
+            print '[' + property[0] + '][' + property[1] + '] should be between 1 and 65535'
+            return False 
+def checkValidBool(cfg, property):
+    if cfg.get(property[0], property[1]) in ['true', 'false']:
+        return True
+    else:
+        print '[' + property[0] + '][' + property[1] + '] must be either true or false (case sensitive)'
+        return False
+    
+def checkValidNumber(cfg, property):
+    if cfg.get(property[0], property[1]).isdigit():
+        return True
+    else:
+        print '[' + property[0] + '][' + property[1] + '] should be number.'
+        return False
+def checkValidChance(cfg, property):
+    if checkValidNumber(cfg, property):
+        if 1 <= int(cfg.get(property[0], property[1])):
+            return True
+        else:
+            print '[' + property[0] + '][' + property[1] + '] should be greater than 0'
+            return False 

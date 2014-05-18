@@ -33,6 +33,7 @@ from twisted.application import internet, service
 import sys, os
 from honssh import server, networking
 from kippo.core.config import config
+from kippo.core.config import validateConfig
 
 if not os.path.exists('honssh.cfg'):
     print 'ERROR: honssh.cfg is missing!'
@@ -40,6 +41,9 @@ if not os.path.exists('honssh.cfg'):
 
 log.startLogging(sys.stdout, setStdout=0)
 cfg = config()
+
+if not validateConfig(cfg):
+    sys.exit(1)
 
 ssh_addr = cfg.get('honeypot', 'ssh_addr')
 
@@ -67,7 +71,7 @@ service = internet.TCPServer(int(cfg.get('honeypot', 'ssh_port')), serverFactory
 service.setServiceParent(application)
 #reactor.listenTCP(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
 
-if cfg.get('interact', 'enabled').lower() in ('yes', 'true', 'on'):
+if cfg.get('interact', 'enabled')== 'true':
     iport = int(cfg.get('interact', 'port'))
     from kippo.core import interact
     from twisted.internet import protocol

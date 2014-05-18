@@ -126,7 +126,7 @@ class Networking():
         ipBits = theIP.split('.')
         for i in range(0, len(ipBits)):
             ipBits[i] = str(int(ipBits[i]) + 1)
-            if ipBits[i] == '255':
+            if ipBits[i] >= '255':
                 ipBits[i] = '1'
         return '.'.join(ipBits)
     
