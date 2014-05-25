@@ -48,6 +48,8 @@ class HonsshServerTransport(transport.SSHServerTransport):
     cfg = config()
     sessionType = ''
     theFile = ''
+    sftpID = ''
+    sftpHandle = ''
     
     def connectionMade(self):
         self.interactors = []
@@ -325,7 +327,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
                 log.msg('[SERVER] - pflags: ' + pflags)
                 if pflags == "00000001":
                     self.processCommand('SFTP - get ' + self.name)
-                if pflags == "00011010":
+                if pflags[4:] == "1010":
                     self.processCommand('SFTP - put ' + self.name)
             elif sftpNum == 4:
                 length = int(data[4:8].encode('hex'), 16)
