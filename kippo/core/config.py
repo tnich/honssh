@@ -72,7 +72,7 @@ def validateConfig(cfg):
     
     #If spoof is enabled check it's config
     if cfg.get('spoof','enabled') == 'true':
-        prop = ['spoof','password']
+        prop = ['spoof','pass']
         if not checkExist(cfg,prop):
             validConfig = False
         prop = ['spoof','chance']
