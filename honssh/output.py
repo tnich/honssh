@@ -31,6 +31,7 @@ from kippo.core.config import config
 from honssh import txtlog
 from kippo.core import ttylog
 from kippo.dblog import mysql
+from hpfeeds import hpfeeds
 import datetime, time, os, struct, re, subprocess
 
 class Output():
@@ -50,21 +51,27 @@ class Output():
             self.dbLog = mysql.DBLogger()
             self.dbLog.start(self.cfg)
             self.sid = self.dbLog.createSession(ip, port, self.cfg.get('honeypot', 'ssh_addr'), self.cfg.get('honeypot', 'ssh_port'))
+            
+        if self.cfg.get('hpfeeds', 'enabled') == 'true':
+            self.hpLog = hpfeeds.HPLogger()
+            self.hpLog.start(self.cfg)
+            self.hpLog.createSession(ip, port, self.cfg.get('honeypot', 'ssh_addr'), self.cfg.get('honeypot', 'ssh_port'))
         
         if self.cfg.has_option('app_hooks', 'connection_made'):
             cmdString = self.cfg.get('app_hooks', 'connection_made') + " CONNECTION_MADE " + dt + " " + self.endIP + " " + str(port)
             threads.deferToThread(self.runCommand, cmdString)    
         
-    def connectionLost(self, isPty):
+    def connectionLost(self, sessionType):
         log.msg("Lost connection with the attacker: %s" % self.endIP)
         if self.cfg.get('txtlog', 'enabled') == 'true':
             if os.path.exists(self.txtlog_file):
                 txtlog.log(self.txtlog_file, "Lost connection with the attacker: %s" % self.endIP)
-        
-        if isPty:
+        if sessionType == 'terminal' or sessionType == 'exec':
             ttylog.ttylog_close(self.ttylog_file, time.time())
             if self.cfg.get('database_mysql', 'enabled') == 'true':
                 self.dbLog.handleConnectionLost(self.sid, self.ttylog_file)
+            if self.cfg.get('hpfeeds', 'enabled') == 'true':
+                self.hpLog.handleConnectionLost(self.ttylog_file)
             if self.cfg.get('email', 'attack') == 'true': 
                 self.email('HonSSH - Attack logged', self.txtlog_file, self.ttylog_file)
         else:
@@ -82,12 +89,14 @@ class Output():
             self.connectionString = self.connectionString + " - " + version
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog.handleClientVersion(self.sid, self.version)
+        if self.cfg.get('hpfeeds', 'enabled') == 'true':
+            self.hpLog.handleClientVersion(self.version)
 
     def loginSuccessful(self, username, password):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.makeSessionFolder()
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password)
+            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password, True)
             txtlog.log(self.txtlog_file, self.connectionString)
             txtlog.log(self.txtlog_file, "Successful login - Username:%s Password:%s" % (username, password))
         
@@ -96,6 +105,9 @@ class Output():
         
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog.handleLoginSucceeded(self.sid, username, password)
+                    
+        if self.cfg.get('hpfeeds', 'enabled') == 'true':
+            self.hpLog.handleLoginSucceeded(username, password)
             
         if self.cfg.has_option('app_hooks', 'login_successful'):
             cmdString = self.cfg.get('app_hooks', 'login_successful') + " LOGIN_SUCCESSFUL " + dt + " " + self.endIP + " " + username + " " + password
@@ -104,10 +116,13 @@ class Output():
     def loginFailed(self, username, password):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password)
+            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password, False)
         
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog.handleLoginFailed(self.sid, username, password)
+            
+        if self.cfg.get('hpfeeds', 'enabled') == 'true':
+            self.hpLog.handleLoginFailed(username, password)
             
         if self.cfg.has_option('app_hooks', 'login_failed'):
             cmdString = self.cfg.get('app_hooks', 'login_failed') + " LOGIN_FAILED " + dt + " " + self.endIP + " " + username + " " + password
@@ -118,6 +133,8 @@ class Output():
             txtlog.log(self.txtlog_file, "Entered command: %s" % (theCommand))
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog.handleCommand(self.sid, theCommand)
+        if self.cfg.get('hpfeeds', 'enabled') == 'true':
+            self.hpLog.handleCommand(theCommand)
             
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if self.cfg.has_option('app_hooks', 'command_entered'):
@@ -233,6 +250,6 @@ class Output():
             return False, link, None, result[0]
         
     def runCommand(self, command):
-        log.msg(command)
+        log.msg('[APP-HOOKS] - ' + command)
         sp = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         sp.communicate()

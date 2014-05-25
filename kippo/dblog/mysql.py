@@ -89,7 +89,7 @@ class DBLogger():
     # This is separate since we can't return with a value
     @defer.inlineCallbacks
     def createSessionWhenever(self, sid, peerIP, hostIP):
-        sensorname = self.getSensor() or hostIP
+        sensorname = self.cfg.get('honeypot','sensor_name')
         r = yield self.db.runQuery(
             'SELECT `id` FROM `sensors` WHERE `ip` = %s', (sensorname,))
         if r:
@@ -105,10 +105,6 @@ class DBLogger():
             ' VALUES (%s, FROM_UNIXTIME(%s), %s, %s)',
             (sid, self.nowUnix(), id, peerIP))
             
-    def getSensor(self):
-        if self.cfg.has_option('honeypot', 'sensor_name'):
-            return self.cfg.get('honeypot', 'sensor_name')
-        return None
     def nowUnix(self):
         """return the current UTC time as an UNIX timestamp"""
         return int(time.mktime(time.gmtime()[:-1] + (-1,)))
@@ -149,9 +145,6 @@ class DBLogger():
 
     @defer.inlineCallbacks
     def handleClientVersion(self, session, version):
-        log.msg("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        log.msg(session)
-        log.msg(version)
         r = yield self.db.runQuery(
             'SELECT `id` FROM `clients` WHERE `version` = %s', \
             (version))
@@ -163,7 +156,6 @@ class DBLogger():
                 (version))
             r = yield self.db.runQuery('SELECT LAST_INSERT_ID()')
             id = int(r[0][0])
-        log.msg(id)
         self.simpleQuery(
             'UPDATE `sessions` SET `client` = %s WHERE `id` = %s',
             (id, session))

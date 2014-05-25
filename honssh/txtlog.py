@@ -45,15 +45,19 @@ def log(logfile, message):
         os.chmod(logfile, 0644)
     
  
-def otherLog(logfile, ip, username, password):
+def otherLog(logfile, ip, username, password, success):
     
     setPermissions = False
     
     if(os.path.isfile(logfile) == False):
         setPermissions = True
+        
+    auth = "0"
+    if success:
+        auth = "1"
       
     f = file(logfile, 'a')
-    f.write("%s,%s,%s,%s\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),ip,username,password))
+    f.write("%s,%s,%s,%s,%s\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),ip,username,password,auth))
     f.close()
     
     if(setPermissions):

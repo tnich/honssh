@@ -1,4 +1,4 @@
-# Copyright (c) 2009 Upi Tamminen <desaster@gmail.com>
+# Copyright (c) 2013 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -50,13 +50,13 @@ def validateConfig(cfg):
         validConfig = False
         
     #Check prop exists
-    props = [['honeypot','public_key'], ['honeypot','private_key'], ['folders','log_path'], ['folders','session_path']]
+    props = [['honeypot','sensor_name'],['honeypot','public_key'], ['honeypot','private_key'], ['folders','log_path'], ['folders','session_path']]
     for prop in props:
         if not checkExist(cfg,prop):
             validConfig = False
             
     #Check prop exists and is true/false
-    props = [['advNet','enabled'], ['interact','enabled'], ['spoof','enabled'], ['txtlog','enabled'], ['database_mysql','enabled'], ['email','login'], ['email','attack'], ['download','enabled'], ['packets','enabled']]
+    props = [['advNet','enabled'], ['interact','enabled'], ['spoof','enabled'], ['txtlog','enabled'], ['database_mysql','enabled'], ['email','login'], ['email','attack'], ['hpfeeds','enabled'], ['download','enabled'], ['packets','enabled']]
     for prop in props:
         if not checkExist(cfg,prop) or not checkValidBool(cfg, prop):
             validConfig = False
@@ -91,16 +91,31 @@ def validateConfig(cfg):
                 
     #If email is enabled check it's config            
     if cfg.get('email','login') == 'true' or cfg.get('email','login') == 'attack':
-        prop = ['email','port']
-        if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
+        if cfg.get('txtlog','enabled') == 'true':
+            prop = ['email','port']
+            if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
+                validConfig = False
+            prop = ['email','use_tls']
+            if not checkExist(cfg,prop) or not checkValidBool(cfg,prop):
+                validConfig = False
+            props = [['email','host'], ['email','username'], ['email','password'], ['email','from'], ['email','to']]
+            for prop in props:
+                if not checkExist(cfg,prop):
+                    validConfig = False
+        else:
+            print '[txtlog][enabled] must be set to true for email support to work'
             validConfig = False
-        prop = ['email','use_tls']
-        if not checkExist(cfg,prop) or not checkValidBool(cfg,prop):
-            validConfig = False
-        props = [['email','host'], ['email','username'], ['email','password'], ['email','from'], ['email','to']]
+            
+    #If hpfeeds is enabled check it's config            
+    if cfg.get('hpfeeds','enabled') == 'true':
+        props = [['hpfeeds','server'], ['hpfeeds','identifier'], ['hpfeeds','secret']]
         for prop in props:
             if not checkExist(cfg,prop):
                 validConfig = False
+        prop = ['hpfeeds','port']
+        if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
+            validConfig = False
+    
 
     return validConfig
     
@@ -109,10 +124,10 @@ def checkExist(cfg, property):
         if not cfg.get(property[0], property[1]) == '':
             return True
         else:
-            print '[' + property[0] + '][' + property[1] + '] must not be blank.'
+            print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] must not be blank.'
             return False
     else:
-        print '[' + property[0] + '][' + property[1] + '] must exist.'
+        print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] must exist.'
         return False
     
 def checkValidIP(cfg, property):
@@ -120,7 +135,7 @@ def checkValidIP(cfg, property):
     if match:
         return True
     else:
-        print '[' + property[0] + '][' + property[1] + '] should be a valid IP address'
+        print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] should be a valid IP address'
         return False
     
 def checkValidPort(cfg, property):
@@ -128,25 +143,25 @@ def checkValidPort(cfg, property):
         if 1 <= int(cfg.get(property[0], property[1])) <= 65535:
             return True
         else:
-            print '[' + property[0] + '][' + property[1] + '] should be between 1 and 65535'
+            print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] should be between 1 and 65535'
             return False 
 def checkValidBool(cfg, property):
     if cfg.get(property[0], property[1]) in ['true', 'false']:
         return True
     else:
-        print '[' + property[0] + '][' + property[1] + '] must be either true or false (case sensitive)'
+        print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] must be either true or false (case sensitive)'
         return False
     
 def checkValidNumber(cfg, property):
     if cfg.get(property[0], property[1]).isdigit():
         return True
     else:
-        print '[' + property[0] + '][' + property[1] + '] should be number.'
+        print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] should be number.'
         return False
 def checkValidChance(cfg, property):
     if checkValidNumber(cfg, property):
         if 1 <= int(cfg.get(property[0], property[1])):
             return True
         else:
-            print '[' + property[0] + '][' + property[1] + '] should be greater than 0'
+            print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] should be greater than 0'
             return False 

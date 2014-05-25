@@ -40,14 +40,14 @@ class HonsshServerTransport(transport.SSHServerTransport):
 
     tabPress = False
     upArrow = False
-    isPty = False
     pointer = 0
     size = 0
     name = ''
     passwdDetected = False
     newPass = ''
     cfg = config()
-
+    sessionType = ''
+    theFile = ''
     
     def connectionMade(self):
         self.interactors = []
@@ -79,7 +79,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
             del self.factory.sessions[self.transport.sessionno]
         transport.SSHServerTransport.connectionLost(self, reason)
                
-        self.out.connectionLost(self.isPty)
+        self.out.connectionLost(self.sessionType)
         self.net.removeNetworking(self.factory.sessions)
         
     def ssh_KEXINIT(self, packet):
@@ -100,9 +100,14 @@ class HonsshServerTransport(transport.SSHServerTransport):
                     user = m.group(0)
                 argMatch = re.search("-password=(.*?) ", m.group(0))
                 if argMatch:
-                    password = m.group(0)               
-                
-                self.out.fileDownload(m.group(0), m.group(0).split(' ')[-1], user, password)
+                    password = m.group(0) 
+                    
+                theLink = ''
+                counter = -1
+                while theLink == '':
+                    theLink = m.group(0).split(' ')[counter]
+                    counter = counter - 1
+                self.out.fileDownload(m.group(0), theLink, user, password)
                 
     
     def dispatchMessage(self, messageNum, payload):
@@ -142,26 +147,36 @@ class HonsshServerTransport(transport.SSHServerTransport):
                 num = int(payload[7:8].encode('hex'), 16)
                 data = payload[8:8+num]
                 if data == 'pty-req':
-                    self.isPty = True
+                    self.sessionType = 'terminal'
                     self.out.openTTY()
                 elif data == 'exec':
                     if 'scp' not in payload[17:]:
+                        self.sessionType = 'exec'
+                        log.msg("[SERVER] - MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
                         self.out.openTTY()
                         self.processCommand(repr(payload[17:])[1:-1])
                         data = "INPUT: " + payload[17:] + "\n\n\n"
                         self.out.input(data)
+                    else:
+                        self.sessionType = 'scp'
                 elif data == 'subsystem' and 'sftp' in repr(payload):
-                    log.msg("Detected SFTP - Disabling")
-                    self.sendOn = False
-                    self.sendPacket(100, '\x00\x00\x00\x00') #Might be OpenSSH specific replies - fingerprinting issue?
-                    #TODO: Code proper handling of SFTP - capture commands and uploads etc.
+                    disable = True
+                    if self.cfg.has_option('beta_tester','enabled'):
+                        if self.cfg.get('beta_tester','enabled') == 'true':
+                            self.sessionType = 'sftp'
+                            disable = False
+                    if disable:        
+                        log.msg("[SERVER] - Detected SFTP - Disabling")
+                        self.sendOn = False
+                        self.sendPacket(100, '\x00\x00\x00\x00') #Might be OpenSSH specific replies - fingerprinting issue?
+                        #TODO: Code proper handling of SFTP - capture commands and uploads etc.
                 else:
-                    if data != 'shell' and data != 'env' and 'putty' not in data:
+                    if data != 'shell' and data != 'env' and 'putty' not in data and 'window-change' not in data:
                         self.out.errLog("New message 98 type detected - Please raise a HonSSH issue on google code with the details: %s" % data)
-                        log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+                        log.msg("[SERVER] - MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
             elif messageNum == 90:
                 if 'direct-tcpip' in repr(payload) or 'forwarded-tcpip' in repr(payload):
-                    log.msg("Detected Port Forwarding - disabling")
+                    log.msg("[SERVER] - Detected Port Forwarding - disabling")
                     num = int(payload[0:4].encode('hex'), 16)
                     channel = int(payload[4+num:4+num+4].encode('hex'), 16)
                     self.sendOn = False
@@ -169,80 +184,38 @@ class HonsshServerTransport(transport.SSHServerTransport):
                     self.sendPacket(92, p + '\x00\x00\x00\x01\x00\x00\x00\x0bopen failed\x00\x00\x00\x00')  #Might be OpenSSH specific replies - fingerprinting issue?
             elif messageNum == 80:
                 if 'tcpip-forward' in repr(payload):
-                    log.msg("Detected Remote Forwarding - disabling")
+                    log.msg("[SERVER] - Detected Remote Forwarding - disabling")
                     self.sendOn = False
                     self.sendPacket(4,'\x00\x00\x00\x00$Server has disabled port forwarding.\x00\x00\x00\x00')  #Might be OpenSSH specific replies - fingerprinting issue?
             elif messageNum == 97:
-                log.msg("Disconnect received from the attacker: %s" % self.endIP)
+                log.msg("[SERVER] - Disconnect received from the attacker: %s" % self.endIP)
             elif messageNum == 94 or messageNum == 95:
                 data = payload[8:]
                 if messageNum == 95:
                     data = payload[12:]
                     
-                if self.isPty:
-                    if data == '\x0d' or data == '\x03' or data == '\x18' or data == '\x1a':  #if enter or ctrl+c or ctrl+x or ctrl+z
-                        if data == '\x03':
-                            self.command = self.command + "^C"
-                        if data == '\x18':
-                            self.command = self.command + "^X"
-                        if data == '\x1a':
-                            self.command = self.command + "^Z"
-                        if self.cfg.get('spoof', 'enabled') == 'true' and self.command == 'passwd':
-                            self.passwdDetected = True
-                        if self.passwdDetected == True:
-                            self.newPass = self.command
-                        log.msg("Entered command: %s" % (self.command))
-                        self.processCommand(self.command)
-                        self.command = ""
-                        self.pointer = 0
-                    elif data == '\x7f':    #if backspace
-                        self.command = self.command[:self.pointer-1] + self.command[self.pointer:]
-                        self.pointer = self.pointer - 1
-                    elif data == '\x09':    #if tab
-                        self.tabPress = True
-                    elif data == '\x1b\x5b\x41' or data == '\x1b\x5b\x42':    #up arrow or down arrow...
-                        self.upArrow = True
-                    elif data == '\x1b\x5b\x43': #right
-                        if self.pointer != len(self.command):
-                            self.pointer = self.pointer + 1
-                    elif data == '\x1b\x5b\x44': #left
-                        if self.pointer >= 0:
-                            log.msg(self.pointer)
-                            self.pointer = self.pointer - 1
-                    else:
-                        s = repr(data)
-                        self.command = self.command[:self.pointer] + s[1:-1] + self.command[self.pointer:]
-                        self.pointer = self.pointer + len(s[1:-1])
+                if self.sessionType == 'terminal':
+                    self.handleTerminal(data)
+                elif self.sessionType == 'exec':
+                    pass
+                elif self.sessionType == 'scp':
+                    self.handleSCP(data)
+                elif self.sessionType == 'sftp':
+                    self.handleSFTP(data)
                 else:
-                    if self.size > 0:
-                        if self.cfg.get('download', 'enabled') == 'true':
-                            self.out.makeDownloadsFolder()
-                            outfile = self.cfg.get('folders','session_path') + '/' + self.endIP + '/downloads/' + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + self.name
-                            f = open(outfile, 'ab')
-                            f.write(data)
-                            f.close()
-                            self.out.fileDownloaded((True, '', outfile, None))
-                        self.size = self.size - len(data)
-                    elif data != '\x00' and data != '\x0a':
-                        self.out.genericLog("RAW CLIENT-SERVER: %s" % repr(data))
-
-                    match = re.match('C\d{4} (\d*) (.*)', data)
-                    if match:
-                        self.out.genericLog("Uploading File via SCP: %s" % match.group(2))
-                        self.size = int(match.group(1))
-                        self.name = str(match.group(2))
-                    
+                    log.msg('[ERR][SERVER] - sessionType was not set!') 
             else:
                 if self.cfg.get('packets', 'enabled') == 'false':
                     if messageNum not in [1,2,5,6,20,21,80,91,93] and messageNum not in range(30,49) and messageNum not in range(96,100):
                         self.out.errLog("Unknown SSH Packet detected - Please raise a HonSSH issue on google code with the details: SERVER %s - %s" % (str(messageNum), repr(payload)))
-                        log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+                        log.msg("[SERVER] - MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
                     
             if self.cfg.get('packets', 'enabled') == 'true':
                 self.out.advancedLog("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
             
-            #log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
-
+            #log.msg("[SERVER] - MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+            #log.msg("[SERVER] - MessageNum: " + str(messageNum) + " Encrypted " + '\'\\x' + "\\x".join("{:02x}".format(ord(c)) for c in payload) + '\'')
+            
             if self.sendOn:
                 self.client.sendPacket(messageNum, payload)
         else:
@@ -255,10 +228,122 @@ class HonsshServerTransport(transport.SSHServerTransport):
         self.interactors.remove(interactor)
         
     def sendPacket(self, messageNum, payload):
-        #log.msg("SERVER: MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
+        #log.msg("[SERVER] - MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
         transport.SSHServerTransport.sendPacket(self, messageNum, payload)
+        
+    def sendDisconnect(self, reason, desc):
+        """
+        http://kbyte.snowpenguin.org/portal/2013/04/30/kippo-protocol-mismatch-workaround/
+        Workaround for the "bad packet length" error message.
 
+        @param reason: the reason for the disconnect.  Should be one of the
+                       DISCONNECT_* values.
+        @type reason: C{int}
+        @param desc: a descrption of the reason for the disconnection.
+        @type desc: C{str}
+        """
+        if not 'bad packet length' in desc:
+            # With python >= 3 we can use super?
+            transport.SSHServerTransport.sendDisconnect(self, reason, desc)
+        else:
+            self.transport.write('Protocol mismatch.\n')
+            log.msg('[SERVER] - Disconnecting with error, code %s\nreason: %s' % (reason, desc))
+            self.transport.loseConnection()
+            
+    def handleTerminal(self, data):
+        if data == '\x0d' or data == '\x03' or data == '\x18' or data == '\x1a':  #if enter or ctrl+c or ctrl+x or ctrl+z
+            if data == '\x03':
+                self.command = self.command + "^C"
+            if data == '\x18':
+                self.command = self.command + "^X"
+            if data == '\x1a':
+                self.command = self.command + "^Z"
+            if self.cfg.get('spoof', 'enabled') == 'true' and self.command == 'passwd':
+                self.passwdDetected = True
+            if self.passwdDetected == True:
+                self.newPass = self.command
+            log.msg("[SERVER] - Entered command: %s" % (self.command))
+            self.processCommand(self.command)
+            self.command = ""
+            self.pointer = 0
+        elif data == '\x7f':    #if backspace
+            if self.pointer != 0:
+                self.command = self.command[:self.pointer-1] + self.command[self.pointer:]
+                self.pointer = self.pointer - 1
+        elif data == '\x09':    #if tab
+            self.tabPress = True
+        elif data == '\x1b\x5b\x41' or data == '\x1b\x5b\x42':    #up arrow or down arrow...
+            self.upArrow = True
+        elif data == '\x1b\x5b\x43': #right
+            if self.pointer != len(self.command):
+                self.pointer = self.pointer + 1
+        elif data == '\x1b\x5b\x44': #left
+            if self.pointer >= 0:
+                self.pointer = self.pointer - 1
+        else:
+            s = repr(data)
+            self.command = self.command[:self.pointer] + s[1:-1] + self.command[self.pointer:]
+            self.pointer = self.pointer + len(s[1:-1])
+            
+    def handleSCP(self, data):
+        if self.size > 0:
+            if self.cfg.get('download', 'enabled') == 'true':
+                self.out.makeDownloadsFolder()
+                outfile = self.cfg.get('folders','session_path') + '/' + self.endIP + '/downloads/' + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + self.name
+                f = open(outfile, 'ab')
+                f.write(data)
+                f.close()
+                self.out.fileDownloaded((True, '', outfile, None))
+            self.size = self.size - len(data)
+        elif data != '\x00' and data != '\x0a':
+            self.out.genericLog("RAW CLIENT-SERVER: %s" % repr(data))
 
+        match = re.match('C\d{4} (\d*) (.*)', data)
+        if match:
+            self.out.genericLog("Uploading File via SCP: %s" % match.group(2))
+            self.size = int(match.group(1))
+            self.name = str(match.group(2))
+            
+    def handleSFTP(self, data):
+        #log.msg("[SERVER] - Encrypted " + repr(data))
+        #log.msg("[SERVER] - Encrypted " + '\'\\x' + "\\x".join("{:02x}".format(ord(c)) for c in data) + '\'')
+        if self.size > 0:
+            self.theFile = self.theFile + data
+            self.size = self.size - len(data)
+        else:
+            data = data[4:]
+            sftpNum = int(data[:1].encode('hex'), 16)
+            data = data[1:]        
+        
+            if sftpNum == 3:
+                self.sftpID = data[:4]
+                log.msg('[SERVER] - ID: ' + repr(self.sftpID))
+                length = int(data[4:8].encode('hex'), 16)
+                self.name = str(data[8:8+length]).split('/')[-1]
+                log.msg('[SERVER] - self.name: ' + self.name)
+                pflags = '{0:08b}'.format(int(data[8+length:8+length+4].encode('hex'), 16))
+                log.msg('[SERVER] - pflags: ' + pflags)
+                if pflags == "00000001":
+                    self.processCommand('SFTP - get ' + self.name)
+                if pflags == "00011010":
+                    self.processCommand('SFTP - put ' + self.name)
+            elif sftpNum == 4:
+                length = int(data[4:8].encode('hex'), 16)
+                if self.sftpHandle == data[8:8+length]:
+                    self.out.makeDownloadsFolder()
+                    outfile = self.cfg.get('folders','session_path') + '/' + self.endIP + '/downloads/' + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + self.name
+                    f = open(outfile, 'wb')
+                    f.write(self.theFile)
+                    f.close()
+                    self.out.fileDownloaded((True, '', outfile, None))
+                    self.theFile = ''
+            elif sftpNum == 6:
+                length = int(data[4:8].encode('hex'), 16)
+                if self.sftpHandle == data[8:8+length]:
+                    self.offset = int(data[8+length:16+length].encode('hex'), 16)
+                    self.size = int(data[16+length:20+length].encode('hex'), 16)
+                    self.theFile = self.theFile + data[20+length:]
+                    self.size = self.size - len(self.theFile)
 
 class HonsshServerFactory(factory.SSHFactory):
     cfg = config()      
@@ -276,7 +361,7 @@ class HonsshServerFactory(factory.SSHFactory):
         t.factory = self
         t.supportedPublicKeys = self.privateKeys.keys()
         if not self.primes:
-            log.msg('disabling diffie-hellman-group-exchange because we cannot find moduli file')
+            log.msg('[SERVER] - disabling diffie-hellman-group-exchange because we cannot find moduli file')
             ske = t.supportedKeyExchanges[:]
             ske.remove('diffie-hellman-group-exchange-sha1')
             t.supportedKeyExchanges = ske
