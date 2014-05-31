@@ -204,12 +204,15 @@ class HPLogger():
         self.sessionMeta['startTime'] = self.getDateTime()
         self.sessionMeta['details'] = {'peerIP': peerIP, 'peerPort': peerPort, 'hostIP': hostIP, 'hostPort': hostPort, 'commands':[], 'version': None, 'ttylog': None }
         return session
+    
+    def setSessionType(self, sessionType):
+        self.sessionMeta['sessionType'] = sessionType 
 
-    def handleConnectionLost(self, ttylog):
+    def handleConnectionLost(self, ttylog=None):
         log.msg('[HPFEEDS] - publishing metadata to hpfeeds')
         meta = self.sessionMeta
         meta['endTime'] = self.getDateTime()
-        if ttylog: 
+        if ttylog != None: 
             meta['details']['ttylog'] = ttylog.encode('hex')
         log.msg("[HPFEEDS] - sessionMeta: " + str(meta))
         self.client.publish(HONSSHSESHCHAN, **meta)

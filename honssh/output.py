@@ -41,7 +41,7 @@ class Output():
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.logLocation = self.cfg.get('folders', 'session_path') + "/" + ip + "/" + dt
         self.ttylog_file = self.logLocation + ".tty"      
-        self.txtlog_file = self.logLocation + ".log"  
+        self.txtlog_file = self.logLocation + ".log"
         self.endIP = ip
         
         if self.cfg.get('txtlog', 'enabled') == 'true':
@@ -61,12 +61,12 @@ class Output():
             cmdString = self.cfg.get('app_hooks', 'connection_made') + " CONNECTION_MADE " + dt + " " + self.endIP + " " + str(port)
             threads.deferToThread(self.runCommand, cmdString)    
         
-    def connectionLost(self, sessionType):
-        log.msg("Lost connection with the attacker: %s" % self.endIP)
+    def connectionLost(self):
+        log.msg("[OUTPUT] Lost connection with the attacker: %s" % self.endIP)
         if self.cfg.get('txtlog', 'enabled') == 'true':
             if os.path.exists(self.txtlog_file):
                 txtlog.log(self.txtlog_file, "Lost connection with the attacker: %s" % self.endIP)
-        if sessionType == 'terminal' or sessionType == 'exec':
+        if self.sessionType == 'term' or self.sessionType == 'exec':
             ttylog.ttylog_close(self.ttylog_file, time.time())
             if self.cfg.get('database_mysql', 'enabled') == 'true':
                 self.dbLog.handleConnectionLost(self.sid, self.ttylog_file)
@@ -77,6 +77,10 @@ class Output():
         else:
             if self.cfg.get('database_mysql', 'enabled') == 'true':
                 self.dbLog.handleConnectionLost(self.sid)
+            if self.cfg.get('email', 'attack') == 'true':
+                self.email('HonSSH - Attack logged', self.txtlog_file)
+            if self.cfg.get('hpfeeds', 'enabled') == 'true':
+                self.hpLog.handleConnectionLost() 
         
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if self.cfg.has_option('app_hooks', 'connection_lost'):
@@ -91,6 +95,19 @@ class Output():
             self.dbLog.handleClientVersion(self.sid, self.version)
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             self.hpLog.handleClientVersion(self.version)
+            
+    def setSessionType(self, sessionType):
+        self.sessionType = sessionType
+        oldtxtlog_file = self.txtlog_file
+        self.txtlog_file = self.logLocation + '-' + self.sessionType + ".log"
+        
+        if self.cfg.get('txtlog', 'enabled') == 'true':
+            os.rename(oldtxtlog_file, self.txtlog_file)
+            txtlog.log(self.txtlog_file, "Session Type: " + self.sessionType)
+        #if self.cfg.get('database_mysql', 'enabled') == 'true':
+            #self.dbLog.setSessionType(self.sid, self.version)
+        if self.cfg.get('hpfeeds', 'enabled') == 'true':
+            self.hpLog.setSessionType(self.sessionType)
 
     def loginSuccessful(self, username, password):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -177,8 +194,8 @@ class Output():
                 cmdString = self.cfg.get('app_hooks', 'download_finished') + " DOWNLOAD_FINISHED " + dt + " " + self.endIP + " " + link + " " + file
                 threads.deferToThread(self.runCommand, cmdString)  
         else:
-            log.msg("FILE DOWNLOAD FAILED")
-            log.msg(wgetError)
+            log.msg('[OUTPUT] FILE DOWNLOAD FAILED')
+            log.msg('[OUTPUT] ' + wgetError)
 
     def input(self, data):
         ttylog.ttylog_write(self.ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
@@ -193,11 +210,11 @@ class Output():
             
     def errLog(self, message):
         self.makeSessionFolder()
-        txtlog.log(self.txtlog_file[:self.txtlog_file.rfind('.')] + "-err.log", message)
+        txtlog.log(self.logLocation + "-err.log", message)
         
     def advancedLog(self, message):
         self.makeSessionFolder()
-        txtlog.log(self.txtlog_file[:self.txtlog_file.rfind('.')] + "-adv.log", message)
+        txtlog.log(self.logLocation + "-adv.log", message)
     
     def makeSessionFolder(self):
         if not os.path.exists(os.path.join(self.cfg.get('folders', 'session_path') + '/' + self.endIP)):

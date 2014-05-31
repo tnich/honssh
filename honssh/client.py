@@ -57,14 +57,14 @@ class HonsshClientTransport(transport.SSHClientTransport):
             if messageNum == 94:
                 data = payload[8:]
                    
-                if self.factory.server.sessionType == 'terminal':
+                if self.factory.server.sessionType == 'term':
                     self.handleTerminal(data)
                 elif self.factory.server.sessionType == 'exec':
                     pass
                 elif self.factory.server.sessionType == 'scp':
                     self.handleSCP(data)
                 elif self.factory.server.sessionType == 'sftp':
-                    self.handleSFTP(data)
+                    self.factory.server.session.parsePacket('[CLIENT]', data)
                 else:
                     log.msg('[ERR][CLIENT] - sessionType was not set!') 
 
@@ -145,19 +145,6 @@ class HonsshClientTransport(transport.SSHClientTransport):
         if match:
             self.out.genericLog("Downloading File via SCP: %s" % str(match.group(2)))
                         
-    def handleSFTP(self, data):
-        #log.msg("[CLIENT] - Encrypted " + repr(data))
-        #log.msg("[CLIENT] - Encrypted " + '\'\\x' + "\\x".join("{:02x}".format(ord(c)) for c in data) + '\'')
-        
-        data = data[4:]
-        sftpNum = int(data[:1].encode('hex'), 16)
-        data = data[1:]
-    
-        if sftpNum == 102:
-            sftpID = data[:4]
-            if self.factory.server.sftpID == sftpID:
-                len = int(data[4:8].encode('hex'), 16)
-                self.factory.server.sftpHandle = data[8:8+len]
 
 class HonsshClientFactory(protocol.ClientFactory):
     protocol = HonsshClientTransport   

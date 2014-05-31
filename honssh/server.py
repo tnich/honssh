@@ -30,6 +30,7 @@ from twisted.conch.ssh.transport import SSHCiphers
 from twisted.python import log
 from twisted.internet import reactor
 from honssh import client, output, networking
+from honssh.protocols import sftp
 from kippo.core.config import config
 import datetime, time, os, struct, re, subprocess, random
 
@@ -47,9 +48,6 @@ class HonsshServerTransport(transport.SSHServerTransport):
     newPass = ''
     cfg = config()
     sessionType = ''
-    theFile = ''
-    sftpID = ''
-    sftpHandle = ''
     
     def connectionMade(self):
         self.interactors = []
@@ -81,18 +79,17 @@ class HonsshServerTransport(transport.SSHServerTransport):
             del self.factory.sessions[self.transport.sessionno]
         transport.SSHServerTransport.connectionLost(self, reason)
                
-        self.out.connectionLost(self.sessionType)
+        self.out.connectionLost()
         self.net.removeNetworking(self.factory.sessions)
         
     def ssh_KEXINIT(self, packet):
         self.out.setVersion(self.otherVersionString)
         return transport.SSHServerTransport.ssh_KEXINIT(self, packet)
-
-            
+   
     def processCommand(self, theCommand):
         self.out.commandEntered(theCommand)
         if self.cfg.get('download', 'enabled') == 'true':
-            match = re.finditer("wget ([^;&|]+)", theCommand)
+            match = re.finditer("wget ([^;&|\\\\]+)", theCommand)
                
             user = ''
             password = ''                
@@ -149,11 +146,13 @@ class HonsshServerTransport(transport.SSHServerTransport):
                 num = int(payload[7:8].encode('hex'), 16)
                 data = payload[8:8+num]
                 if data == 'pty-req':
-                    self.sessionType = 'terminal'
+                    self.sessionType = 'term'
+                    self.out.setSessionType(self.sessionType)
                     self.out.openTTY()
                 elif data == 'exec':
                     if 'scp' not in payload[17:]:
                         self.sessionType = 'exec'
+                        self.out.setSessionType(self.sessionType)
                         log.msg("[SERVER] - MessageNum: " + str(messageNum) + " Encrypted " + repr(payload))
                         self.out.openTTY()
                         self.processCommand(repr(payload[17:])[1:-1])
@@ -161,17 +160,11 @@ class HonsshServerTransport(transport.SSHServerTransport):
                         self.out.input(data)
                     else:
                         self.sessionType = 'scp'
+                        self.out.setSessionType(self.sessionType)
                 elif data == 'subsystem' and 'sftp' in repr(payload):
-                    disable = True
-                    if self.cfg.has_option('beta_tester','enabled'):
-                        if self.cfg.get('beta_tester','enabled') == 'true':
-                            self.sessionType = 'sftp'
-                            disable = False
-                    if disable:        
-                        log.msg("[SERVER] - Detected SFTP - Disabling")
-                        self.sendOn = False
-                        self.sendPacket(100, '\x00\x00\x00\x00') #Might be OpenSSH specific replies - fingerprinting issue?
-                        #TODO: Code proper handling of SFTP - capture commands and uploads etc.
+                    self.sessionType = 'sftp'
+                    self.out.setSessionType(self.sessionType)
+                    self.session = sftp.SFTP(self.cfg.get('folders','session_path') + '/' + self.endIP + '/downloads/', self.out)
                 else:
                     if data != 'shell' and data != 'env' and 'putty' not in data and 'window-change' not in data:
                         self.out.errLog("New message 98 type detected - Please raise a HonSSH issue on google code with the details: %s" % data)
@@ -196,14 +189,14 @@ class HonsshServerTransport(transport.SSHServerTransport):
                 if messageNum == 95:
                     data = payload[12:]
                     
-                if self.sessionType == 'terminal':
+                if self.sessionType == 'term':
                     self.handleTerminal(data)
                 elif self.sessionType == 'exec':
                     pass
                 elif self.sessionType == 'scp':
                     self.handleSCP(data)
                 elif self.sessionType == 'sftp':
-                    self.handleSFTP(data)
+                    self.session.parsePacket("[SERVER]", data)
                 else:
                     log.msg('[ERR][SERVER] - sessionType was not set!') 
             else:
@@ -306,46 +299,6 @@ class HonsshServerTransport(transport.SSHServerTransport):
             self.size = int(match.group(1))
             self.name = str(match.group(2))
             
-    def handleSFTP(self, data):
-        #log.msg("[SERVER] - Encrypted " + repr(data))
-        #log.msg("[SERVER] - Encrypted " + '\'\\x' + "\\x".join("{:02x}".format(ord(c)) for c in data) + '\'')
-        if self.size > 0:
-            self.theFile = self.theFile + data
-            self.size = self.size - len(data)
-        else:
-            data = data[4:]
-            sftpNum = int(data[:1].encode('hex'), 16)
-            data = data[1:]        
-        
-            if sftpNum == 3:
-                self.sftpID = data[:4]
-                log.msg('[SERVER] - ID: ' + repr(self.sftpID))
-                length = int(data[4:8].encode('hex'), 16)
-                self.name = str(data[8:8+length]).split('/')[-1]
-                log.msg('[SERVER] - self.name: ' + self.name)
-                pflags = '{0:08b}'.format(int(data[8+length:8+length+4].encode('hex'), 16))
-                log.msg('[SERVER] - pflags: ' + pflags)
-                if pflags == "00000001":
-                    self.processCommand('SFTP - get ' + self.name)
-                if pflags[4:] == "1010":
-                    self.processCommand('SFTP - put ' + self.name)
-            elif sftpNum == 4:
-                length = int(data[4:8].encode('hex'), 16)
-                if self.sftpHandle == data[8:8+length]:
-                    self.out.makeDownloadsFolder()
-                    outfile = self.cfg.get('folders','session_path') + '/' + self.endIP + '/downloads/' + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + self.name
-                    f = open(outfile, 'wb')
-                    f.write(self.theFile)
-                    f.close()
-                    self.out.fileDownloaded((True, '', outfile, None))
-                    self.theFile = ''
-            elif sftpNum == 6:
-                length = int(data[4:8].encode('hex'), 16)
-                if self.sftpHandle == data[8:8+length]:
-                    self.offset = int(data[8+length:16+length].encode('hex'), 16)
-                    self.size = int(data[16+length:20+length].encode('hex'), 16)
-                    self.theFile = self.theFile + data[20+length:]
-                    self.size = self.size - len(self.theFile)
 
 class HonsshServerFactory(factory.SSHFactory):
     cfg = config()      
