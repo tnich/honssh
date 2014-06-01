@@ -36,6 +36,7 @@ import datetime, time, os, struct, re, subprocess
 
 class Output():
     cfg = config()
+    sessionType = ''
     
     def connectionMade(self, ip, port):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -154,9 +155,9 @@ class Output():
             self.hpLog.handleCommand(theCommand)
             
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        if self.cfg.has_option('app_hooks', 'command_entered'):
-            cmdString = self.cfg.get('app_hooks', 'command_entered') + " COMMAND_ENTERED " + dt + " " + self.endIP + " " + theCommand
-            threads.deferToThread(self.runCommand, cmdString)       
+        #if self.cfg.has_option('app_hooks', 'command_entered'):
+        #    cmdString = self.cfg.get('app_hooks', 'command_entered') + " COMMAND_ENTERED " + dt + " " + self.endIP + " " + theCommand
+        #    threads.deferToThread(self.runCommand, cmdString)       
     
     def fileDownload(self, theCommand, link, user, password):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
