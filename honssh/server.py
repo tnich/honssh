@@ -32,6 +32,7 @@ from twisted.internet import reactor
 from honssh import client, output, networking
 from honssh.protocols import sftp
 from kippo.core.config import config
+from hpfeeds import hpfeeds
 import datetime, time, os, struct, re, subprocess, random
 
 class HonsshServerTransport(transport.SSHServerTransport):
@@ -56,7 +57,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
 
         self.factory.sessions[self.transport.sessionno] = self
         
-        self.out = output.Output()
+        self.out = output.Output(self.factory.hpLog)
         self.net = networking.Networking()
         
         self.endIP = self.transport.getPeer().host   
@@ -304,16 +305,23 @@ class HonsshServerFactory(factory.SSHFactory):
     cfg = config()      
     otherVersionString = ''
     sessions = {}
+    hpLog = None
+    
     def __init__(self):
         clientFactory = client.HonsshSlimClientFactory()
         clientFactory.server = self
         reactor.connectTCP(self.cfg.get('honeypot', 'honey_addr'), 22, clientFactory)
+        
+        if self.cfg.get('hpfeeds', 'enabled') == 'true':
+            hp = hpfeeds.HPLogger()
+            self.hpLog = hp.start(self.cfg)
     
     def buildProtocol(self, addr):
         t = HonsshServerTransport()
-        
+               
         t.ourVersionString = self.otherVersionString
         t.factory = self
+        t.factory.hpLog = self.hpLog
         t.supportedPublicKeys = self.privateKeys.keys()
         if not self.primes:
             log.msg('[SERVER] - disabling diffie-hellman-group-exchange because we cannot find moduli file')

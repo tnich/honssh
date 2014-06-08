@@ -38,6 +38,9 @@ class Output():
     cfg = config()
     sessionType = ''
     
+    def __init__(self, hpLog):
+        self.hpLogClient = hpLog
+    
     def connectionMade(self, ip, port):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.logLocation = self.cfg.get('folders', 'session_path') + "/" + ip + "/" + dt
@@ -55,12 +58,14 @@ class Output():
             
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             self.hpLog = hpfeeds.HPLogger()
-            self.hpLog.start(self.cfg)
+            self.hpLog.setClient(self.hpLogClient, self.cfg)
+            #self.hpLog.start(self.cfg)
             self.hpLog.createSession(ip, port, self.cfg.get('honeypot', 'ssh_addr'), self.cfg.get('honeypot', 'ssh_port'))
         
         if self.cfg.has_option('app_hooks', 'connection_made'):
-            cmdString = self.cfg.get('app_hooks', 'connection_made') + " CONNECTION_MADE " + dt + " " + self.endIP + " " + str(port)
-            threads.deferToThread(self.runCommand, cmdString)    
+            if self.cfg.get('app_hooks', 'connection_made'):
+                cmdString = self.cfg.get('app_hooks', 'connection_made') + " CONNECTION_MADE " + dt + " " + self.endIP + " " + str(port)
+                threads.deferToThread(self.runCommand, cmdString)    
         
     def connectionLost(self):
         log.msg("[OUTPUT] Lost connection with the attacker: %s" % self.endIP)
@@ -73,20 +78,21 @@ class Output():
                 self.dbLog.handleConnectionLost(self.sid, self.ttylog_file)
             if self.cfg.get('hpfeeds', 'enabled') == 'true':
                 self.hpLog.handleConnectionLost(self.ttylog_file)
-            if self.cfg.get('email', 'attack') == 'true': 
-                self.email('HonSSH - Attack logged', self.txtlog_file, self.ttylog_file)
+            if self.cfg.get('email', 'attack') == 'true':
+                threads.deferToThread(self.email, 'HonSSH - Attack logged', self.txtlog_file, self.ttylog_file)
         else:
             if self.cfg.get('database_mysql', 'enabled') == 'true':
                 self.dbLog.handleConnectionLost(self.sid)
-            if self.cfg.get('email', 'attack') == 'true':
-                self.email('HonSSH - Attack logged', self.txtlog_file)
+            if self.cfg.get('email', 'attack') == 'true' and self.sessionType != '':
+                threads.deferToThread(self.email, 'HonSSH - Attack logged', self.txtlog_file)
             if self.cfg.get('hpfeeds', 'enabled') == 'true':
                 self.hpLog.handleConnectionLost() 
         
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if self.cfg.has_option('app_hooks', 'connection_lost'):
-            cmdString = self.cfg.get('app_hooks', 'connection_lost') + " CONNECTION_LOST " + dt + " " + self.endIP
-            threads.deferToThread(self.runCommand, cmdString)
+            if self.cfg.get('app_hooks', 'connection_lost'):
+                cmdString = self.cfg.get('app_hooks', 'connection_lost') + " CONNECTION_LOST " + dt + " " + self.endIP
+                threads.deferToThread(self.runCommand, cmdString)
             
     def setVersion(self, version):
         self.version = version
@@ -114,12 +120,12 @@ class Output():
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.makeSessionFolder()
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password, True)
+            txtlog.authLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password, True)
             txtlog.log(self.txtlog_file, self.connectionString)
             txtlog.log(self.txtlog_file, "Successful login - Username:%s Password:%s" % (username, password))
         
         if self.cfg.get('email', 'login') == 'true':
-            self.email('HonSSH - Login Successful', self.txtlog_file)
+            threads.deferToThread(self.email, 'HonSSH - Login Successful', self.txtlog_file)
         
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog.handleLoginSucceeded(self.sid, username, password)
@@ -128,13 +134,14 @@ class Output():
             self.hpLog.handleLoginSucceeded(username, password)
             
         if self.cfg.has_option('app_hooks', 'login_successful'):
-            cmdString = self.cfg.get('app_hooks', 'login_successful') + " LOGIN_SUCCESSFUL " + dt + " " + self.endIP + " " + username + " " + password
-            threads.deferToThread(self.runCommand, cmdString)
+            if self.cfg.get('app_hooks', 'login_successful'):
+                cmdString = self.cfg.get('app_hooks', 'login_successful') + " LOGIN_SUCCESSFUL " + dt + " " + self.endIP + " " + username + " " + password
+                threads.deferToThread(self.runCommand, cmdString)
         
     def loginFailed(self, username, password):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            txtlog.otherLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password, False)
+            txtlog.authLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password, False)
         
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog.handleLoginFailed(self.sid, username, password)
@@ -143,8 +150,9 @@ class Output():
             self.hpLog.handleLoginFailed(username, password)
             
         if self.cfg.has_option('app_hooks', 'login_failed'):
-            cmdString = self.cfg.get('app_hooks', 'login_failed') + " LOGIN_FAILED " + dt + " " + self.endIP + " " + username + " " + password
-            threads.deferToThread(self.runCommand, cmdString)
+            if self.cfg.get('app_hooks', 'login_failed'):
+                cmdString = self.cfg.get('app_hooks', 'login_failed') + " LOGIN_FAILED " + dt + " " + self.endIP + " " + username + " " + password
+                threads.deferToThread(self.runCommand, cmdString)
         
     def commandEntered(self, theCommand):
         if self.cfg.get('txtlog', 'enabled') == 'true':
@@ -154,10 +162,11 @@ class Output():
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             self.hpLog.handleCommand(theCommand)
             
-        dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        #dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         #if self.cfg.has_option('app_hooks', 'command_entered'):
-        #    cmdString = self.cfg.get('app_hooks', 'command_entered') + " COMMAND_ENTERED " + dt + " " + self.endIP + " " + theCommand
-        #    threads.deferToThread(self.runCommand, cmdString)       
+        #    if self.cfg.get('app_hooks', 'command_entered'):
+        #        cmdString = self.cfg.get('app_hooks', 'command_entered') + " COMMAND_ENTERED " + dt + " " + self.endIP + " \'" + theCommand + "\'"
+        #        threads.deferToThread(self.runCommand, cmdString)       
     
     def fileDownload(self, theCommand, link, user, password):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -166,7 +175,7 @@ class Output():
         if self.cfg.get('txtlog', 'enabled') == 'true':
             txtlog.log(self.txtlog_file, "wget Download Detected - %s" % theCommand)
         filename = dt + "-" + link.split("/")[-1]
-        fileOut =self.cfg.get('folders', 'session_path') + '/' + self.endIP + '/downloads/' + filename
+        fileOut = self.cfg.get('folders', 'session_path') + '/' + self.endIP + '/downloads/' + filename
         wgetCommand = 'wget -O ' + fileOut + " "
         if user != '':
             wgetCommand = wgetCommand + '--user=' + user + ' '
@@ -178,8 +187,9 @@ class Output():
         d.addCallback(self.fileDownloaded)
         
         if self.cfg.has_option('app_hooks', 'download_started'):
-            cmdString = self.cfg.get('app_hooks', 'download_started') + " DOWNLOAD_STARTED " + dt + " " + self.endIP + " " + link + " " + fileOut
-            threads.deferToThread(self.runCommand, cmdString)  
+            if self.cfg.get('app_hooks', 'download_started'):
+                cmdString = self.cfg.get('app_hooks', 'download_started') + " DOWNLOAD_STARTED " + dt + " " + self.endIP + " " + link + " " + fileOut
+                threads.deferToThread(self.runCommand, cmdString)  
 
     def fileDownloaded(self, input):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -188,12 +198,15 @@ class Output():
         if success:
             if self.cfg.get('txtlog', 'enabled') == 'true':
                 txtlog.log(self.txtlog_file, "Finished Downloading file - %s %s" % (link, file))
+                threads.deferToThread(txtlog.downloadLog, dt, self.cfg.get('folders', 'log_path') + '/downloads.log', self.endIP, link, file)
+                
             if self.cfg.get('database_mysql', 'enabled') == 'true':
                 self.dbLog.handleFileDownload(self.sid, link, file)
                 
             if self.cfg.has_option('app_hooks', 'download_finished'):
-                cmdString = self.cfg.get('app_hooks', 'download_finished') + " DOWNLOAD_FINISHED " + dt + " " + self.endIP + " " + link + " " + file
-                threads.deferToThread(self.runCommand, cmdString)  
+                if self.cfg.get('app_hooks', 'download_finished'):
+                    cmdString = self.cfg.get('app_hooks', 'download_finished') + " DOWNLOAD_FINISHED " + dt + " " + self.endIP + " " + link + " " + file
+                    threads.deferToThread(self.runCommand, cmdString)  
         else:
             log.msg('[OUTPUT] FILE DOWNLOAD FAILED')
             log.msg('[OUTPUT] ' + wgetError)
@@ -228,37 +241,40 @@ class Output():
             os.chmod(self.cfg.get('folders', 'session_path') + '/' + self.endIP + '/downloads',0755)
     
     def email(self, subject, body, attachment=None):
-        #Start send mail code - provided by flofrihandy, modified by peg
-        import smtplib
-        from email.mime.base import MIMEBase
-        from email.mime.multipart import MIMEMultipart
-        from email.mime.text import MIMEText
-        from email import Encoders
-        msg = MIMEMultipart()
-        msg['Subject'] = subject
-        msg['From'] = self.cfg.get('email', 'from')
-        msg['To'] = self.cfg.get('email', 'to')
-        fp = open(self.txtlog_file, 'rb')
-        msg_text = MIMEText(fp.read())
-        fp.close()
-        msg.attach(msg_text)
-        if attachment != None:
-            fp = open(attachment, 'rb')
-            logdata = MIMEBase('application', "octet-stream")
-            logdata.set_payload(fp.read())
+        try:
+            #Start send mail code - provided by flofrihandy, modified by peg
+            import smtplib
+            from email.mime.base import MIMEBase
+            from email.mime.multipart import MIMEMultipart
+            from email.mime.text import MIMEText
+            from email import Encoders
+            msg = MIMEMultipart()
+            msg['Subject'] = subject
+            msg['From'] = self.cfg.get('email', 'from')
+            msg['To'] = self.cfg.get('email', 'to')
+            fp = open(self.txtlog_file, 'rb')
+            msg_text = MIMEText(fp.read())
             fp.close()
-            Encoders.encode_base64(logdata)
-            logdata.add_header('Content-Disposition', 'attachment', filename=os.path.basename(self.ttylog_file))
-            msg.attach(logdata)
-        s = smtplib.SMTP(self.cfg.get('email', 'host'), int(self.cfg.get('email', 'port')))
-        if self.cfg.get('email', 'username') != '' and self.cfg.get('email', 'password') != '':
-            s.ehlo()
-            if self.cfg.get('email', 'use_tls') == 'true':
-                s.starttls()
-            s.login(self.cfg.get('email', 'username'), self.cfg.get('email', 'password'))
-        s.sendmail(msg['From'], msg['To'].split(','), msg.as_string())
-        s.quit() #End send mail code
-        
+            msg.attach(msg_text)
+            if attachment != None:
+                fp = open(attachment, 'rb')
+                logdata = MIMEBase('application', "octet-stream")
+                logdata.set_payload(fp.read())
+                fp.close()
+                Encoders.encode_base64(logdata)
+                logdata.add_header('Content-Disposition', 'attachment', filename=os.path.basename(self.ttylog_file))
+                msg.attach(logdata)
+            s = smtplib.SMTP(self.cfg.get('email', 'host'), int(self.cfg.get('email', 'port')))
+            if self.cfg.get('email', 'username') != '' and self.cfg.get('email', 'password') != '':
+                s.ehlo()
+                if self.cfg.get('email', 'use_tls') == 'true':
+                    s.starttls()
+                s.login(self.cfg.get('email', 'username'), self.cfg.get('email', 'password'))
+            s.sendmail(msg['From'], msg['To'].split(','), msg.as_string())
+            s.quit() #End send mail code
+        except Exception, ex:
+            log.msg('[OUTPUT][EMAIL][ERR] - ' + str(e))
+            
     def wget(self, wgetCommand, link, fileOut):
         sp = subprocess.Popen(wgetCommand, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         result = sp.communicate()

@@ -29,6 +29,7 @@
 import sys
 import datetime
 import os 
+import hashlib
 
 def log(logfile, message):
 
@@ -45,7 +46,7 @@ def log(logfile, message):
         os.chmod(logfile, 0644)
     
  
-def otherLog(logfile, ip, username, password, success):
+def authLog(logfile, ip, username, password, success):
     
     setPermissions = False
     
@@ -58,6 +59,31 @@ def otherLog(logfile, ip, username, password, success):
       
     f = file(logfile, 'a')
     f.write("%s,%s,%s,%s,%s\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),ip,username,password,auth))
+    f.close()
+    
+    if(setPermissions):
+        os.chmod(logfile, 0644)
+        
+def downloadLog(dt, logfile, ip, link, outFile):
+    setPermissions = False
+    
+    if(os.path.isfile(logfile) == False):
+        setPermissions = True
+    
+    theSize = os.path.getsize(outFile)
+    
+    f = file(outFile, 'rb')
+    md5 = hashlib.md5()
+    while True:
+        data = f.read(2**20)
+        if not data:
+            break
+        md5.update(data)
+    theMD5 = md5.hexdigest()
+    f.close()
+      
+    f = file(logfile, 'a')
+    f.write("%s,%s,%s,%s,%s,%s\n" % (dt, ip, link, theSize, theMD5, outFile))
     f.close()
     
     if(setPermissions):

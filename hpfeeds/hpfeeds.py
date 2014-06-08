@@ -1,4 +1,5 @@
 from twisted.python import log
+from twisted.internet import threads
 
 import os
 import struct
@@ -193,9 +194,11 @@ class HPLogger():
         port	= cfg.get('hpfeeds', 'port')
         ident	= cfg.get('hpfeeds', 'identifier')
         secret	= cfg.get('hpfeeds', 'secret')
+        return hpclient(server, port, ident, secret)
+    
+    def setClient(self, hpClient, cfg):
         self.sensor_name = cfg.get('honeypot','sensor_name')
-        #Should I move this to connect once at startup, rather than for each connection?
-        self.client = hpclient(server, port, ident, secret)
+        self.client = hpClient
 
     def createSession(self, peerIP, peerPort, hostIP, hostPort):
         session = uuid.uuid4().hex
@@ -215,17 +218,21 @@ class HPLogger():
         if ttylog != None: 
             meta['details']['ttylog'] = ttylog.encode('hex')
         log.msg("[HPFEEDS] - sessionMeta: " + str(meta))
-        self.client.publish(HONSSHSESHCHAN, **meta)
+        
+        threads.deferToThread(self.client.publish, HONSSHSESHCHAN, **meta)
+        #self.client.publish(HONSSHSESHCHAN, **meta)
 
     def handleLoginFailed(self, username, password):
         authMeta = {'sensor_name': self.sensor_name, 'datetime': self.getDateTime(),'username': username, 'password': password, 'success': False}
         log.msg('[HPFEEDS] - authMeta: ' + str(authMeta))
-        self.client.publish(HONSSHAUTHCHAN, **authMeta)
+        threads.deferToThread(self.client.publish, HONSSHAUTHCHAN, **authMeta)
+        #self.client.publish(HONSSHAUTHCHAN, **authMeta)
 
     def handleLoginSucceeded(self, username, password):
         authMeta = {'sensor_name': self.sensor_name, 'datetime': self.getDateTime(),'username': username, 'password': password, 'success': True}
         log.msg('[HPFEEDS] - authMeta: ' + str(authMeta))
-        self.client.publish(HONSSHAUTHCHAN, **authMeta)
+        threads.deferToThread(self.client.publish, HONSSHAUTHCHAN, **authMeta)
+        #self.client.publish(HONSSHAUTHCHAN, **authMeta)
 
     def handleCommand(self, command):
         self.sessionMeta['details']['commands'].append([self.getDateTime(), command])
