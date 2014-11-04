@@ -56,7 +56,7 @@ def validateConfig(cfg):
             validConfig = False
             
     #Check prop exists and is true/false
-    props = [['advNet','enabled'], ['interact','enabled'], ['spoof','enabled'], ['txtlog','enabled'], ['database_mysql','enabled'], ['email','login'], ['email','attack'], ['hpfeeds','enabled'], ['download','enabled'], ['packets','enabled']]
+    props = [['advNet','enabled'], ['interact','enabled'], ['spoof','enabled'], ['txtlog','enabled'], ['database_mysql','enabled'], ['email','login'], ['email','attack'], ['hpfeeds','enabled'], ['download','passive'], ['download','active'], ['packets','enabled'], ['hp-restrict', 'disable_publicKey'], ['hp-restrict', 'disable_x11'], ['hp-restrict', 'disable_sftp'], ['hp-restrict', 'disable_exec'], ['hp-restrict', 'disable_port_forwarding']]
     for prop in props:
         if not checkExist(cfg,prop) or not checkValidBool(cfg, prop):
             validConfig = False
@@ -72,11 +72,8 @@ def validateConfig(cfg):
     
     #If spoof is enabled check it's config
     if cfg.get('spoof','enabled') == 'true':
-        prop = ['spoof','pass']
+        prop = ['spoof','users_conf']
         if not checkExist(cfg,prop):
-            validConfig = False
-        prop = ['spoof','chance']
-        if not checkExist(cfg,prop) or not checkValidChance(cfg,prop):
             validConfig = False
     
     #If database_mysql is enabled check it's config
@@ -95,10 +92,16 @@ def validateConfig(cfg):
             prop = ['email','port']
             if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
                 validConfig = False
-            prop = ['email','use_tls']
-            if not checkExist(cfg,prop) or not checkValidBool(cfg,prop):
-                validConfig = False
-            props = [['email','host'], ['email','username'], ['email','password'], ['email','from'], ['email','to']]
+            props = [['email','use_tls'], ['email','use_smtpauth']]
+            for prop in props:
+                if not checkExist(cfg,prop) or not checkValidBool(cfg,prop):
+                    validConfig = False
+            if cfg.get('email','use_smtpauth') == 'true':
+                props = [['email','username'], ['email','password']]
+                for prop in props:
+                    if not checkExist(cfg,prop):
+                        validConfig = False
+            props = [['email','host'], ['email','from'], ['email','to']]
             for prop in props:
                 if not checkExist(cfg,prop):
                     validConfig = False
@@ -106,7 +109,7 @@ def validateConfig(cfg):
             print '[txtlog][enabled] must be set to true for email support to work'
             validConfig = False
             
-    #If hpfeeds is enabled check it's config            
+    #If hpfeeds is enabled check it's config
     if cfg.get('hpfeeds','enabled') == 'true':
         props = [['hpfeeds','server'], ['hpfeeds','identifier'], ['hpfeeds','secret']]
         for prop in props:

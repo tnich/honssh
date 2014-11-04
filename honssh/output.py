@@ -25,6 +25,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
+
 from twisted.python import log
 from twisted.internet import threads, reactor
 from kippo.core.config import config
@@ -32,148 +33,161 @@ from honssh import txtlog
 from kippo.core import ttylog
 from kippo.dblog import mysql
 from hpfeeds import hpfeeds
-import datetime, time, os, struct, re, subprocess
+import datetime, time, os, struct, re, subprocess, uuid, GeoIP, getopt
 
 class Output():
     cfg = config()
-    sessionType = ''
+    ttyFiles = []
+    passwordTried = False
+    loginSuccess = False
     
     def __init__(self, hpLog):
         self.hpLogClient = hpLog
     
     def connectionMade(self, ip, port):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.logLocation = self.cfg.get('folders', 'session_path') + "/" + ip + "/" + dt
-        self.ttylog_file = self.logLocation + ".tty"      
-        self.txtlog_file = self.logLocation + ".log"
+        self.logLocation = self.cfg.get('folders', 'session_path') + "/" + ip + "/"
+        self.downloadFolder = self.logLocation + 'downloads/'
+        self.txtlog_file = self.logLocation + dt + ".log"
         self.endIP = ip
+        self.endPort = port
+        self.sessionID = uuid.uuid4().hex
         
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            self.connectionString = "Incoming connection from: %s:%s" % (ip, port)
-        
+            self.connectionString = '[POT  ] ' + self.cfg.get('honeypot', 'sensor_name')
+            self.addConnectionString('[SSH  ] Incoming Connection from ' + ip +  ':' + str(port))
+            country = self.cname(ip)
+            if country != None:
+                self.connectionString = self.connectionString + ' - ' + self.cname(ip)
+            
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog = mysql.DBLogger()
             self.dbLog.start(self.cfg)
-            self.sid = self.dbLog.createSession(ip, port, self.cfg.get('honeypot', 'ssh_addr'), self.cfg.get('honeypot', 'ssh_port'))
-            
+                        
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             self.hpLog = hpfeeds.HPLogger()
             self.hpLog.setClient(self.hpLogClient, self.cfg)
-            #self.hpLog.start(self.cfg)
-            self.hpLog.createSession(ip, port, self.cfg.get('honeypot', 'ssh_addr'), self.cfg.get('honeypot', 'ssh_port'))
         
         if self.cfg.has_option('app_hooks', 'connection_made'):
-            if self.cfg.get('app_hooks', 'connection_made'):
+            if self.cfg.get('app_hooks', 'connection_made') != '':
                 cmdString = self.cfg.get('app_hooks', 'connection_made') + " CONNECTION_MADE " + dt + " " + self.endIP + " " + str(port)
                 threads.deferToThread(self.runCommand, cmdString)    
         
     def connectionLost(self):
-        log.msg("[OUTPUT] Lost connection with the attacker: %s" % self.endIP)
-        if self.cfg.get('txtlog', 'enabled') == 'true':
-            if os.path.exists(self.txtlog_file):
-                txtlog.log(self.txtlog_file, "Lost connection with the attacker: %s" % self.endIP)
-        if self.sessionType == 'term' or self.sessionType == 'exec':
-            ttylog.ttylog_close(self.ttylog_file, time.time())
+        log.msg("[OUTPUT] Lost Connection with the attacker: %s" % self.endIP)
+        if not self.passwordTried:
+            if self.cfg.get('txtlog', 'enabled') == 'true':
+                txtlog.authLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, '', '', False)
+            
+        if self.loginSuccess:
+            if self.cfg.get('txtlog', 'enabled') == 'true':
+                if os.path.exists(self.txtlog_file):
+                    txtlog.log(self.txtlog_file, '[SSH  ] Lost Connection with ' + self.endIP)
+                    
             if self.cfg.get('database_mysql', 'enabled') == 'true':
-                self.dbLog.handleConnectionLost(self.sid, self.ttylog_file)
+                self.dbLog.handleConnectionLost(self.sessionID)
             if self.cfg.get('hpfeeds', 'enabled') == 'true':
-                self.hpLog.handleConnectionLost(self.ttylog_file)
+                self.hpLog.handleConnectionLost()
             if self.cfg.get('email', 'attack') == 'true':
-                threads.deferToThread(self.email, 'HonSSH - Attack logged', self.txtlog_file, self.ttylog_file)
-        else:
-            if self.cfg.get('database_mysql', 'enabled') == 'true':
-                self.dbLog.handleConnectionLost(self.sid)
-            if self.cfg.get('email', 'attack') == 'true' and self.sessionType != '':
-                threads.deferToThread(self.email, 'HonSSH - Attack logged', self.txtlog_file)
-            if self.cfg.get('hpfeeds', 'enabled') == 'true':
-                self.hpLog.handleConnectionLost() 
+                threads.deferToThread(self.email, 'HonSSH - Attack logged', self.txtlog_file, self.ttyFiles)
         
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if self.cfg.has_option('app_hooks', 'connection_lost'):
-            if self.cfg.get('app_hooks', 'connection_lost'):
+            if self.cfg.get('app_hooks', 'connection_lost') != '':
                 cmdString = self.cfg.get('app_hooks', 'connection_lost') + " CONNECTION_LOST " + dt + " " + self.endIP
                 threads.deferToThread(self.runCommand, cmdString)
             
     def setVersion(self, version):
         self.version = version
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            self.connectionString = self.connectionString + " - " + version
-        if self.cfg.get('database_mysql', 'enabled') == 'true':
-            self.dbLog.handleClientVersion(self.sid, self.version)
-        if self.cfg.get('hpfeeds', 'enabled') == 'true':
-            self.hpLog.handleClientVersion(self.version)
-            
-    def setSessionType(self, sessionType):
-        self.sessionType = sessionType
-        oldtxtlog_file = self.txtlog_file
-        self.txtlog_file = self.logLocation + '-' + self.sessionType + ".log"
-        
-        if self.cfg.get('txtlog', 'enabled') == 'true':
-            os.rename(oldtxtlog_file, self.txtlog_file)
-            txtlog.log(self.txtlog_file, "Session Type: " + self.sessionType)
-        #if self.cfg.get('database_mysql', 'enabled') == 'true':
-            #self.dbLog.setSessionType(self.sid, self.version)
-        if self.cfg.get('hpfeeds', 'enabled') == 'true':
-            self.hpLog.setSessionType(self.sessionType)
+            self.connectionString = self.connectionString + ' - ' + version
 
     def loginSuccessful(self, username, password):
+        self.passwordTried = True
+        self.loginSuccess = True
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         self.makeSessionFolder()
         if self.cfg.get('txtlog', 'enabled') == 'true':
             txtlog.authLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password, True)
             txtlog.log(self.txtlog_file, self.connectionString)
-            txtlog.log(self.txtlog_file, "Successful login - Username:%s Password:%s" % (username, password))
-        
+            txtlog.log(self.txtlog_file, '[SSH  ] Login Successful: ' + username + ':' + password)
+ 
         if self.cfg.get('email', 'login') == 'true':
             threads.deferToThread(self.email, 'HonSSH - Login Successful', self.txtlog_file)
         
         if self.cfg.get('database_mysql', 'enabled') == 'true':
-            self.dbLog.handleLoginSucceeded(self.sid, username, password)
+            self.dbLog.handleLoginSucceeded(username, password)
+            self.dbLog.createSession(self.sessionID, self.endIP, self.endPort, self.cfg.get('honeypot', 'ssh_addr'), self.cfg.get('honeypot', 'ssh_port'))
+            self.dbLog.handleClientVersion(self.sessionID, self.version)
                     
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             self.hpLog.handleLoginSucceeded(username, password)
+            self.hpLog.createSession(self.sessionID, self.endIP, self.endPort, self.cfg.get('honeypot', 'ssh_addr'), self.cfg.get('honeypot', 'ssh_port'))
+            self.hpLog.handleClientVersion(self.version)
             
         if self.cfg.has_option('app_hooks', 'login_successful'):
-            if self.cfg.get('app_hooks', 'login_successful'):
+            if self.cfg.get('app_hooks', 'login_successful') != '':
                 cmdString = self.cfg.get('app_hooks', 'login_successful') + " LOGIN_SUCCESSFUL " + dt + " " + self.endIP + " " + username + " " + password
                 threads.deferToThread(self.runCommand, cmdString)
         
     def loginFailed(self, username, password):
+        self.passwordTried = True
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if self.cfg.get('txtlog', 'enabled') == 'true':
             txtlog.authLog(self.cfg.get('folders', 'log_path') + "/" + datetime.datetime.now().strftime("%Y%m%d"), self.endIP, username, password, False)
         
         if self.cfg.get('database_mysql', 'enabled') == 'true':
-            self.dbLog.handleLoginFailed(self.sid, username, password)
+            self.dbLog.handleLoginFailed(username, password)
             
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             self.hpLog.handleLoginFailed(username, password)
             
         if self.cfg.has_option('app_hooks', 'login_failed'):
-            if self.cfg.get('app_hooks', 'login_failed'):
+            if self.cfg.get('app_hooks', 'login_failed') != '':
                 cmdString = self.cfg.get('app_hooks', 'login_failed') + " LOGIN_FAILED " + dt + " " + self.endIP + " " + username + " " + password
                 threads.deferToThread(self.runCommand, cmdString)
         
-    def commandEntered(self, theCommand):
+    def commandEntered(self, uuid, channelName, theCommand):
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            txtlog.log(self.txtlog_file, "Entered command: %s" % (theCommand))
+            txtlog.log(self.txtlog_file, channelName + " Command Executed: %s" % (theCommand))
         if self.cfg.get('database_mysql', 'enabled') == 'true':
-            self.dbLog.handleCommand(self.sid, theCommand)
+            self.dbLog.handleCommand(uuid, theCommand)
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
-            self.hpLog.handleCommand(theCommand)
+            self.hpLog.handleCommand(uuid, theCommand)
             
-        #dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        #if self.cfg.has_option('app_hooks', 'command_entered'):
-        #    if self.cfg.get('app_hooks', 'command_entered'):
-        #        cmdString = self.cfg.get('app_hooks', 'command_entered') + " COMMAND_ENTERED " + dt + " " + self.endIP + " \'" + theCommand + "\'"
-        #        threads.deferToThread(self.runCommand, cmdString)       
+            
+        theCommandsSplit = re.findall(r'(?:[^;&|<>"\']|["\'](?:\\.|[^"\'])*[\'"])+', theCommand)
+
+        for command in theCommandsSplit:
+            command = command.strip().rstrip()
+
+            dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            if self.cfg.has_option('app_hooks', 'command_entered'):
+                if self.cfg.get('app_hooks', 'command_entered') != '':
+                    cmdString = self.cfg.get('app_hooks', 'command_entered') + " COMMAND_ENTERED " + dt + " " + self.endIP + " '" + command + "'"
+                    threads.deferToThread(self.runCommand, cmdString)
+            
+            if self.cfg.get('download','active') == 'true':
+                if command.startswith('wget '):
+                    command = command[4:]
+                    commandArgs = re.findall(r'(?:[^\s"]|"(?:\\.|[^"])*")+', command)
+                    args, links = getopt.getopt(commandArgs, 'VhbdqvFcNS46xErkKmpHLnp:e:o:a:i:B:t:O:T:w:Q:P:U:l:A:R:D:I:X:', ['version','help','background','execute=','output-file=','append-output=','debug','quiet','verbose','report-speed=','input-file=','force-html','base=','config=','bind-address=','tries=','output-document=', 'backups=','continue','progress=','timestamping','no-use-server-timestamps','server-response','spider','timeout=','dns-timeout=','connect-timeout=','read-timeout=','limit-rate=','wait=','waitretry=', 'random-wait','no-proxy','quota=','no-dns-cache','restrict-file-names=','inet4-only','inet6-only','prefer-family=','retry-connrefused','user=','password=','ask-password','no-iri','local-encoding=','remote-encoding=','unlink','force-directories','protocol-directories','cut-dirs=','directory-prefix=','default-page=','adjust-extension','http-user=','http-password=','no-http-keep-alive','no-cache','no-cookies','load-cookies=','save-cookies=','keep-session-cookies','ignore-length','header=','max-redirect=','proxy-user=','proxy-password=','referer=','save-headers','user-agent=','post-data=','post-file=','method=','body-data=','body-file=','content-disposition','content-on-error','trust-server-names','auth-no-challenge','secure-protocol=','https-only','no-check-certificate','certificate=','certificate-type=','private-key=','private-key-type=','ca-certificate=','ca-directory=','random-file=','egd-file=','warc-file=','warc-header=','warc-max-size=','warc-cdx','warc-dedup=','no-warc-compression','no-warc-digests','no-warc-keep-log','warc-tempdir=','ftp-user=','ftp-password=','no-remove-listing','no-glob','no-passive-ftp','preserve-permissions','retr-symlinks','recursive','level=','delete-after','convert-links','backup-converted','mirror','page-requisites','strict-comments','accept=','reject=','accept-regex=','reject-regex=','regex-type=','domains=','exclude-domains=','follow-ftp','follow-tags=','ignore-tags=','ignore-case','span-hosts','relative','include-directories=','exclude-directories=','no-verbose','no-clobber','no-directories','no-host-directories','no-parent'])
+                    username = ''
+                    password = ''
+                    for a in args:
+                        if a[0] in ['user', 'http-user', 'ftp-user']:
+                            username = a[1]
+                        if a[0] in ['password', 'http-password', 'ftp-password']:
+                            password = a[1]
+                            
+                    for l in links:
+                        self.activeDownload(channelName, uuid, l, username, password)
     
-    def fileDownload(self, theCommand, link, user, password):
+    def activeDownload(self, channelName, uuid, link, user, password):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
         self.makeDownloadsFolder()
-        if self.cfg.get('txtlog', 'enabled') == 'true':
-            txtlog.log(self.txtlog_file, "wget Download Detected - %s" % theCommand)
+
         filename = dt + "-" + link.split("/")[-1]
         fileOut = self.cfg.get('folders', 'session_path') + '/' + self.endIP + '/downloads/' + filename
         wgetCommand = 'wget -O ' + fileOut + " "
@@ -183,52 +197,86 @@ class Output():
             wgetCommand = wgetCommand + '--password=' + password + ' '
         wgetCommand = wgetCommand + link
         
-        d = threads.deferToThread(self.wget, wgetCommand, link, fileOut)
+        d = threads.deferToThread(self.wget, channelName, uuid, wgetCommand, link, fileOut)
         d.addCallback(self.fileDownloaded)
         
         if self.cfg.has_option('app_hooks', 'download_started'):
-            if self.cfg.get('app_hooks', 'download_started'):
+            if self.cfg.get('app_hooks', 'download_started') != '':
                 cmdString = self.cfg.get('app_hooks', 'download_started') + " DOWNLOAD_STARTED " + dt + " " + self.endIP + " " + link + " " + fileOut
                 threads.deferToThread(self.runCommand, cmdString)  
 
     def fileDownloaded(self, input):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        success, link, file, wgetError = input
+        channelName, uuid, success, link, file, wgetError = input
         if success:
             if self.cfg.get('txtlog', 'enabled') == 'true':
-                txtlog.log(self.txtlog_file, "Finished Downloading file - %s %s" % (link, file))
+                txtlog.log(self.txtlog_file, channelName + ' Downloaded: ' + link + ' - Saved: ' + file)
                 threads.deferToThread(txtlog.downloadLog, dt, self.cfg.get('folders', 'log_path') + '/downloads.log', self.endIP, link, file)
                 
             if self.cfg.get('database_mysql', 'enabled') == 'true':
-                self.dbLog.handleFileDownload(self.sid, link, file)
+                self.dbLog.handleFileDownload(uuid, link, file)
                 
             if self.cfg.has_option('app_hooks', 'download_finished'):
-                if self.cfg.get('app_hooks', 'download_finished'):
+                if self.cfg.get('app_hooks', 'download_finished') != '':
                     cmdString = self.cfg.get('app_hooks', 'download_finished') + " DOWNLOAD_FINISHED " + dt + " " + self.endIP + " " + link + " " + file
                     threads.deferToThread(self.runCommand, cmdString)  
         else:
             log.msg('[OUTPUT] FILE DOWNLOAD FAILED')
             log.msg('[OUTPUT] ' + wgetError)
 
-    def input(self, data):
-        ttylog.ttylog_write(self.ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
-    
-    def openTTY(self):
-        ttylog.ttylog_open(self.ttylog_file, time.time())
+    def channelOpened(self, uuid, channelName):
+        if self.cfg.get('txtlog', 'enabled') == 'true':
+            txtlog.log(self.txtlog_file, channelName + ' Opened Channel')
+            
+        if self.cfg.get('database_mysql', 'enabled') == 'true':
+            self.dbLog.channelOpened(self.sessionID, uuid, channelName)
+            
+        if self.cfg.get('hpfeeds', 'enabled') == 'true':
+            self.hpLog.channelOpened(uuid, channelName)
+            
+    def channelClosed(self, channel):
+        if self.cfg.get('txtlog', 'enabled') == 'true':
+            txtlog.log(self.txtlog_file, channel.name + ' Closed Channel')
+        
+        if self.cfg.get('database_mysql', 'enabled') == 'true':
+            self.dbLog.channelClosed(channel.uuid, channel.ttylog_file)
+            
+        if self.cfg.get('hpfeeds', 'enabled') == 'true':
+            self.hpLog.channelClosed(channel.uuid, channel.ttylog_file)
+            
+        if channel.ttylog_file != None:
+            self.ttyFiles.append(channel.ttylog_file)
+        
+    def openTTY(self, ttylog_file):
+        ttylog.ttylog_open(ttylog_file, time.time())
+    def inputTTY(self, ttylog_file, data):
+        ttylog.ttylog_write(ttylog_file, len(data), ttylog.TYPE_INPUT, time.time(), data)
+    def closeTTY(self, ttylog_file):
+        ttylog.ttylog_close(ttylog_file, time.time())
         
     def genericLog(self, message):
         self.makeSessionFolder()
         if self.cfg.get('txtlog', 'enabled') == 'true':
             txtlog.log(self.txtlog_file, message)
-            
+    
+    def addConnectionString(self, message):
+        self.connectionString = self.connectionString + '\n' + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ' - ' + message
+        
+    def writePossibleLink(self, ips):
+        if not self.endIP in ips:
+            self.connectionString = self.connectionString + '\n' + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + ' - [SSH  ] Attempted login with the same username and password as ' + ', '.join(ips) + ' - Possible link'
+        
     def errLog(self, message):
         self.makeSessionFolder()
-        txtlog.log(self.logLocation + "-err.log", message)
+        txtlog.log(self.txtlog_file + "-err", message)
         
     def advancedLog(self, message):
         self.makeSessionFolder()
-        txtlog.log(self.logLocation + "-adv.log", message)
+        txtlog.log(self.txtlog_file + "-adv", message)
+        
+    def writeSpoofPass(self, username, password):
+        txtlog.spoofLog(self.cfg.get('folders', 'log_path') + "/spoof.log", username, password, self.endIP)
     
     def makeSessionFolder(self):
         if not os.path.exists(os.path.join(self.cfg.get('folders', 'session_path') + '/' + self.endIP)):
@@ -257,31 +305,40 @@ class Output():
             fp.close()
             msg.attach(msg_text)
             if attachment != None:
-                fp = open(attachment, 'rb')
-                logdata = MIMEBase('application', "octet-stream")
-                logdata.set_payload(fp.read())
-                fp.close()
-                Encoders.encode_base64(logdata)
-                logdata.add_header('Content-Disposition', 'attachment', filename=os.path.basename(self.ttylog_file))
-                msg.attach(logdata)
+                for tty in attachment:
+                    fp = open(tty, 'rb')
+                    logdata = MIMEBase('application', "octet-stream")
+                    logdata.set_payload(fp.read())
+                    fp.close()
+                    Encoders.encode_base64(logdata)
+                    logdata.add_header('Content-Disposition', 'attachment', filename=os.path.basename(tty))
+                    msg.attach(logdata)
             s = smtplib.SMTP(self.cfg.get('email', 'host'), int(self.cfg.get('email', 'port')))
             if self.cfg.get('email', 'username') != '' and self.cfg.get('email', 'password') != '':
                 s.ehlo()
                 if self.cfg.get('email', 'use_tls') == 'true':
                     s.starttls()
-                s.login(self.cfg.get('email', 'username'), self.cfg.get('email', 'password'))
+                if self.cfg.get('email', 'use_smtpauth') == 'true':
+                    s.login(self.cfg.get('email', 'username'), self.cfg.get('email', 'password'))
             s.sendmail(msg['From'], msg['To'].split(','), msg.as_string())
             s.quit() #End send mail code
         except Exception, ex:
-            log.msg('[OUTPUT][EMAIL][ERR] - ' + str(e))
-            
-    def wget(self, wgetCommand, link, fileOut):
+            log.msg('[OUTPUT][EMAIL][ERR] - ' + str(ex))
+    
+    def cname(self, ipv4_str): #Thanks Are.
+        """Checks the ipv4_str against the GeoIP database. Returns the full country name of origin if 
+        the IPv4 address is found in the database. Returns None if not found."""
+        geo = GeoIP.new(GeoIP.GEOIP_MEMORY_CACHE)
+        country = geo.country_name_by_addr(ipv4_str)
+        return country
+    
+    def wget(self, channelName, uuid, wgetCommand, link, fileOut):
         sp = subprocess.Popen(wgetCommand, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         result = sp.communicate()
         if sp.returncode == 0:
-            return True, link, fileOut, None
+            return channelName, uuid, True, link, fileOut, None
         else:
-            return False, link, None, result[0]
+            return channelName, uuid, False, link, None, result[0]
         
     def runCommand(self, command):
         log.msg('[APP-HOOKS] - ' + command)

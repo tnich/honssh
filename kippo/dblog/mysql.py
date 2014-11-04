@@ -81,87 +81,60 @@ class DBLogger():
         d = self.db.runQuery(sql, args)
         d.addErrback(self.sqlerror)
 
-    def createSession(self, peerIP, peerPort, hostIP, hostPort):
-        sid = uuid.uuid1().hex
-        self.createSessionWhenever(sid, peerIP, hostIP)
-        return sid
+    def createSession(self, sid, peerIP, peerPort, hostIP, hostPort):
+        self.createSessionWhenever(sid, peerIP, peerPort, hostIP, hostPort)
 
     # This is separate since we can't return with a value
     @defer.inlineCallbacks
-    def createSessionWhenever(self, sid, peerIP, hostIP):
+    def createSessionWhenever(self, sid, peerIP, peerPort, hostIP, hostPort):
         sensorname = self.cfg.get('honeypot','sensor_name')
-        r = yield self.db.runQuery(
-            'SELECT `id` FROM `sensors` WHERE `ip` = %s', (sensorname,))
+        r = yield self.db.runQuery('SELECT `id` FROM `sensors` WHERE `ip` = %s AND `name` = %s AND `port` = %s', (hostIP, sensorname, hostPort))
         if r:
             id = r[0][0]
         else:
-            yield self.db.runQuery(
-                'INSERT INTO `sensors` (`ip`) VALUES (%s)', (sensorname,))
+            yield self.db.runQuery('INSERT INTO `sensors` (`ip`, `name`, `port`) VALUES (%s, %s, %s)', (hostIP, sensorname, hostPort))
             r = yield self.db.runQuery('SELECT LAST_INSERT_ID()')
             id = int(r[0][0])
         # now that we have a sensorID, continue creating the session
-        self.simpleQuery(
-            'INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`)' + \
-            ' VALUES (%s, FROM_UNIXTIME(%s), %s, %s)',
-            (sid, self.nowUnix(), id, peerIP))
+        self.simpleQuery('INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`, `port`) VALUES (%s, FROM_UNIXTIME(%s), %s, %s, %s)', (sid, self.nowUnix(), id, peerIP, peerPort))
             
     def nowUnix(self):
         """return the current UTC time as an UNIX timestamp"""
         return int(time.mktime(time.gmtime()[:-1] + (-1,)))
-    def ttylog(self, ttylog):
-        f = file(ttylog)
-        ttylog = f.read(10485760)
-        f.close()
-        return ttylog
 
-    def handleConnectionLost(self, session, ttylogFile=None):
-        if ttylogFile != None:
-            ttylogOut = self.ttylog(ttylogFile)
-            self.simpleQuery(
-                'INSERT INTO `ttylog` (`session`, `ttylog`) VALUES (%s, %s)',
-                (session, ttylogOut))
-        self.simpleQuery(
-            'UPDATE `sessions` SET `endtime` = FROM_UNIXTIME(%s)' + \
-            ' WHERE `id` = %s',
-            (self.nowUnix(), session))
+    def handleConnectionLost(self, sid):
+        self.simpleQuery('UPDATE `sessions` SET `endtime` = FROM_UNIXTIME(%s) WHERE `id` = %s', (self.nowUnix(), sid))
 
-    def handleLoginFailed(self, session, username, password):
-        self.simpleQuery('INSERT INTO `auth` (`session`, `success`' + \
-            ', `username`, `password`, `timestamp`)' + \
-            ' VALUES (%s, %s, %s, %s, FROM_UNIXTIME(%s))',
-            (session, 0, username, password, self.nowUnix()))
+    def handleLoginFailed(self, username, password):
+        self.simpleQuery('INSERT INTO `auth` (`success`, `username`, `password`, `timestamp`) VALUES (%s, %s, %s, FROM_UNIXTIME(%s))', (0, username, password, self.nowUnix()))
 
-    def handleLoginSucceeded(self, session, username, password):
-        self.simpleQuery('INSERT INTO `auth` (`session`, `success`' + \
-            ', `username`, `password`, `timestamp`)' + \
-            ' VALUES (%s, %s, %s, %s, FROM_UNIXTIME(%s))',
-            (session, 1, username, password, self.nowUnix()))
+    def handleLoginSucceeded(self, username, password):
+        self.simpleQuery('INSERT INTO `auth` (`success`, `username`, `password`, `timestamp`) VALUES (%s, %s, %s, FROM_UNIXTIME(%s))', ( 1, username, password, self.nowUnix()))
+            
+    def channelOpened(self, sessionID, uuid, channelName):
+        self.simpleQuery('INSERT INTO `channels` (`id`, `type`, `starttime`, `sessionid`) VALUES (%s, %s, FROM_UNIXTIME(%s), %s)', (uuid, channelName, self.nowUnix(), sessionID))
+        
+    def channelClosed(self, uuid, ttylog=None):
+        self.simpleQuery('UPDATE `channels` SET `endtime` = FROM_UNIXTIME(%s) WHERE `id` = %s', (self.nowUnix(), uuid))
+        if ttylog != None:
+            fp = open(ttylog, 'rb')
+            ttydata = fp.read()
+            fp.close()
+            self.simpleQuery('INSERT INTO `ttylog` (`channelid`, `ttylog`) VALUES (%s, %s)', (uuid, ttydata))
 
-    def handleCommand(self, session, theCommand):
-        self.simpleQuery('INSERT INTO `input`' + \
-            ' (`session`, `timestamp`, `success`, `input`)' + \
-            ' VALUES (%s, FROM_UNIXTIME(%s), %s, %s)',
-            (session, self.nowUnix(), 1, theCommand))
+    def handleCommand(self, uuid, theCommand):
+        self.simpleQuery('INSERT INTO `commands` (`timestamp`, `channelid`, `command`) VALUES (FROM_UNIXTIME(%s), %s, %s)', (self.nowUnix(), uuid, theCommand))
 
     @defer.inlineCallbacks
     def handleClientVersion(self, session, version):
-        r = yield self.db.runQuery(
-            'SELECT `id` FROM `clients` WHERE `version` = %s', \
-            (version))
+        r = yield self.db.runQuery('SELECT `id` FROM `clients` WHERE `version` = %s', (version))
         if r:
             id = int(r[0][0])
         else:
-            yield self.db.runQuery(
-                'INSERT INTO `clients` (`version`) VALUES (%s)', \
-                (version))
+            yield self.db.runQuery('INSERT INTO `clients` (`version`) VALUES (%s)', (version))
             r = yield self.db.runQuery('SELECT LAST_INSERT_ID()')
             id = int(r[0][0])
-        self.simpleQuery(
-            'UPDATE `sessions` SET `client` = %s WHERE `id` = %s',
-            (id, session))
+        self.simpleQuery('UPDATE `sessions` SET `client` = %s WHERE `id` = %s', (id, session))
 
-    def handleFileDownload(self, session, url, outfile):
-        self.simpleQuery('INSERT INTO `downloads`' + \
-            ' (`session`, `timestamp`, `url`, `outfile`)' + \
-            ' VALUES (%s, FROM_UNIXTIME(%s), %s, %s)',
-            (session, self.nowUnix(), url, outfile))
+    def handleFileDownload(self, uuid, url, outfile):
+        self.simpleQuery('INSERT INTO `downloads` (`channelid`, `timestamp`, `url`, `outfile`) VALUES (%s, FROM_UNIXTIME(%s), %s, %s)', (uuid, self.nowUnix(), url, outfile))

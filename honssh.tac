@@ -57,6 +57,7 @@ if not os.path.exists(cfg.get('folders', 'session_path')):
 with open(cfg.get('honeypot', 'private_key')) as privateBlobFile:
     privateBlob = privateBlobFile.read()
     privateKey = Key.fromString(data=privateBlob)
+    
 
 with open(cfg.get('honeypot', 'public_key')) as publicBlobFile:
     publicBlob = publicBlobFile.read()
@@ -71,12 +72,13 @@ service = internet.TCPServer(int(cfg.get('honeypot', 'ssh_port')), serverFactory
 service.setServiceParent(application)
 #reactor.listenTCP(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
 
-if cfg.get('interact', 'enabled')== 'true':
-    iport = int(cfg.get('interact', 'port'))
-    from kippo.core import interact
-    from twisted.internet import protocol
-    service = internet.TCPServer(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
-    service.setServiceParent(application)
-    #reactor.listenTCP(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
+#Interaction - Disabled in this release
+#if cfg.get('interact', 'enabled')== 'true':
+#    iport = int(cfg.get('interact', 'port'))
+#    from kippo.core import interact
+#    from twisted.internet import protocol
+#    service = internet.TCPServer(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
+#    service.setServiceParent(application)
+#    #reactor.listenTCP(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
 
 #reactor.run()

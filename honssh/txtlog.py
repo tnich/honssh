@@ -32,7 +32,6 @@ import os
 import hashlib
 
 def log(logfile, message):
-
     setPermissions = False
     
     if(os.path.isfile(logfile) == False):
@@ -52,13 +51,16 @@ def authLog(logfile, ip, username, password, success):
     
     if(os.path.isfile(logfile) == False):
         setPermissions = True
-        
-    auth = "0"
-    if success:
-        auth = "1"
-      
+    
     f = file(logfile, 'a')
-    f.write("%s,%s,%s,%s,%s\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),ip,username,password,auth))
+    
+    if username == '' or password == '':
+        f.write("%s,%s\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),ip))
+    else:
+        auth = "0"
+        if success:
+            auth = "1"
+        f.write("%s,%s,%s,%s,%s\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),ip,username,password,auth))
     f.close()
     
     if(setPermissions):
@@ -85,6 +87,36 @@ def downloadLog(dt, logfile, ip, link, outFile):
     f = file(logfile, 'a')
     f.write("%s,%s,%s,%s,%s,%s\n" % (dt, ip, link, theSize, theMD5, outFile))
     f.close()
+    
+    if(setPermissions):
+        os.chmod(logfile, 0644)
+        
+def spoofLog(logfile, username, password, ip):
+   
+    setPermissions = False
+    found = False
+        
+    if os.path.isfile(logfile):
+        f = file(logfile, 'r')
+        lines = f.readlines()
+        f.close()
+        for i in range(len(lines)):
+            lines[i] = lines[i].strip().split(' - ')
+            if lines[i][0] == username and lines[i][1] == password:
+                found = True
+                if ip not in lines[i][2:]:
+                    lines[i].append(ip)
+        f = file(logfile, 'w')
+        for line in lines:
+            f.write(' - '.join(line) + '\n')
+        if not found:
+            f.write("%s - %s - %s\n" % (username,password,ip))
+        f.close()
+    else:
+        f = file(logfile, 'a')
+        f.write("%s - %s - %s\n" % (username,password,ip))
+        f.close()
+        setPermissions = True
     
     if(setPermissions):
         os.chmod(logfile, 0644)
