@@ -173,7 +173,8 @@ class SSH(baseProtocol.BaseProtocol):
                     self.createChannel(parent, id, type, session=baseProtocol.BaseProtocol())
             else:
                 ##UNKNOWN CHANNEL TYPE
-                log.msg("[SSH] - Unknown Channel Type Detected - " + type)              
+                if type not in ['exit-status']:
+                    log.msg("[SSH] - Unknown Channel Type Detected - " + type)              
 
         elif packet == 'SSH_MSG_CHANNEL_OPEN_CONFIRMATION':
             channel = self.getChannel(self.extractInt(4), parent)
@@ -241,7 +242,8 @@ class SSH(baseProtocol.BaseProtocol):
             channel[parent] = True
             if '[SERVER]' in channel and '[CLIENT]' in channel:
                 ##CHANNEL CLOSED
-                channel['session'].channelClosed()
+                if channel['session'] != None:
+                    channel['session'].channelClosed()
                 self.out.channelClosed(channel['session'])
                 self.channels.remove(channel)
         # - END Channels
