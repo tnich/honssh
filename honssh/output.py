@@ -149,16 +149,20 @@ class Output():
         
     def commandEntered(self, uuid, channelName, theCommand):
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            txtlog.log(self.txtlog_file, channelName + " Command Executed: %s" % (theCommand))
+            theCMD = theCommand.replace('\n', '\\n')
+            txtlog.log(self.txtlog_file, channelName + " Command Executed: %s" % (theCMD))
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog.handleCommand(uuid, theCommand)
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             self.hpLog.handleCommand(uuid, theCommand)
             
-            
         theCommandsSplit = re.findall(r'(?:[^;&|<>"\']|["\'](?:\\.|[^"\'])*[\'"])+', theCommand)
+        theCMDs = []
+        
+        for cmd in theCommandsSplit:
+            theCMDs.extend(cmd.split('\n'))
 
-        for command in theCommandsSplit:
+        for command in theCMDs:
             command = command.strip().rstrip()
 
             dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
