@@ -41,8 +41,9 @@ class Output():
     passwordTried = False
     loginSuccess = False
     
-    def __init__(self, hpLog):
+    def __init__(self, hpLog, dbLog):
         self.hpLogClient = hpLog
+        self.dbLogClient = dbLog
     
     def connectionMade(self, ip, port):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -62,7 +63,7 @@ class Output():
             
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog = mysql.DBLogger()
-            self.dbLog.start(self.cfg)
+            self.dbLog.setClient(self.dbLogClient, self.cfg)
                         
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             self.hpLog = hpfeeds.HPLogger()

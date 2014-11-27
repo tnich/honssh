@@ -63,8 +63,7 @@ class DBLogger():
             port = int(cfg.get('database_mysql', 'port'))
         else:
             port = 3306
-        self.cfg = cfg
-        self.db = ReconnectingConnectionPool('MySQLdb',
+        return ReconnectingConnectionPool('MySQLdb',
             host = cfg.get('database_mysql', 'host'),
             db = cfg.get('database_mysql', 'database'),
             user = cfg.get('database_mysql', 'username'),
@@ -72,6 +71,11 @@ class DBLogger():
             port = port,
             cp_min = 1,
             cp_max = 1)
+            
+    def setClient(self, dblog, cfg):
+        self.db = dblog
+        self.cfg = cfg
+
             
     def sqlerror(self, error):
         print 'SQL Error:', error.value

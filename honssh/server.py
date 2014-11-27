@@ -32,6 +32,7 @@ from twisted.internet import reactor
 from honssh import client, output, networking
 from honssh.protocols import sftp, ssh
 from kippo.core.config import config
+from kippo.dblog import mysql
 from hpfeeds import hpfeeds
 import datetime, time, os, struct, re, subprocess, random
 
@@ -45,7 +46,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
 
         self.factory.sessions[self.transport.sessionno] = self
         
-        self.out = output.Output(self.factory.hpLog)
+        self.out = output.Output(self.factory.hpLog, self.factory.dbLog)
         self.net = networking.Networking()
         
         self.endIP = self.transport.getPeer().host   
@@ -117,6 +118,7 @@ class HonsshServerFactory(factory.SSHFactory):
     otherVersionString = ''
     sessions = {}
     hpLog = None
+    dbLog = None
     
     def __init__(self):
         clientFactory = client.HonsshSlimClientFactory()
@@ -126,6 +128,10 @@ class HonsshServerFactory(factory.SSHFactory):
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             hp = hpfeeds.HPLogger()
             self.hpLog = hp.start(self.cfg)
+            
+        if self.cfg.get('database_mysql', 'enabled') == 'true':
+            db = mysql.DBLogger()
+            self.dbLog = db.start(self.cfg)
     
     def buildProtocol(self, addr):
         t = HonsshServerTransport()
