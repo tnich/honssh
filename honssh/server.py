@@ -29,14 +29,14 @@ from twisted.conch.ssh import factory, transport, service
 from twisted.conch.ssh.transport import SSHCiphers
 from twisted.python import log
 from twisted.internet import reactor
-from honssh import client, output, networking
+from honssh import client, output, networking, honsshServer
 from honssh.protocols import sftp, ssh
 from kippo.core.config import config
 from kippo.dblog import mysql
 from hpfeeds import hpfeeds
 import datetime, time, os, struct, re, subprocess, random
 
-class HonsshServerTransport(transport.SSHServerTransport):
+class HonsshServerTransport(honsshServer.HonsshServer):
     cfg = config()
    
     def connectionMade(self):
@@ -59,7 +59,7 @@ class HonsshServerTransport(transport.SSHServerTransport):
 
         self.sshParse = ssh.SSH(self, self.out)
 
-        transport.SSHServerTransport.connectionMade(self)
+        honsshServer.HonsshServer.connectionMade(self)
         
     def connectionLost(self, reason):
         try:
@@ -70,20 +70,20 @@ class HonsshServerTransport(transport.SSHServerTransport):
             i.sessionClosed()
         if self.transport.sessionno in self.factory.sessions:
             del self.factory.sessions[self.transport.sessionno]
-        transport.SSHServerTransport.connectionLost(self, reason)
+        honsshServer.HonsshServer.connectionLost(self, reason)
                
         self.out.connectionLost()
         self.net.removeNetworking(self.factory.sessions)
         
     def ssh_KEXINIT(self, packet):
         self.out.setVersion(self.otherVersionString)
-        return transport.SSHServerTransport.ssh_KEXINIT(self, packet)
+        return honsshServer.HonsshServer.ssh_KEXINIT(self, packet)
        
     def dispatchMessage(self, messageNum, payload):
-        if transport.SSHServerTransport.isEncrypted(self, "both"):
+        if honsshServer.HonsshServer.isEncrypted(self, "both"):
             self.sshParse.parsePacket("[SERVER]", messageNum, payload)
         else:
-            transport.SSHServerTransport.dispatchMessage(self, messageNum, payload)
+            honsshServer.HonsshServer.dispatchMessage(self, messageNum, payload)
     
     def addInteractor(self, interactor):
         self.interactors.append(interactor)
@@ -92,27 +92,8 @@ class HonsshServerTransport(transport.SSHServerTransport):
         self.interactors.remove(interactor)
         
     def sendPacket(self, messageNum, payload):
-        transport.SSHServerTransport.sendPacket(self, messageNum, payload)
+        honsshServer.HonsshServer.sendPacket(self, messageNum, payload)
         
-    def sendDisconnect(self, reason, desc):
-        """
-        http://kbyte.snowpenguin.org/portal/2013/04/30/kippo-protocol-mismatch-workaround/
-        Workaround for the "bad packet length" error message.
-
-        @param reason: the reason for the disconnect.  Should be one of the
-                       DISCONNECT_* values.
-        @type reason: C{int}
-        @param desc: a descrption of the reason for the disconnection.
-        @type desc: C{str}
-        """
-        if not 'bad packet length' in desc:
-            # With python >= 3 we can use super?
-            transport.SSHServerTransport.sendDisconnect(self, reason, desc)
-        else:
-            self.transport.write('Protocol mismatch.\n')
-            log.msg('[SERVER] - Disconnecting with error, code %s\nreason: %s' % (reason, desc))
-            self.transport.loseConnection()
-
 class HonsshServerFactory(factory.SSHFactory):
     cfg = config()
     otherVersionString = ''

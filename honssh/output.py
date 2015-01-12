@@ -33,7 +33,7 @@ from honssh import txtlog
 from kippo.core import ttylog
 from kippo.dblog import mysql
 from hpfeeds import hpfeeds
-import datetime, time, os, struct, re, subprocess, uuid, GeoIP, getopt
+import datetime, time, os, struct, re, subprocess, uuid, GeoIP, getopt, hashlib
 
 class Output():
     cfg = config()
@@ -53,6 +53,7 @@ class Output():
         self.endIP = ip
         self.endPort = port
         self.sessionID = uuid.uuid4().hex
+        self.ttyFiles = []
         
         if self.cfg.get('txtlog', 'enabled') == 'true':
             self.connectionString = '[POT  ] ' + self.cfg.get('honeypot', 'sensor_name')
@@ -216,8 +217,7 @@ class Output():
         channelName, uuid, success, link, file, wgetError = input
         if success:
             if self.cfg.get('txtlog', 'enabled') == 'true':
-                txtlog.log(self.txtlog_file, channelName + ' Downloaded: ' + link + ' - Saved: ' + file)
-                threads.deferToThread(txtlog.downloadLog, dt, self.cfg.get('folders', 'log_path') + '/downloads.log', self.endIP, link, file)
+                threads.deferToThread(self.generateMD5, channelName, dt, self.cfg.get('folders', 'log_path') + '/downloads.log', self.endIP, link, file)
                 
             if self.cfg.get('database_mysql', 'enabled') == 'true':
                 self.dbLog.handleFileDownload(uuid, link, file)
@@ -336,6 +336,21 @@ class Output():
         geo = GeoIP.new(GeoIP.GEOIP_MEMORY_CACHE)
         country = geo.country_name_by_addr(ipv4_str)
         return country
+    
+    def generateMD5(self, channelName, dt, logPath, theIP, link, outFile):      
+        f = file(outFile, 'rb')
+        md5 = hashlib.md5()
+        while True:
+            data = f.read(2**20)
+            if not data:
+                break
+            md5.update(data)
+        f.close()
+        
+        theMD5 = md5.hexdigest()
+        theSize = os.path.getsize(outFile)
+        txtlog.log(self.txtlog_file, channelName + ' Downloaded: ' + link + ' - Saved: ' + outFile + ' - Size: ' + str(theSize) + ' - MD5: ' + str(theMD5))
+        txtlog.downloadLog(dt, logPath, theIP, link, outFile, theSize, theMD5)
     
     def wget(self, channelName, uuid, wgetCommand, link, fileOut):
         sp = subprocess.Popen(wgetCommand, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
