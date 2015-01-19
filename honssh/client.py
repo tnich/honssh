@@ -46,6 +46,7 @@ class HonsshClientTransport(transport.SSHClientTransport):
         return defer.succeed(True)
     
     def connectionSecure(self):
+        self.factory.server.clientConnected = True
         log.msg('[CLIENT] - Client Connection Secured')
         
     def connectionLost(self, reason):

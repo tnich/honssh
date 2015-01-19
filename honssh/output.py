@@ -37,10 +37,7 @@ import datetime, time, os, struct, re, subprocess, uuid, GeoIP, getopt, hashlib
 
 class Output():
     cfg = config()
-    ttyFiles = []
-    passwordTried = False
-    loginSuccess = False
-    
+
     def __init__(self, hpLog, dbLog):
         self.hpLogClient = hpLog
         self.dbLogClient = dbLog
@@ -53,6 +50,8 @@ class Output():
         self.endIP = ip
         self.endPort = port
         self.sessionID = uuid.uuid4().hex
+        self.passwordTried = False
+        self.loginSuccess = False
         self.ttyFiles = []
         
         if self.cfg.get('txtlog', 'enabled') == 'true':

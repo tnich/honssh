@@ -28,7 +28,7 @@
 from twisted.conch.ssh import factory, transport, service
 from twisted.conch.ssh.transport import SSHCiphers
 from twisted.python import log
-from twisted.internet import reactor
+from twisted.internet import reactor, defer, threads
 from honssh import client, output, networking, honsshServer
 from honssh.protocols import sftp, ssh
 from kippo.core.config import config
@@ -38,8 +38,9 @@ import datetime, time, os, struct, re, subprocess, random
 
 class HonsshServerTransport(honsshServer.HonsshServer):
     cfg = config()
-   
+       
     def connectionMade(self):
+        self.timeoutCount = 0
         self.interactors = []
         clientFactory = client.HonsshClientFactory()
         clientFactory.server = self
@@ -48,13 +49,19 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         
         self.out = output.Output(self.factory.hpLog, self.factory.dbLog)
         self.net = networking.Networking()
+
+        self.clientConnected = False
+        self.delayedPackets = []
         
         self.endIP = self.transport.getPeer().host   
 
         self.bindIP = self.net.setupNetworking(self.endIP)
+
+        reactor.connectTCP(self.cfg.get('honeypot', 'honey_addr'), 22, clientFactory, bindAddress=(self.bindIP, self.transport.getPeer().port), timeout=10)
         
-        reactor.connectTCP(self.cfg.get('honeypot', 'honey_addr'), 22, clientFactory, bindAddress=(self.bindIP, self.transport.getPeer().port))
-        
+        d = threads.deferToThread(self.checkClientConnected)
+        d.addCallback(self.clientConn)
+       
         self.out.connectionMade(self.endIP, self.transport.getPeer().port)
 
         self.sshParse = ssh.SSH(self, self.out)
@@ -81,7 +88,11 @@ class HonsshServerTransport(honsshServer.HonsshServer):
        
     def dispatchMessage(self, messageNum, payload):
         if honsshServer.HonsshServer.isEncrypted(self, "both"):
-            self.sshParse.parsePacket("[SERVER]", messageNum, payload)
+            if not self.clientConnected:
+                log.msg("[SERVER] CONNECTION TO HONEYPOT NOT READY, BUFFERING PACKET")
+                self.delayedPackets.append([messageNum, payload])
+            else:
+                self.sshParse.parsePacket("[SERVER]", messageNum, payload)
         else:
             honsshServer.HonsshServer.dispatchMessage(self, messageNum, payload)
     
@@ -93,6 +104,23 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         
     def sendPacket(self, messageNum, payload):
         honsshServer.HonsshServer.sendPacket(self, messageNum, payload)
+        
+    def checkClientConnected(self):
+        while not self.clientConnected:
+            time.sleep(1)
+            self.timeoutCount = self.timeoutCount + 1
+            if self.timeoutCount == 10:
+                break
+        self.timeoutCount = 0
+        return self.clientConnected
+    def clientConn(self, success):
+        if success:
+            log.msg("[SERVER] CLIENT CONNECTED, REPLAYING BUFFERED PACKETS")
+            for packet in self.delayedPackets:
+                self.sshParse.parsePacket("[SERVER]", packet[0], packet[1])
+        else:
+            log.msg("[SERVER][ERROR] COULD NOT CONNECT TO HONEYPOT AFTER 10 SECONDS - DISCONNECTING CLIENT")
+            self.loseConnection()
         
 class HonsshServerFactory(factory.SSHFactory):
     cfg = config()
