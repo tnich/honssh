@@ -45,9 +45,10 @@ def validateConfig(cfg):
             validConfig = False
         
     #Check prop exists and is a port number
-    prop = ['honeypot','ssh_port']
-    if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
-        validConfig = False
+    props = [['honeypot','ssh_port'],['honeypot','honey_port']]
+    for prop in props:
+        if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
+            validConfig = False
         
     #Check prop exists
     props = [['honeypot','sensor_name'],['honeypot','public_key'], ['honeypot','private_key'], ['folders','log_path'], ['folders','session_path']]

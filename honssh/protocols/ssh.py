@@ -67,7 +67,7 @@ class SSH(baseProtocol.BaseProtocol):
                 99 : 'SSH_MSG_CHANNEL_SUCCESS',             #
                 100 : 'SSH_MSG_CHANNEL_FAILURE'             #
                 }
-                
+    
     def __init__(self, server, out):
         self.out = out
         self.server = server
@@ -83,12 +83,17 @@ class SSH(baseProtocol.BaseProtocol):
         
         packet = self.packetLayout[messageNum]
             
+        if parent == '[SERVER]':
+            direction = 'CLIENT -> SERVER'
+        else:
+            direction = 'SERVER -> CLIENT'
+                
         if self.cfg.get('packets', 'enabled') == 'true':
-            if parent == '[SERVER]':
-                direction = 'CLIENT -> SERVER'
-            else:
-                direction = 'SERVER -> CLIENT'
-            self.out.advancedLog(direction + ' - ' + packet.ljust(33) + ' - ' + repr(payload))
+            self.out.advancedLog(direction + ' - ' + packet.ljust(35) + ' - ' + repr(payload))
+            
+        if self.cfg.has_option('debug', 'enabled'):   
+            if self.cfg.get('debug', 'enabled') == 'true':
+                log.msg(direction + ' - ' + packet.ljust(35) + ' - ' + repr(payload))
         
         # - UserAuth            
         if packet == 'SSH_MSG_USERAUTH_REQUEST':
@@ -162,7 +167,13 @@ class SSH(baseProtocol.BaseProtocol):
                     self.sendBack(parent, 92, self.intToHex(id))
                 else:
                     ##LOG X11 Channel opened - not logging
-                    self.createChannel(parent, id, type, session=baseProtocol.BaseProtocol())
+                    #Make into a method
+                    theUUID = uuid.uuid4().hex
+                    theName = '[PORTF' + str(id) + ']'
+                    self.createChannel(parent, id, type, session=baseProtocol.BaseProtocol(uuid=theUUID, name=theName))
+                    channel = self.getChannel(id, '[CLIENT]')
+                    channel['name'] = theName
+                    self.out.channelOpened(theUUID, channel['name'])
             elif type == 'direct-tcpip':
                 if self.cfg.get('hp-restrict', 'disable_port_forwarding') == 'true':
                     log.msg("[SSH] - Detected Port Forwarding Channel - Disabling!")
@@ -170,7 +181,13 @@ class SSH(baseProtocol.BaseProtocol):
                     self.sendBack(parent, 92, self.intToHex(id) + self.intToHex(1) + self.stringToHex('open failed') + self.intToHex(0))
                 else:
                     ##LOG PORT FORWARDING Channel opened - not logging
-                    self.createChannel(parent, id, type, session=baseProtocol.BaseProtocol())
+                    #Make into a method
+                    theUUID = uuid.uuid4().hex
+                    theName = '[PORTF' + str(id) + ']'
+                    self.createChannel(parent, id, type, session=baseProtocol.BaseProtocol(uuid=theUUID, name=theName))
+                    channel = self.getChannel(id, '[CLIENT]')
+                    channel['name'] = theName
+                    self.out.channelOpened(theUUID, channel['name'])
             else:
                 ##UNKNOWN CHANNEL TYPE
                 if type not in ['exit-status']:
@@ -195,7 +212,7 @@ class SSH(baseProtocol.BaseProtocol):
             channel = self.getChannel(self.extractInt(4), parent)
             type = self.extractString()
             theUUID = uuid.uuid4().hex
-            if type == 'pty-req':
+            if type == 'shell':
                 channel['name'] = '[TERM' + str(channel['serverID']) + ']'
                 self.out.channelOpened(theUUID, channel['name'])
                 channel['session'] = term.Term(self.out, theUUID, channel['name'])
@@ -231,7 +248,7 @@ class SSH(baseProtocol.BaseProtocol):
                     self.sendBack(parent, 82, '')
             else:
                 ##UNKNOWN CHANNEL REQUEST TYPE
-                if type not in ['window-change', 'env', 'shell', 'exit-status']:
+                if type not in ['window-change', 'env', 'pty-req', 'exit-status']:
                     log.msg("[SSH] - Unknown Channel Request Type Detected - " + type) 
                 
         elif packet == 'SSH_MSG_CHANNEL_FAILURE':
@@ -239,7 +256,7 @@ class SSH(baseProtocol.BaseProtocol):
                 
         elif packet == 'SSH_MSG_CHANNEL_CLOSE':
             channel = self.getChannel(self.extractInt(4), parent)
-            channel[parent] = True
+            channel[parent] = True #Is this needed?!
             if '[SERVER]' in channel and '[CLIENT]' in channel:
                 ##CHANNEL CLOSED
                 if channel['session'] != None:
@@ -272,14 +289,18 @@ class SSH(baseProtocol.BaseProtocol):
                 self.server.sendPacket(messageNum, payload)
     
     def sendBack(self, parent, messageNum, payload):
-        if self.cfg.get('packets', 'enabled') == 'true':
-            packet = self.packetLayout[messageNum]
-            if parent == '[SERVER]':
-                direction = 'HONSSH -> CLIENT'
-            else:
-                direction = 'HONSSH -> SERVER'
-            self.out.advancedLog(direction + ' - ' + packet.ljust(33) + ' - ' + repr(payload))
+        packet = self.packetLayout[messageNum]
+        
+        if parent == '[SERVER]':
+            direction = 'HONSSH -> CLIENT'
+        else:
+            direction = 'HONSSH -> SERVER'
             
+        if self.cfg.get('packets', 'enabled') == 'true':
+            self.out.advancedLog(direction + ' - ' + packet.ljust(33) + ' - ' + repr(payload))
+        if self.cfg.has_option('debug', 'enabled'):   
+            if self.cfg.get('debug', 'enabled') == 'true':
+                log.msg(direction + ' - ' + packet.ljust(35) + ' - ' + repr(payload))
             
         if parent == '[SERVER]':
             self.server.sendPacket(messageNum, payload)

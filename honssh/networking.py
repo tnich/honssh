@@ -35,9 +35,11 @@ class Networking():
     theIP = None
     theFakeIP = None
     
-    def setupNetworking(self, theIP):
+    def setupNetworking(self, theIP, thePort):
         if self.cfg.get('advNet', 'enabled') == 'true':
             self.theIP = theIP
+            self.thePort = thePort
+
             self.theFakeIP = self.getFakeIP(self.theIP)
             
             sp = self.runCommand('ip link add name honssh type dummy')
@@ -73,13 +75,13 @@ class Networking():
                 log.msg('[ADV-NET] - Error adding IP address to HonSSH Interface - Using client_addr: ' + result[0])
                 return self.cfg.get('honeypot', 'client_addr')
         else:
-            sp = self.runCommand('iptables -t nat -A POSTROUTING -s ' + self.theFakeIP + '/32 -d ' + self.cfg.get('honeypot', 'honey_addr') + '/32 -p tcp --dport 22 -j SNAT --to ' + self.theIP)
+            sp = self.runCommand('iptables -t nat -A POSTROUTING -s ' + self.theFakeIP + '/32 -d ' + self.cfg.get('honeypot', 'honey_addr') + '/32 -p tcp --dport ' + self.thePort + ' -j SNAT --to ' + self.theIP)
             result = sp.communicate()
             if sp.returncode != 0:
                 log.msg('[ADV-NET] - Error creating POSTROUTING Rule - Using client_addr: ' + result[0])
                 return self.cfg.get('honeypot', 'client_addr')
             else:
-                sp = self.runCommand('iptables -t nat -A PREROUTING -s ' + self.cfg.get('honeypot', 'honey_addr') + '/32 -d ' + self.theIP +'/32 -p tcp --sport 22 -j DNAT --to ' + self.theFakeIP)
+                sp = self.runCommand('iptables -t nat -A PREROUTING -s ' + self.cfg.get('honeypot', 'honey_addr') + '/32 -d ' + self.theIP +'/32 -p tcp --sport ' + self.thePort + ' -j DNAT --to ' + self.theFakeIP)
                 result = sp.communicate()
                 if sp.returncode != 0:
                     log.msg('[ADV-NET] - Error creating PREROUTING Rule - Using client_addr: ' + result[0])
@@ -94,12 +96,12 @@ class Networking():
         if sp.returncode != 0:
             log.msg('[ADV-NET] - Error removing IP address to HonSSH Interface: ' + result[0])
  
-        sp = self.runCommand('iptables -t nat -D POSTROUTING -s ' + self.theFakeIP + '/32 -d ' + self.cfg.get('honeypot', 'honey_addr') + '/32 -p tcp --dport 22 -j SNAT --to ' + self.theIP)
+        sp = self.runCommand('iptables -t nat -D POSTROUTING -s ' + self.theFakeIP + '/32 -d ' + self.cfg.get('honeypot', 'honey_addr') + '/32 -p tcp --dport ' + self.thePort + ' -j SNAT --to ' + self.theIP)
         result = sp.communicate()
         if sp.returncode != 0:
             log.msg('[ADV-NET] - Error removing POSTROUTING Rule: ' + result[0])
  
-        sp = self.runCommand('iptables -t nat -D PREROUTING -s ' + self.cfg.get('honeypot', 'honey_addr') + '/32 -d ' + self.theIP +'/32 -p tcp --sport 22 -j DNAT --to ' + self.theFakeIP)
+        sp = self.runCommand('iptables -t nat -D PREROUTING -s ' + self.cfg.get('honeypot', 'honey_addr') + '/32 -d ' + self.theIP +'/32 -p tcp --sport ' + self.thePort + ' -j DNAT --to ' + self.theFakeIP)
         result = sp.communicate()
         if sp.returncode != 0:
             log.msg('[ADV-NET] - Error removing PREROUTING Rule: ' + result[0])

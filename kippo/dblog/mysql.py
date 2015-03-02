@@ -85,13 +85,13 @@ class DBLogger():
         d = self.db.runQuery(sql, args)
         d.addErrback(self.sqlerror)
 
-    def createSession(self, sid, peerIP, peerPort, hostIP, hostPort):
-        self.createSessionWhenever(sid, peerIP, peerPort, hostIP, hostPort)
+    def createSession(self, sid, peerIP, peerPort, hostIP, hostPort, sensorName):
+        self.createSessionWhenever(sid, peerIP, peerPort, hostIP, hostPort, sensorName)
 
     # This is separate since we can't return with a value
     @defer.inlineCallbacks
-    def createSessionWhenever(self, sid, peerIP, peerPort, hostIP, hostPort):
-        sensorname = self.cfg.get('honeypot','sensor_name')
+    def createSessionWhenever(self, sid, peerIP, peerPort, hostIP, hostPort, sensorName):
+        sensorname = sensorName
         r = yield self.db.runQuery('SELECT `id` FROM `sensors` WHERE `ip` = %s AND `name` = %s AND `port` = %s', (hostIP, sensorname, hostPort))
         if r:
             id = r[0][0]

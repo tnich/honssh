@@ -36,8 +36,11 @@ class BaseProtocol():
     uuid = ''
     ttylog_file = None
     
-    def __init__(self):
-        pass
+    def __init__(self, uuid=None, name=None):
+        if uuid != None:
+            self.uuid = uuid
+        if name != None:
+            self.name = name
                    
     def parsePacket(self, parent, theData):
         #log.msg(parent + ' ' + repr(theData))

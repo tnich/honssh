@@ -42,9 +42,12 @@ class Output():
         self.hpLogClient = hpLog
         self.dbLogClient = dbLog
     
-    def connectionMade(self, ip, port):
+    def connectionMade(self, ip, port, honeyIP, honeyPort, sensorName):
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.logLocation = self.cfg.get('folders', 'session_path') + "/" + ip + "/"
+        self.sensorName = sensorName
+        self.honeyIP = honeyIP
+        self.honeyPort = honeyPort
+        self.logLocation = self.cfg.get('folders', 'session_path') + "/" + self.sensorName + "/"+ ip + "/"
         self.downloadFolder = self.logLocation + 'downloads/'
         self.txtlog_file = self.logLocation + dt + ".log"
         self.endIP = ip
@@ -53,9 +56,10 @@ class Output():
         self.passwordTried = False
         self.loginSuccess = False
         self.ttyFiles = []
+
         
         if self.cfg.get('txtlog', 'enabled') == 'true':
-            self.connectionString = '[POT  ] ' + self.cfg.get('honeypot', 'sensor_name')
+            self.connectionString = '[POT  ] ' + self.sensorName + ' - ' + self.honeyIP + ':' + str(self.honeyPort)
             self.addConnectionString('[SSH  ] Incoming Connection from ' + ip +  ':' + str(port))
             country = self.cname(ip)
             if country != None:
@@ -67,11 +71,11 @@ class Output():
                         
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             self.hpLog = hpfeeds.HPLogger()
-            self.hpLog.setClient(self.hpLogClient, self.cfg)
+            self.hpLog.setClient(self.hpLogClient, self.cfg, self.sensorName)
         
         if self.cfg.has_option('app_hooks', 'connection_made'):
             if self.cfg.get('app_hooks', 'connection_made') != '':
-                cmdString = self.cfg.get('app_hooks', 'connection_made') + " CONNECTION_MADE " + dt + " " + self.endIP + " " + str(port)
+                cmdString = self.cfg.get('app_hooks', 'connection_made') + " CONNECTION_MADE " + dt + " " + self.endIP + " " + str(port) + " " + self.honeyIP
                 threads.deferToThread(self.runCommand, cmdString)    
         
     def connectionLost(self):
@@ -90,7 +94,7 @@ class Output():
             if self.cfg.get('hpfeeds', 'enabled') == 'true':
                 self.hpLog.handleConnectionLost()
             if self.cfg.get('email', 'attack') == 'true':
-                threads.deferToThread(self.email, 'HonSSH - Attack logged', self.txtlog_file, self.ttyFiles)
+                threads.deferToThread(self.email, self.sensorName + ' - Attack logged', self.txtlog_file, self.ttyFiles)
         
         dt = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         if self.cfg.has_option('app_hooks', 'connection_lost'):
@@ -114,16 +118,16 @@ class Output():
             txtlog.log(self.txtlog_file, '[SSH  ] Login Successful: ' + username + ':' + password)
  
         if self.cfg.get('email', 'login') == 'true':
-            threads.deferToThread(self.email, 'HonSSH - Login Successful', self.txtlog_file)
+            threads.deferToThread(self.email, self.sensorName + ' - Login Successful', self.txtlog_file)
         
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             self.dbLog.handleLoginSucceeded(username, password)
-            self.dbLog.createSession(self.sessionID, self.endIP, self.endPort, self.cfg.get('honeypot', 'ssh_addr'), self.cfg.get('honeypot', 'ssh_port'))
+            self.dbLog.createSession(self.sessionID, self.endIP, self.endPort, self.honeyIP, self.honeyPort, self.sensorName)
             self.dbLog.handleClientVersion(self.sessionID, self.version)
                     
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             self.hpLog.handleLoginSucceeded(username, password)
-            self.hpLog.createSession(self.sessionID, self.endIP, self.endPort, self.cfg.get('honeypot', 'ssh_addr'), self.cfg.get('honeypot', 'ssh_port'))
+            self.hpLog.createSession(self.sessionID, self.endIP, self.endPort, self.honeyIP, self.honeyPort)
             self.hpLog.handleClientVersion(self.version)
             
         if self.cfg.has_option('app_hooks', 'login_successful'):
@@ -194,8 +198,8 @@ class Output():
         self.makeDownloadsFolder()
 
         filename = dt + "-" + link.split("/")[-1]
-        fileOut = self.cfg.get('folders', 'session_path') + '/' + self.endIP + '/downloads/' + filename
-        wgetCommand = 'wget -O ' + fileOut + " "
+        fileOut = self.downloadFolder + filename
+        wgetCommand = 'wget -O "' + fileOut + '" '
         if user != '':
             wgetCommand = wgetCommand + '--user=' + user + ' '
         if password != '':
@@ -283,14 +287,14 @@ class Output():
         txtlog.spoofLog(self.cfg.get('folders', 'log_path') + "/spoof.log", username, password, self.endIP)
     
     def makeSessionFolder(self):
-        if not os.path.exists(os.path.join(self.cfg.get('folders', 'session_path') + '/' + self.endIP)):
-            os.makedirs(os.path.join(self.cfg.get('folders', 'session_path') + '/' + self.endIP))
-            os.chmod(os.path.join(self.cfg.get('folders', 'session_path') + '/' + self.endIP),0755)
+        if not os.path.exists(self.logLocation):
+            os.makedirs(self.logLocation)
+            os.chmod(self.logLocation,0755)
             
     def makeDownloadsFolder(self):
-        if not os.path.exists(self.cfg.get('folders', 'session_path') + '/' + self.endIP + '/downloads'):
-            os.makedirs(self.cfg.get('folders', 'session_path') + '/' + self.endIP + '/downloads')
-            os.chmod(self.cfg.get('folders', 'session_path') + '/' + self.endIP + '/downloads',0755)
+        if not os.path.exists(self.downloadFolder):
+            os.makedirs(self.downloadFolder)
+            os.chmod(self.downloadFolder,0755)
     
     def email(self, subject, body, attachment=None):
         try:

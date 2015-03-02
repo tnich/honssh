@@ -196,8 +196,8 @@ class HPLogger():
         secret	= cfg.get('hpfeeds', 'secret')
         return hpclient(server, port, ident, secret)
     
-    def setClient(self, hpClient, cfg):
-        self.sensor_name = cfg.get('honeypot','sensor_name')
+    def setClient(self, hpClient, cfg, sensor):
+        self.sensor_name = sensor
         self.client = hpClient
 
     def createSession(self, session, peerIP, peerPort, hostIP, hostPort):

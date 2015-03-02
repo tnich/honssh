@@ -28,7 +28,7 @@
 
 from twisted.conch.ssh import transport, service
 from twisted.python import log
-from twisted.internet import protocol, defer
+from twisted.internet import reactor, protocol, defer
 from kippo.core.config import config
 import datetime, time, os, re, io, struct
 
@@ -66,6 +66,7 @@ class HonsshClientFactory(protocol.ClientFactory):
     protocol = HonsshClientTransport   
     
 class HonsshSlimClientTransport(transport.SSHClientTransport):
+    gotVersion = False
     def dataReceived(self, data):
         self.buf = self.buf + data
         if not self.gotVersion:
@@ -77,8 +78,17 @@ class HonsshSlimClientTransport(transport.SSHClientTransport):
                     self.gotVersion = True
                     self.otherVersionString = p.strip()
                     self.factory.server.otherVersionString = self.otherVersionString
-                    log.msg("[CLIENT] - " + self.factory.server.otherVersionString)
+                    log.msg("[CLIENT] Got SSH Version String: " + self.factory.server.otherVersionString)
                     self.loseConnection()
             
 class HonsshSlimClientFactory(protocol.ClientFactory):
     protocol = HonsshSlimClientTransport  
+    
+    def clientConnectionFailed(self, connector, reason):
+        log.msg('[ERR][FATAL] HonSSH could not connect to the honeypot to accquire the SSH Version String.')
+        log.msg('[ERR][FATAL] Please ensure connectivity between HonSSH\'s client_addr to honey_addr:honey_port')
+        log.msg('[ERR][FATAL] ...Gracefully Exiting')
+        reactor.stop()
+        
+    def clientConnectionLost(self, connector, reason):
+        log.msg('[HONSSH] HonSSH Boot Sequence Complete - Ready for attacks!') 
