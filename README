@@ -1,6 +1,6 @@
 HonSSH
 
-http://code.google.com/p/honssh/
+https://github.com/tnich/honssh
 
 Copyright (C) 2013 Thomas Nicholson
 
@@ -8,20 +8,12 @@ HonSSH is designed to be used in conjuction with a high interaction honeypot. Ho
 
 ----
 
-Run HonSSH using the honsshctrl.sh script - Thanks Are.
+Read the wiki - https://github.com/tnich/honssh/wiki
+
+---
 
 HonSSH is inspired and partly based on Kippo.
-http://code.google.com/p/kippo/
-
-----
+https://github.com/desaster/kippo
 
 Parts of this project are using the kippo code and their copyright still remains with Upi Tamminen.
-
-"Copyright (C) 2009 Upi Tamminen
-
-Kippo is a medium interaction SSH honeypot designed to log brute force attacks
-and most importantly, the entire shell interaction by the attacker.
-
-Kippo is inspired, but not based on Kojoney."
-
 
