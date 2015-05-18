@@ -26,7 +26,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh.protocols import baseProtocol, sftp, term, execTerm
+from honssh.protocols import baseProtocol, sftp, term, execTerm, portForward
 from twisted.python import log
 from kippo.core.config import config
 import struct, uuid, random, os, ConfigParser, re
@@ -52,6 +52,7 @@ class SSH(baseProtocol.BaseProtocol):
                 51 : 'SSH_MSG_USERAUTH_FAILURE',            #['name-list', 'authentications'], ['boolean', 'partial_success']
                 52 : 'SSH_MSG_USERAUTH_SUCCESS',            #
                 53 : 'SSH_MSG_USERAUTH_BANNER',             #['string', 'message'], ['string', 'language_tag']
+                60 : 'SSH_MSG_USERAUTH_PK_OK',              #['string', 'algorithm'], ['string', 'blob']
                 80 : 'SSH_MSG_GLOBAL_REQUEST',              #['string', 'request_name'], ['boolean', 'want_reply']  #tcpip-forward
                 81 : 'SSH_MSG_REQUEST_SUCCESS',             #
                 82 : 'SSH_MSG_REQUEST_FAILURE',             #
@@ -67,7 +68,7 @@ class SSH(baseProtocol.BaseProtocol):
                 99 : 'SSH_MSG_CHANNEL_SUCCESS',             #
                 100 : 'SSH_MSG_CHANNEL_FAILURE'             #
                 }
-    
+                
     def __init__(self, server, out):
         self.out = out
         self.server = server
@@ -80,7 +81,7 @@ class SSH(baseProtocol.BaseProtocol):
         self.data = payload
         self.packetSize = len(payload)
         self.sendOn = True
-        
+
         packet = self.packetLayout[messageNum]
             
         if parent == '[SERVER]':
@@ -167,27 +168,38 @@ class SSH(baseProtocol.BaseProtocol):
                     self.sendBack(parent, 92, self.intToHex(id))
                 else:
                     ##LOG X11 Channel opened - not logging
-                    #Make into a method
                     theUUID = uuid.uuid4().hex
-                    theName = '[PORTF' + str(id) + ']'
-                    self.createChannel(parent, id, type, session=baseProtocol.BaseProtocol(uuid=theUUID, name=theName))
+                    theName = '[X11-' + str(id) + ']'
+                    self.createChannel(parent, id, type, session=baseProtocol.BaseProtocol(uuid=theUUID, name=theName, ssh=self))
                     channel = self.getChannel(id, '[CLIENT]')
                     channel['name'] = theName
                     self.out.channelOpened(theUUID, channel['name'])
-            elif type == 'direct-tcpip':
+            elif type == 'direct-tcpip' or type == 'forwarded-tcpip':
                 if self.cfg.get('hp-restrict', 'disable_port_forwarding') == 'true':
                     log.msg("[SSH] - Detected Port Forwarding Channel - Disabling!")
                     self.sendOn = False
                     self.sendBack(parent, 92, self.intToHex(id) + self.intToHex(1) + self.stringToHex('open failed') + self.intToHex(0))
                 else:
-                    ##LOG PORT FORWARDING Channel opened - not logging
-                    #Make into a method
+                    ##LOG PORT FORWARDING Channel opened
+                    self.extractInt(4)
+                    self.extractInt(4)
+                    
+                    connDetails = {'dstIP':self.extractString(), 'dstPort':self.extractInt(4), 'srcIP':self.extractString(), 'srcPort':self.extractInt(4)}
+                    connDetails['srcIP'] = self.out.endIP
                     theUUID = uuid.uuid4().hex
-                    theName = '[PORTF' + str(id) + ']'
-                    self.createChannel(parent, id, type, session=baseProtocol.BaseProtocol(uuid=theUUID, name=theName))
-                    channel = self.getChannel(id, '[CLIENT]')
+                    self.createChannel(parent, id, type)
+                    
+                    if parent == '[SERVER]':
+                        otherParent = '[CLIENT]'
+                        theName = '[LPRTF' + str(id) + ']'
+                    else:
+                        otherParent = '[SERVER]'
+                        theName = '[RPRTF' + str(id) + ']'
+                        
+                    channel = self.getChannel(id, otherParent)
                     channel['name'] = theName
                     self.out.channelOpened(theUUID, channel['name'])
+                    channel['session'] = portForward.PortForward(self.out, theUUID, channel['name'], self, connDetails, parent, otherParent)
             else:
                 ##UNKNOWN CHANNEL TYPE
                 if type not in ['exit-status']:
@@ -205,6 +217,7 @@ class SSH(baseProtocol.BaseProtocol):
         
         elif packet == 'SSH_MSG_CHANNEL_OPEN_FAILURE':
             channel = self.getChannel(self.extractInt(4), parent)
+            self.out.channelClosed(channel['session'])
             self.channels.remove(channel)
             ##CHANNEL FAILED TO OPEN
             
@@ -215,7 +228,7 @@ class SSH(baseProtocol.BaseProtocol):
             if type == 'shell':
                 channel['name'] = '[TERM' + str(channel['serverID']) + ']'
                 self.out.channelOpened(theUUID, channel['name'])
-                channel['session'] = term.Term(self.out, theUUID, channel['name'])
+                channel['session'] = term.Term(self.out, theUUID, channel['name'], self, channel['clientID'])
             elif type == 'exec':
                 if self.cfg.get('hp-restrict','disable_exec') == 'true':
                     log.msg("[SSH] - Detected EXEC Channel Request - Disabling!")
@@ -226,7 +239,7 @@ class SSH(baseProtocol.BaseProtocol):
                     self.extractBool()
                     command = self.extractString()
                     self.out.channelOpened(theUUID, channel['name'])
-                    channel['session'] = execTerm.ExecTerm(self.out, theUUID, channel['name'], command)
+                    channel['session'] = execTerm.ExecTerm(self.out, theUUID, channel['name'], command, self)
             elif type == 'subsystem':
                 self.extractBool()
                 subsystem = self.extractString()
@@ -238,7 +251,7 @@ class SSH(baseProtocol.BaseProtocol):
                     else:
                         channel['name'] = '[SFTP' + str(channel['serverID']) + ']'
                         self.out.channelOpened(theUUID, channel['name'])
-                        channel['session'] = sftp.SFTP(self.out, theUUID, channel['name'])
+                        channel['session'] = sftp.SFTP(self.out, theUUID, channel['name'], self)
                 else:
                     ##UNKNOWN SUBSYSTEM
                     log.msg("[SSH] - Unknown Subsystem Type Detected - " + subsystem) 
@@ -261,7 +274,7 @@ class SSH(baseProtocol.BaseProtocol):
                 ##CHANNEL CLOSED
                 if channel['session'] != None:
                     channel['session'].channelClosed()
-                self.out.channelClosed(channel['session'])
+                    self.out.channelClosed(channel['session'])
                 self.channels.remove(channel)
         # - END Channels
         # - ChannelData
@@ -281,7 +294,7 @@ class SSH(baseProtocol.BaseProtocol):
                 if self.cfg.get('hp-restrict', 'disable_port_forwarding') == 'true':
                     self.sendOn = False
                     self.sendBack(parent, 82, '')
-
+                    
         if self.sendOn:    
             if parent == '[SERVER]':
                 self.client.sendPacket(messageNum, payload)
@@ -341,6 +354,26 @@ class SSH(baseProtocol.BaseProtocol):
             log.msg("ERROR: users_conf does not exist")
         
         return None
+    
+    def injectKey(self, serverID, message):
+        payload = self.intToHex(serverID) + self.stringToHex(message)
+        self.inject(94, payload)
+    
+    def injectDisconnect(self):
+        payload = self.intToHex(11) + self.stringToHex('disconnected by user') + self.intToHex(0)
+        self.inject(1, payload)
+        
+    def inject(self, packetNum, payload):
+        direction = 'INTERACT -> SERVER'
+        packet = self.packetLayout[packetNum]
+        if self.cfg.get('packets', 'enabled') == 'true':
+            self.out.advancedLog(direction + ' - ' + packet.ljust(33) + ' - ' + repr(payload))
+        if self.cfg.has_option('debug', 'enabled'):   
+            if self.cfg.get('debug', 'enabled') == 'true':
+                log.msg(direction + ' - ' + packet.ljust(35) + ' - ' + repr(payload))   
+        
+        self.client.sendPacket(packetNum, payload)
+
     
     def stringToHex(self, message):
         b = message.encode('utf-8')

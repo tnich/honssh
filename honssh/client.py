@@ -47,20 +47,21 @@ class HonsshClientTransport(transport.SSHClientTransport):
     
     def connectionSecure(self):
         self.factory.server.clientConnected = True
-        log.msg('[CLIENT] - Client Connection Secured')
+        log.msg('[CLIENT] Client Connection Secured')
         
     def connectionLost(self, reason):
         transport.SSHClientTransport.connectionLost(self, reason)
-        log.msg("[CLIENT] - Lost connection with the honeypot: %s" % self.cfg.get('honeypot', 'honey_addr'))
+        log.msg('[CLIENT] Lost connection with the Honeypot: ' + self.factory.server.sensorName + ' (' + self.factory.server.honeyIP + ':' + str(self.factory.server.honeyPort) + ')')
+        try:
+            self.factory.server.loseConnection()       
+        except:
+            pass
 
     def dispatchMessage(self, messageNum, payload):
         if transport.SSHClientTransport.isEncrypted(self, "both"):
             self.factory.server.sshParse.parsePacket('[CLIENT]', messageNum, payload)
         else:
             transport.SSHClientTransport.dispatchMessage(self, messageNum, payload)
-        
-##        for i in self.factory.server.interactors:
-##            i.sessionWrite(data)
 
 class HonsshClientFactory(protocol.ClientFactory):
     protocol = HonsshClientTransport   
@@ -76,9 +77,9 @@ class HonsshSlimClientTransport(transport.SSHClientTransport):
             for p in lines:
                 if p.startswith('SSH-'):
                     self.gotVersion = True
-                    self.otherVersionString = p.strip()
-                    self.factory.server.otherVersionString = self.otherVersionString
-                    log.msg("[CLIENT] Got SSH Version String: " + self.factory.server.otherVersionString)
+                    self.ourVersionString = p.strip()
+                    self.factory.server.ourVersionString = self.ourVersionString
+                    log.msg("[CLIENT] Got SSH Version String: " + self.factory.server.ourVersionString)
                     self.loseConnection()
             
 class HonsshSlimClientFactory(protocol.ClientFactory):

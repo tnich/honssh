@@ -38,20 +38,29 @@ class Term(baseProtocol.BaseProtocol):
     tabPress = False
     upArrow = False
     
-    def __init__(self, out, uuid, chanName):
+    def __init__(self, out, uuid, chanName, ssh, clientID):
         self.name = chanName
         self.uuid = uuid
         self.out = out
-        self.ttylog_file = self.out.logLocation + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3] + '_' + self.name[1:-1] + '.tty'
+        self.ssh = ssh
+        self.clientID = clientID
+        self.ttylog_file = self.out.logLocation + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") + '_' + self.name[1:-1] + '.tty'
         self.out.openTTY(self.ttylog_file)
+        self.interactors = []
+        self.out.registerSelf(self)
+        
     
     def channelClosed(self):
         self.out.closeTTY(self.ttylog_file)
+        for i in self.interactors:
+            i.transport.loseConnection()
     
     def parsePacket(self, parent, payload): 
         self.data = payload   
          
         if parent == '[SERVER]':
+            self.out.inputTTY(self.ttylog_file, self.data) #Log to TTY File
+
             while len(self.data) != 0: 
                 if self.data[:1] == '\x09': #If Tab Pressed
                     self.tabPress = True 
@@ -93,7 +102,9 @@ class Term(baseProtocol.BaseProtocol):
                     self.data = self.data[1:]
         
         elif parent == '[CLIENT]':
-            self.out.inputTTY(self.ttylog_file, self.data) #Log to TTY File
+            self.out.outputTTY(self.ttylog_file, self.data) #Log to TTY File
+            for i in self.interactors:
+                i.sendKeystroke(self.data)
             
             if self.tabPress:
                 if not self.data.startswith('\x0d'):
@@ -123,3 +134,12 @@ class Term(baseProtocol.BaseProtocol):
                         self.data = self.data[1:]
                     
                 self.upArrow = False
+            
+    def addInteractor(self, interactor):
+        self.interactors.append(interactor)
+    def delInteractor(self, interactor):
+        self.interactors.remove(interactor)
+    def inject(self, message):
+        message = message.encode('utf8')
+        self.out.interactTTY(self.ttylog_file, message) #Log to TTY File
+        self.ssh.injectKey(self.clientID, message)

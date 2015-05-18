@@ -70,10 +70,12 @@ class SFTP(baseProtocol.BaseProtocol):
                 201 : 'SSH_FXP_EXTENDED_REPLY'    #[]
                 }
                 
-    def __init__(self, out, uuid, chanName):
+    def __init__(self, out, uuid, chanName, ssh):
         self.name = chanName
         self.uuid = uuid
+        self.ssh = ssh
         self.out = out
+        self.out.registerSelf(self)
         self.clientPacket = baseProtocol.BaseProtocol()
         self.serverPacket = baseProtocol.BaseProtocol()
        
@@ -135,7 +137,7 @@ class SFTP(baseProtocol.BaseProtocol):
                 self.command = 'get ' + self.path
             else:
                 #Unknown PFlag
-                log.msg(parent + '[SFTP] - New SFTP pflag detected - Please raise a HonSSH issue on google code with the details: %s %s' % (pflags, self.data))
+                log.msg(parent + '[SFTP] - New SFTP pflag detected - Please raise a HonSSH issue on github with the details: %s %s' % (pflags, self.data))
             log.msg(parent + '[SFTP] - Entered Command: ' + self.command)
             self.out.commandEntered(self.uuid, self.name, self.command)
                 
@@ -170,7 +172,7 @@ class SFTP(baseProtocol.BaseProtocol):
                 self.command = 'mv ' + self.path + ' ' + self.extractString()
             else:
                 #UNKNOWN COMMAND
-                log.msg(parent + '[SFTP] - New SFTP Extended Command detected - Please raise a HonSSH issue on google code with the details: %s %s' % (cmd, self.data))
+                log.msg(parent + '[SFTP] - New SFTP Extended Command detected - Please raise a HonSSH issue on github with the details: %s %s' % (cmd, self.data))
             
         elif packet == 'SSH_FXP_EXTENDED_REPLY':
             log.msg(parent + '[SFTP] - Entered Command: ' + self.command)
@@ -185,7 +187,7 @@ class SFTP(baseProtocol.BaseProtocol):
                     
                     if self.out.cfg.get('download','passive') == 'true':
                         self.out.makeDownloadsFolder()
-                        outfile = self.out.downloadFolder + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + self.path.split('/')[-1]
+                        outfile = self.out.downloadFolder + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") + "-" + self.path.split('/')[-1]
                         f = open(outfile, 'wb')
                         f.write(self.theFile)
                         f.close()
@@ -220,7 +222,7 @@ class SFTP(baseProtocol.BaseProtocol):
         flags = '{0:08b}'.format(self.extractInt(4))
         if flags[5] == '1':
             perms = '{0:09b}'.format(self.extractInt(4))
-            log.msg(parent + "PERMS:" + perms)
+            log.msg(parent + "[SFTP] - PERMS:" + perms)
             chmod = str(int(perms[:3], 2)) + str(int(perms[3:6], 2)) + str(int(perms[6:], 2))
             cmd = 'chmod ' + chmod
         elif flags[6] == '1':
@@ -229,7 +231,7 @@ class SFTP(baseProtocol.BaseProtocol):
             cmd = 'chown ' + user + ':'  + group
         else:
             #Unknown attribute
-            log.msg(parent + '[SFTP] - New SFTP Attribute detected - Please raise a HonSSH issue on google code with the details: %s %s' % (flags, self.data))
+            log.msg(parent + '[SFTP] - New SFTP Attribute detected - Please raise a HonSSH issue on github with the details: %s %s' % (flags, self.data))
         return cmd
 
 

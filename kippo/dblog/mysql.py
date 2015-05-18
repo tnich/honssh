@@ -29,7 +29,7 @@
 from twisted.enterprise import adbapi
 from twisted.internet import defer
 from twisted.python import log
-import MySQLdb, uuid, time
+import MySQLdb, uuid, time, datetime
 
 class ReconnectingConnectionPool(adbapi.ConnectionPool):
     """Reconnecting adbapi connection pool for MySQL.
@@ -85,12 +85,12 @@ class DBLogger():
         d = self.db.runQuery(sql, args)
         d.addErrback(self.sqlerror)
 
-    def createSession(self, sid, peerIP, peerPort, hostIP, hostPort, sensorName):
-        self.createSessionWhenever(sid, peerIP, peerPort, hostIP, hostPort, sensorName)
+    def createSession(self, dt, sid, peerIP, peerPort, hostIP, hostPort, sensorName):
+        self.createSessionWhenever(dt, sid, peerIP, peerPort, hostIP, hostPort, sensorName)
 
     # This is separate since we can't return with a value
     @defer.inlineCallbacks
-    def createSessionWhenever(self, sid, peerIP, peerPort, hostIP, hostPort, sensorName):
+    def createSessionWhenever(self, dt, sid, peerIP, peerPort, hostIP, hostPort, sensorName):
         sensorname = sensorName
         r = yield self.db.runQuery('SELECT `id` FROM `sensors` WHERE `ip` = %s AND `name` = %s AND `port` = %s', (hostIP, sensorname, hostPort))
         if r:
@@ -100,34 +100,34 @@ class DBLogger():
             r = yield self.db.runQuery('SELECT LAST_INSERT_ID()')
             id = int(r[0][0])
         # now that we have a sensorID, continue creating the session
-        self.simpleQuery('INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`, `port`) VALUES (%s, FROM_UNIXTIME(%s), %s, %s, %s)', (sid, self.nowUnix(), id, peerIP, peerPort))
+        self.simpleQuery('INSERT INTO `sessions` (`id`, `starttime`, `sensor`, `ip`, `port`) VALUES (%s, FROM_UNIXTIME(%s), %s, %s, %s)', (sid, self.nowUnix(dt), id, peerIP, peerPort))
             
-    def nowUnix(self):
+    def nowUnix(self, dt):
         """return the current UTC time as an UNIX timestamp"""
-        return int(time.mktime(time.gmtime()[:-1] + (-1,)))
+        return int(time.mktime(datetime.datetime.strptime(dt,"%Y%m%d_%H%M%S_%f").timetuple()))
 
-    def handleConnectionLost(self, sid):
-        self.simpleQuery('UPDATE `sessions` SET `endtime` = FROM_UNIXTIME(%s) WHERE `id` = %s', (self.nowUnix(), sid))
+    def handleConnectionLost(self, dt, sid):
+        self.simpleQuery('UPDATE `sessions` SET `endtime` = FROM_UNIXTIME(%s) WHERE `id` = %s', (self.nowUnix(dt), sid))
 
-    def handleLoginFailed(self, username, password):
-        self.simpleQuery('INSERT INTO `auth` (`success`, `username`, `password`, `timestamp`) VALUES (%s, %s, %s, FROM_UNIXTIME(%s))', (0, username, password, self.nowUnix()))
+    def handleLoginFailed(self, dt, username, password):
+        self.simpleQuery('INSERT INTO `auth` (`success`, `username`, `password`, `timestamp`) VALUES (%s, %s, %s, FROM_UNIXTIME(%s))', (0, username, password, self.nowUnix(dt)))
 
-    def handleLoginSucceeded(self, username, password):
-        self.simpleQuery('INSERT INTO `auth` (`success`, `username`, `password`, `timestamp`) VALUES (%s, %s, %s, FROM_UNIXTIME(%s))', ( 1, username, password, self.nowUnix()))
+    def handleLoginSucceeded(self, dt, username, password):
+        self.simpleQuery('INSERT INTO `auth` (`success`, `username`, `password`, `timestamp`) VALUES (%s, %s, %s, FROM_UNIXTIME(%s))', ( 1, username, password, self.nowUnix(dt)))
             
-    def channelOpened(self, sessionID, uuid, channelName):
-        self.simpleQuery('INSERT INTO `channels` (`id`, `type`, `starttime`, `sessionid`) VALUES (%s, %s, FROM_UNIXTIME(%s), %s)', (uuid, channelName, self.nowUnix(), sessionID))
+    def channelOpened(self, dt, sessionID, uuid, channelName):
+        self.simpleQuery('INSERT INTO `channels` (`id`, `type`, `starttime`, `sessionid`) VALUES (%s, %s, FROM_UNIXTIME(%s), %s)', (uuid, channelName, self.nowUnix(dt), sessionID))
         
-    def channelClosed(self, uuid, ttylog=None):
-        self.simpleQuery('UPDATE `channels` SET `endtime` = FROM_UNIXTIME(%s) WHERE `id` = %s', (self.nowUnix(), uuid))
+    def channelClosed(self, dt, uuid, ttylog=None):
+        self.simpleQuery('UPDATE `channels` SET `endtime` = FROM_UNIXTIME(%s) WHERE `id` = %s', (self.nowUnix(dt), uuid))
         if ttylog != None:
             fp = open(ttylog, 'rb')
             ttydata = fp.read()
             fp.close()
             self.simpleQuery('INSERT INTO `ttylog` (`channelid`, `ttylog`) VALUES (%s, %s)', (uuid, ttydata))
 
-    def handleCommand(self, uuid, theCommand):
-        self.simpleQuery('INSERT INTO `commands` (`timestamp`, `channelid`, `command`) VALUES (FROM_UNIXTIME(%s), %s, %s)', (self.nowUnix(), uuid, theCommand))
+    def handleCommand(self, dt, uuid, theCommand):
+        self.simpleQuery('INSERT INTO `commands` (`timestamp`, `channelid`, `command`) VALUES (FROM_UNIXTIME(%s), %s, %s)', (self.nowUnix(dt), uuid, theCommand))
 
     @defer.inlineCallbacks
     def handleClientVersion(self, session, version):
@@ -140,5 +140,5 @@ class DBLogger():
             id = int(r[0][0])
         self.simpleQuery('UPDATE `sessions` SET `client` = %s WHERE `id` = %s', (id, session))
 
-    def handleFileDownload(self, uuid, url, outfile):
-        self.simpleQuery('INSERT INTO `downloads` (`channelid`, `timestamp`, `url`, `outfile`) VALUES (%s, FROM_UNIXTIME(%s), %s, %s)', (uuid, self.nowUnix(), url, outfile))
+    def handleFileDownload(self, dt, uuid, url, outfile):
+        self.simpleQuery('INSERT INTO `downloads` (`channelid`, `timestamp`, `url`, `outfile`) VALUES (%s, FROM_UNIXTIME(%s), %s, %s)', (uuid, self.nowUnix(dt), url, outfile))

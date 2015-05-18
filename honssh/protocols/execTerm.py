@@ -36,16 +36,18 @@ class ExecTerm(baseProtocol.BaseProtocol):
     theFile = ''
     scp = False
    
-    def __init__(self, out, uuid, chanName, command):
+    def __init__(self, out, uuid, chanName, command, ssh):
         self.name = chanName
         self.out = out
+        self.ssh = ssh
         self.uuid = uuid
+        self.out.registerSelf(self)
                 
         if command.startswith('scp'):
             self.scp = True
             self.out.commandEntered(self.uuid, self.name + ' [SCP]', command)
         else:
-            self.ttylog_file = self.out.logLocation + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3] + '_' + self.name[1:-1] + '.tty'
+            self.ttylog_file = self.out.logLocation + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") + '_' + self.name[1:-1] + '.tty'
             self.out.openTTY(self.ttylog_file)
             self.out.inputTTY(self.ttylog_file, 'INPUT: ' + command + '\n\n')
             self.processCommand(self.uuid, self.name, command)
@@ -70,7 +72,7 @@ class ExecTerm(baseProtocol.BaseProtocol):
                     if self.size == 0:
                         if self.out.cfg.get('download','passive') == 'true':
                             self.out.makeDownloadsFolder()
-                            outfile = self.out.downloadFolder + datetime.datetime.now().strftime("%Y%m%d_%H%M%S") + "-" + self.fileName
+                            outfile = self.out.downloadFolder + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") + "-" + self.fileName
                             f = open(outfile, 'wb')
                             f.write(self.theFile)
                             f.close()

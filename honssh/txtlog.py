@@ -30,21 +30,21 @@ import sys
 import datetime
 import os 
 
-def log(logfile, message):
+def log(dt, logfile, message):
     setPermissions = False
     
     if(os.path.isfile(logfile) == False):
         setPermissions = True
     
     f = file(logfile, 'a')
-    f.write(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " - " + message + "\n")
+    f.write(dt + " - " + message + "\n")
     f.close()
  
     if(setPermissions):
         os.chmod(logfile, 0644)
     
  
-def authLog(logfile, ip, username, password, success):
+def authLog(dt, logfile, ip, username, password, success):
     
     setPermissions = False
     
@@ -54,12 +54,12 @@ def authLog(logfile, ip, username, password, success):
     f = file(logfile, 'a')
     
     if username == '' or password == '':
-        f.write("%s,%s\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),ip))
+        f.write("%s,%s\n" % (dt,ip))
     else:
         auth = "0"
         if success:
             auth = "1"
-        f.write("%s,%s,%s,%s,%s\n" % (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),ip,username,password,auth))
+        f.write("%s,%s,%s,%s,%s\n" % (dt,ip,username,password,auth))
     f.close()
     
     if(setPermissions):

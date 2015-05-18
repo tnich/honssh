@@ -25,6 +25,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
+
 from twisted.conch.ssh import transport
 from twisted.python import log
 
@@ -37,6 +38,7 @@ class HonsshServer(transport.SSHServerTransport):
         self.transport.write('%s\r\n' % (self.ourVersionString,))
         self.currentEncryptions = transport.SSHCiphers('none', 'none', 'none', 'none')
         self.currentEncryptions.setKeys('', '', '', '', '', '')
+        self.otherVersionString = 'Unknown'
         
     def dataReceived(self, data):
         """

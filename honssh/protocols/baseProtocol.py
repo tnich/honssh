@@ -36,17 +36,23 @@ class BaseProtocol():
     uuid = ''
     ttylog_file = None
     
-    def __init__(self, uuid=None, name=None):
+    def __init__(self, uuid=None, name=None, ssh=None):
         if uuid != None:
             self.uuid = uuid
         if name != None:
             self.name = name
+        if ssh != None:
+            self.ssh = ssh
+                
                    
     def parsePacket(self, parent, theData):
         #log.msg(parent + ' ' + repr(theData))
         #log.msg(parent + ' ' + '\'\\x' + "\\x".join("{:02x}".format(ord(c)) for c in self.data) + '\'')
         pass
-        
+    
+    def injectDisconnect(self):
+        self.ssh.injectDisconnect()
+    
     def processCommand(self, uuid, name, command):
         self.out.commandEntered(uuid, name, command)
     

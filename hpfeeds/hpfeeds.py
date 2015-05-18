@@ -200,51 +200,48 @@ class HPLogger():
         self.sensor_name = sensor
         self.client = hpClient
 
-    def createSession(self, session, peerIP, peerPort, hostIP, hostPort):
-        self.sessionMeta = { 'sensor_name': self.sensor_name, 'uuid': session, 'startTime': self.getDateTime(), 'channels': [] }
-        self.sessionMeta['connection'] = {'peerIP': peerIP, 'peerPort': peerPort, 'hostIP': hostIP, 'hostPort': hostPort, 'version': None}
+    def createSession(self, dt, session, peerIP, peerPort, honeyIP, honeyPort):
+        self.sessionMeta = { 'sensor_name': self.sensor_name, 'uuid': session, 'startTime': dt, 'channels': [] }
+        self.sessionMeta['connection'] = {'peerIP': peerIP, 'peerPort': peerPort, 'honeyIP': honeyIP, 'honeyPort': honeyPort, 'version': None}
         return session
     
-    def handleConnectionLost(self):
+    def handleConnectionLost(self, dt):
         log.msg('[HPFEEDS] - publishing metadata to hpfeeds')
         meta = self.sessionMeta
-        meta['endTime'] = self.getDateTime()
+        meta['endTime'] = dt
         log.msg("[HPFEEDS] - sessionMeta: " + str(meta))
         
         threads.deferToThread(self.client.publish, HONSSHSESHCHAN, **meta)
 
-    def handleLoginFailed(self, username, password):
-        authMeta = {'sensor_name': self.sensor_name, 'datetime': self.getDateTime(),'username': username, 'password': password, 'success': False}
+    def handleLoginFailed(self, dt, username, password):
+        authMeta = {'sensor_name': self.sensor_name, 'datetime': dt,'username': username, 'password': password, 'success': False}
         log.msg('[HPFEEDS] - authMeta: ' + str(authMeta))
         threads.deferToThread(self.client.publish, HONSSHAUTHCHAN, **authMeta)
 
-    def handleLoginSucceeded(self, username, password):
-        authMeta = {'sensor_name': self.sensor_name, 'datetime': self.getDateTime(),'username': username, 'password': password, 'success': True}
+    def handleLoginSucceeded(self, dt, username, password):
+        authMeta = {'sensor_name': self.sensor_name, 'datetime': dt,'username': username, 'password': password, 'success': True}
         log.msg('[HPFEEDS] - authMeta: ' + str(authMeta))
         threads.deferToThread(self.client.publish, HONSSHAUTHCHAN, **authMeta)
         
-    def channelOpened(self, uuid, channelName):
-        self.sessionMeta['channels'].append({'name': channelName, 'uuid': uuid, 'startTime': self.getDateTime(), 'commands': []})
+    def channelOpened(self, dt, uuid, channelName):
+        self.sessionMeta['channels'].append({'name': channelName, 'uuid': uuid, 'startTime': dt, 'commands': []})
         
-    def channelClosed(self, uuid, ttylog=None):
+    def channelClosed(self, dt, uuid, ttylog=None):
         chan = self.findChannel(uuid)
-        chan['endTime'] = self.getDateTime()
+        chan['endTime'] = dt
         if ttylog != None: 
             fp = open(ttylog, 'rb')
             ttydata = fp.read()
             fp.close()
             chan['ttylog'] = ttydata.encode('hex')
                 
-    def handleCommand(self, uuid, command):
+    def handleCommand(self, dt, uuid, command):
         chan = self.findChannel(uuid)
-        chan['commands'].append([self.getDateTime(), command])
+        chan['commands'].append([dt, command])
 
     def handleClientVersion(self, version):
         self.sessionMeta['connection']['version'] = version
-        
-    def getDateTime(self):
-        return datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-    
+            
     def findChannel(self, uuid):
         for chan in self.sessionMeta['channels']:
             if chan['uuid'] == uuid:

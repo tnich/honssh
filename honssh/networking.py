@@ -106,9 +106,9 @@ class Networking():
         if sp.returncode != 0:
             log.msg('[ADV-NET] - Error removing PREROUTING Rule: ' + result[0])
         
-    def removeNetworking(self, sessions):
+    def removeNetworking(self, connections):
         if self.cfg.get('advNet', 'enabled') == 'true':
-            if len(sessions) == 0:
+            if len(connections) == 0:
                 self.removeFakeIP()
                 sp = self.runCommand('ip link del dev honssh')
                 result = sp.communicate()
@@ -116,20 +116,21 @@ class Networking():
                     log.msg("[ADV-NET] - Error removing HonSSH Interface: " + result[0])
             else:
                 found = False
-                for s in sessions:
-                    session = sessions[s]
-                    if session.endIP == self.theIP:
-                        found = True
-                        break
+                for sensor in connections:
+                    for session in sensor['sessions']:
+                        if session['peerIP'] == self.theIP:
+                            found = True
+                            break
                 if not found:    
                     self.removeFakeIP()
     
     def getFakeIP(self, theIP):
         ipBits = theIP.split('.')
         for i in range(0, len(ipBits)):
-            ipBits[i] = str(int(ipBits[i]) + 1)
-            if ipBits[i] >= '255':
-                ipBits[i] = '1'
+            ipBits[i] = int(ipBits[i]) + 1
+            if ipBits[i] >= 255:
+                ipBits[i] = 1
+            ipBits[i] = str(ipBits[i])
         return '.'.join(ipBits)
     
     def runCommand(self, cmd):

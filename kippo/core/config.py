@@ -51,7 +51,7 @@ def validateConfig(cfg):
             validConfig = False
         
     #Check prop exists
-    props = [['honeypot','sensor_name'],['honeypot','public_key'], ['honeypot','private_key'], ['folders','log_path'], ['folders','session_path']]
+    props = [['honeypot','sensor_name'],['honeypot','public_key'], ['honeypot','private_key'], ['honeypot','public_key_dsa'], ['honeypot','private_key_dsa'], ['folders','log_path'], ['folders','session_path']]
     for prop in props:
         if not checkExist(cfg,prop):
             validConfig = False

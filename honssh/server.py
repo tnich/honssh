@@ -25,11 +25,12 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
+
 from twisted.conch.ssh import factory, transport, service
 from twisted.conch.ssh.transport import SSHCiphers
 from twisted.python import log
 from twisted.internet import reactor, defer, threads
-from honssh import client, output, networking, honsshServer
+from honssh import client, output, networking, honsshServer, connections
 from honssh.protocols import sftp, ssh
 from kippo.core.config import config
 from kippo.dblog import mysql
@@ -43,12 +44,12 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         self.timeoutCount = 0
         self.interactors = []
         self.wasConnected = False
-
-        self.factory.sessions[self.transport.sessionno] = self
-        
-        self.out = output.Output(self.factory.hpLog, self.factory.dbLog)
+        self.networkingSetup = False
+      
+        self.out = output.Output(self.factory)
         self.net = networking.Networking()
 
+        self.disconnected = False
         self.clientConnected = False
         self.finishedSending = False
         self.delayedPackets = []
@@ -62,19 +63,17 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         honsshServer.HonsshServer.connectionMade(self)
         
     def connectionLost(self, reason):
+        self.disconnected = True
         try:
             self.client.loseConnection()       
         except:
             pass
-        for i in self.interactors:
-            i.sessionClosed()
-        if self.transport.sessionno in self.factory.sessions:
-            del self.factory.sessions[self.transport.sessionno]
         honsshServer.HonsshServer.connectionLost(self, reason)
         
         if self.wasConnected:       
             self.out.connectionLost()
-        self.net.removeNetworking(self.factory.sessions)
+        if self.networkingSetup:
+            self.net.removeNetworking(self.factory.connections.connections)
         
     def ssh_KEXINIT(self, packet):
         return honsshServer.HonsshServer.ssh_KEXINIT(self, packet)
@@ -89,14 +88,8 @@ class HonsshServerTransport(honsshServer.HonsshServer):
                     self.delayedPackets.append([messageNum, payload])
                 else:
                     self.sshParse.parsePacket("[SERVER]", messageNum, payload)
-        else:
+        else:                    
             honsshServer.HonsshServer.dispatchMessage(self, messageNum, payload)
-    
-    def addInteractor(self, interactor):
-        self.interactors.append(interactor)
-
-    def delInteractor(self, interactor):
-        self.interactors.remove(interactor)
         
     def sendPacket(self, messageNum, payload):
         honsshServer.HonsshServer.sendPacket(self, messageNum, payload)
@@ -124,16 +117,18 @@ class HonsshServerTransport(honsshServer.HonsshServer):
     def preAuthConn(self, input):
         success, theSensorName, theIP, thePort = input
         if success:
-            log.msg('[SERVER] Connecting to Honeypot: ' + theSensorName + ' (' + theIP + ':' + str(thePort) + ')')
-            clientFactory = client.HonsshClientFactory()
-            clientFactory.server = self
-            self.bindIP = self.net.setupNetworking(self.endIP, str(thePort))
-            reactor.connectTCP(theIP, thePort, clientFactory, bindAddress=(self.bindIP, self.transport.getPeer().port), timeout=10)
-            
-            self.sshParse = ssh.SSH(self, self.out)
-                        
-            tunnelsUpDefer = threads.deferToThread(self.tunnelsUp)
-            tunnelsUpDefer.addCallback(self.tunnelsUpConn)
+            if not self.disconnected:
+                log.msg('[SERVER] Connecting to Honeypot: ' + theSensorName + ' (' + theIP + ':' + str(thePort) + ')')
+                clientFactory = client.HonsshClientFactory()
+                clientFactory.server = self
+                self.bindIP = self.net.setupNetworking(self.endIP, str(thePort))
+                self.networkingSetup = True
+                reactor.connectTCP(theIP, thePort, clientFactory, bindAddress=(self.bindIP, self.transport.getPeer().port), timeout=10)
+                
+                self.sshParse = ssh.SSH(self, self.out)
+                            
+                tunnelsUpDefer = threads.deferToThread(self.tunnelsUp)
+                tunnelsUpDefer.addCallback(self.tunnelsUpConn)
         else:
             log.msg("[SERVER][ERROR] SCRIPT ERROR - " + theSensorName)
             log.msg("[SERVER][ERROR] - DISCONNECTING ATTACKER")
@@ -164,7 +159,7 @@ class HonsshServerTransport(honsshServer.HonsshServer):
 class HonsshServerFactory(factory.SSHFactory):
     cfg = config()
     otherVersionString = ''
-    sessions = {}
+    connections = connections.Connections()
     hpLog = None
     dbLog = None
     
@@ -187,9 +182,8 @@ class HonsshServerFactory(factory.SSHFactory):
     def buildProtocol(self, addr):
         t = HonsshServerTransport()
                
-        t.ourVersionString = self.otherVersionString
+        t.ourVersionString = self.ourVersionString
         t.factory = self
-        t.factory.hpLog = self.hpLog
         t.supportedPublicKeys = self.privateKeys.keys()
 
         if not self.primes:

@@ -31,12 +31,12 @@ from twisted.conch.ssh.keys import Key
 from twisted.python import log
 from twisted.application import internet, service
 import sys, os
-from honssh import server, networking
+from honssh import server, interact
 from kippo.core.config import config
 from kippo.core.config import validateConfig
 
 if not os.path.exists('honssh.cfg'):
-    print 'ERROR: honssh.cfg is missing!'
+    print '[ERR][FATAL] honssh.cfg is missing!'
     sys.exit(1)
 
 log.startLogging(sys.stdout, setStdout=0)
@@ -57,28 +57,32 @@ if not os.path.exists(cfg.get('folders', 'session_path')):
 with open(cfg.get('honeypot', 'private_key')) as privateBlobFile:
     privateBlob = privateBlobFile.read()
     privateKey = Key.fromString(data=privateBlob)
-    
-
 with open(cfg.get('honeypot', 'public_key')) as publicBlobFile:
     publicBlob = publicBlobFile.read()
     publicKey = Key.fromString(data=publicBlob)    
+with open(cfg.get('honeypot', 'private_key_dsa')) as privateBlobFile:
+    privateBlob = privateBlobFile.read()
+    privateKeyDSA = Key.fromString(data=privateBlob)
+with open(cfg.get('honeypot', 'public_key_dsa')) as publicBlobFile:
+    publicBlob = publicBlobFile.read()
+    publicKeyDSA = Key.fromString(data=publicBlob)    
     
 serverFactory = server.HonsshServerFactory()
-serverFactory.privateKeys = {'ssh-rsa': privateKey}
-serverFactory.publicKeys = {'ssh-rsa': publicKey}
+serverFactory.privateKeys = {'ssh-rsa': privateKey, 'ssh-dsa': privateKeyDSA}
+serverFactory.publicKeys = {'ssh-rsa': publicKey, 'ssh-dsa': publicKeyDSA}
 
 application = service.Application('honeypot')
 service = internet.TCPServer(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
 service.setServiceParent(application)
 #reactor.listenTCP(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
 
-#Interaction - Disabled in this release
-#if cfg.get('interact', 'enabled')== 'true':
-#    iport = int(cfg.get('interact', 'port'))
-#    from kippo.core import interact
-#    from twisted.internet import protocol
-#    service = internet.TCPServer(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
-#    service.setServiceParent(application)
-#    #reactor.listenTCP(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
+if cfg.get('interact', 'enabled')== 'true':
+    iport = int(cfg.get('interact', 'port'))
+    service = internet.TCPServer(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
+    service.setServiceParent(application)
+    #reactor.listenTCP(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
 
 #reactor.run()
+
+
+
