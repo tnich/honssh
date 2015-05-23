@@ -70,12 +70,13 @@ class Term(baseProtocol.BaseProtocol):
                         self.command = self.command[:self.pointer-1] + self.command[self.pointer:]
                         self.pointer = self.pointer - 1
                     self.data = self.data[1:]
-                elif self.data[:1] == '\x0d' or self.data[:1] == '\x03':  #if enter or ctrl+c
+                elif self.data[:1] == '\x0d' or self.data[:1] == '\x03' or self.data[:1] == '\x0a':  #if enter or ctrl+c or newline
                     if self.data[:1] == '\x03':
                         self.command = self.command + "^C"
                     self.data = self.data[1:]
-                    log.msg("[SERVER] - Entered command: %s" % (self.command))
-                    self.processCommand(self.uuid, self.name, self.command)
+                    if self.command != '':
+                        log.msg("[SERVER] - Entered command: %s" % (self.command))
+                        self.processCommand(self.uuid, self.name, self.command)
                     
                     self.command = ''
                     self.pointer = 0

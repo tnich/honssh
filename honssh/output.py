@@ -33,7 +33,7 @@ from honssh import txtlog
 from kippo.core import ttylog
 from kippo.dblog import mysql
 from hpfeeds import hpfeeds
-import datetime, time, os, struct, re, subprocess, uuid, GeoIP, getopt, hashlib
+import datetime, time, os, struct, re, subprocess, uuid, GeoIP, getopt, hashlib, socket
 
 class Output():
     cfg = config()
@@ -308,6 +308,22 @@ class Output():
         
     def writeSpoofPass(self, username, password):
         txtlog.spoofLog(self.cfg.get('folders', 'log_path') + "/spoof.log", username, password, self.endIP)
+        
+    def portForwardLog(self, channelName, connDetails):
+        dt = self.getDateTime()
+        theDNS = ''
+        try:
+            theDNS = ' (' + socket.gethostbyaddr(connDetails['srcIP'])[0] + ')'
+        except:
+            pass
+        txtlog.log(dt, self.txtlog_file, channelName + ' Source: ' + connDetails['srcIP'] + ':' + str(connDetails['srcPort']) + theDNS)
+        
+        theDNS = ''
+        try:
+            theDNS = ' (' + socket.gethostbyaddr(connDetails['dstIP'])[0] + ')'
+        except:
+            pass
+        txtlog.log(dt, self.txtlog_file, channelName + ' Destination: ' + connDetails['dstIP'] + ':' + str(connDetails['dstPort']) + theDNS)
     
     def makeSessionFolder(self):
         if not os.path.exists(self.logLocation):

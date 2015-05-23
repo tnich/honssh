@@ -55,6 +55,8 @@ class PortForward(baseProtocol.BaseProtocol):
         if self.connDetails['srcIP'] == 'localhost':
             self.connDetails['srcIP'] = '127.0.0.1'
             
+        self.out.portForwardLog(self.name, self.connDetails)
+            
         self.pcapFile = self.out.logLocation + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") + '_' + self.name[1:-1] + '.pcap'
         self.writeToPCAP(self.pcapGlobalHeader)  
         self.doAcksNow = False
