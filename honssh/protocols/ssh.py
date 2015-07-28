@@ -92,8 +92,8 @@ class SSH(baseProtocol.BaseProtocol):
         if self.cfg.get('packets', 'enabled') == 'true':
             self.out.advancedLog(direction + ' - ' + packet.ljust(35) + ' - ' + repr(payload))
             
-        if self.cfg.has_option('debug', 'enabled'):   
-            if self.cfg.get('debug', 'enabled') == 'true':
+        if self.cfg.has_option('devmode', 'enabled'):   
+            if self.cfg.get('devmode', 'enabled') == 'true':
                 log.msg(direction + ' - ' + packet.ljust(35) + ' - ' + repr(payload))
         
         # - UserAuth            
@@ -311,8 +311,8 @@ class SSH(baseProtocol.BaseProtocol):
             
         if self.cfg.get('packets', 'enabled') == 'true':
             self.out.advancedLog(direction + ' - ' + packet.ljust(33) + ' - ' + repr(payload))
-        if self.cfg.has_option('debug', 'enabled'):   
-            if self.cfg.get('debug', 'enabled') == 'true':
+        if self.cfg.has_option('devmode', 'enabled'):   
+            if self.cfg.get('devmode', 'enabled') == 'true':
                 log.msg(direction + ' - ' + packet.ljust(35) + ' - ' + repr(payload))
             
         if parent == '[SERVER]':
@@ -333,7 +333,7 @@ class SSH(baseProtocol.BaseProtocol):
                 search = 'serverID'
             else:
                 search = 'clientID'
-    
+                
             if channel[search] == channelNum:
                 theChannel = channel
                 break
@@ -368,8 +368,8 @@ class SSH(baseProtocol.BaseProtocol):
         packet = self.packetLayout[packetNum]
         if self.cfg.get('packets', 'enabled') == 'true':
             self.out.advancedLog(direction + ' - ' + packet.ljust(33) + ' - ' + repr(payload))
-        if self.cfg.has_option('debug', 'enabled'):   
-            if self.cfg.get('debug', 'enabled') == 'true':
+        if self.cfg.has_option('devmode', 'enabled'):   
+            if self.cfg.get('devmode', 'enabled') == 'true':
                 log.msg(direction + ' - ' + packet.ljust(35) + ' - ' + repr(payload))   
         
         self.client.sendPacket(packetNum, payload)

@@ -39,8 +39,11 @@ if not os.path.exists('honssh.cfg'):
     print '[ERR][FATAL] honssh.cfg is missing!'
     sys.exit(1)
 
-log.startLogging(sys.stdout, setStdout=0)
 cfg = config()
+
+if cfg.has_option('devmode', 'enabled'):   
+    if cfg.get('devmode', 'enabled') == 'true':
+        log.startLogging(sys.stdout, setStdout=0)
 
 if not validateConfig(cfg):
     sys.exit(1)
@@ -71,18 +74,23 @@ serverFactory = server.HonsshServerFactory()
 serverFactory.privateKeys = {'ssh-rsa': privateKey, 'ssh-dsa': privateKeyDSA}
 serverFactory.publicKeys = {'ssh-rsa': publicKey, 'ssh-dsa': publicKeyDSA}
 
-application = service.Application('honeypot')
-service = internet.TCPServer(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
-service.setServiceParent(application)
-#reactor.listenTCP(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
+if not cfg.has_option('devmode', 'enabled'):   
+    application = service.Application('honeypot')
+    service = internet.TCPServer(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
+    service.setServiceParent(application)
+else:
+    if cfg.get('devmode', 'enabled') == 'true':
+        reactor.listenTCP(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
 
 if cfg.get('interact', 'enabled')== 'true':
     iport = int(cfg.get('interact', 'port'))
-    service = internet.TCPServer(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
-    service.setServiceParent(application)
-    #reactor.listenTCP(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
+    if not cfg.has_option('devmode', 'enabled'):   
+        service = internet.TCPServer(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
+        service.setServiceParent(application)
+    else:
+        if cfg.get('devmode', 'enabled') == 'true':
+            reactor.listenTCP(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
 
-#reactor.run()
-
-
-
+if cfg.has_option('devmode', 'enabled'): 
+    if cfg.get('devmode', 'enabled') == 'true':
+        reactor.run()
