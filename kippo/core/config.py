@@ -27,6 +27,7 @@
 # SUCH DAMAGE.
 
 import ConfigParser, os, re
+from plugins.containers_manager.config import validate_container_config
 
 def config():
     cfg = ConfigParser.ConfigParser()
@@ -119,7 +120,11 @@ def validateConfig(cfg):
         prop = ['hpfeeds','port']
         if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
             validConfig = False
-    
+
+    #Check for container support
+    if cfg.get('containers','enabled') == 'true':
+        if not validate_container_config(cfg):
+            validConfig = False
 
     return validConfig
     
