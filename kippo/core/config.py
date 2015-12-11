@@ -27,7 +27,7 @@
 # SUCH DAMAGE.
 
 import ConfigParser, os, re
-from plugins.containers_manager.config import validate_container_config
+from plugins.containers.config import validate_container_config
 
 def config():
     cfg = ConfigParser.ConfigParser()
