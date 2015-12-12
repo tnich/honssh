@@ -443,6 +443,11 @@ hostname = app2.samplepot.xyz
 # required: YES
 launch_cmd = service ssh start
 
+# ssh_banner: ssh banner to send to clients
+# required: YES
+# default: 
+ssh_banner = SSH-2.0-OpenSSH_6.6.1p1 Ubuntu-2ubuntu2.3
+
 #-----------------------#
 #   APPLICATION HOOKS   #
 #-----------------------#

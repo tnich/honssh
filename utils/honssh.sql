@@ -61,6 +61,6 @@ CREATE TABLE `channels` (
 CREATE TABLE `commands` (
   `timestamp` DATETIME NOT NULL,
   `channelid` CHAR(32) NOT NULL,
-  `command` VARCHAR(300) NOT NULL,
+  `command` VARCHAR(240) NOT NULL,
   PRIMARY KEY (`timestamp`, `command`)
 ) ;
