@@ -421,32 +421,26 @@ enabled = false
 #
 # input: true/false
 # required: YES
-# default: false
 enabled = true
 
 # driver: docker (please contribute more :-))
-# required: NO
-# default: docker
+# required: YES
 driver = docker
 
 # image: image id to use for honeypot container
-# required: NO
-# default: 
+# required: YES
 image = d9ab09f20773
 
 # uri: socket to interact with container daemon
-# required: NO
-# default: 
+# required: YES
 uri = unix://var/run/docker.sock
 
 # honey_hostname: the hostname for the container
-# required: NO
-# default: 
-hostname = www2.intermediatedesigns.co.uk
+# required: YES
+hostname = app2.samplepot.xyz
 
 # launch_cmd: command to run when container is first launched
-# required: NO
-# default: 
+# required: YES
 launch_cmd = service ssh start
 
 #-----------------------#
