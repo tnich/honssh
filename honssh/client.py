@@ -72,11 +72,11 @@ class HonsshSlimClientTransport(transport.SSHClientTransport):
         self.buf = self.buf + data
         if not self.gotVersion:
             cfg = self.factory.server.cfg
-            if cfg.get('containers','enabled') == "true":
-                self.ourVersionString = cfg.get('containers','ssh_banner')
+            if cfg.get('containers', 'enabled') == "true":
+                self.ourVersionString = cfg.get('containers', 'ssh_banner')
                 self.factory.server.ourVersionString = self.ourVersionString
-                self.gotVersion = True
                 log.msg("[PLUGIN:CONTAINERS] Using containers ssh_banner for SSH Version String: " + self.factory.server.ourVersionString)
+                self.gotVersion = True
             else:
                 if self.buf.find('\n', self.buf.find('SSH-')) == -1:
                     return
