@@ -28,6 +28,25 @@
 
 from twisted.python import log
 
-def validate_container_config(cfg):
-    print "[PLUGIN:CONTAINERS]: "
-    return True
+def validate_containers_config(cfg):
+    log.msg('[PLUGIN:CONTAINERS] Checking for containers configuration')
+    cfgvalid = True
+
+    if cfg.get('containers','enabled') == 'true':
+        props = [['containers','driver'], ['containers','image'], ['containers','uri']]
+        for prop in props:
+            if not checkExist(cfg,prop):
+                cfgvalid = False
+
+    return cfgvalid
+
+def checkExist(cfg, property): 
+    if cfg.has_option(property[0], property[1]):   
+        if not cfg.get(property[0], property[1]) == '':
+            return True
+        else:
+            print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] must not be blank.'
+            return False
+    else:
+        print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] must exist.'
+        return False

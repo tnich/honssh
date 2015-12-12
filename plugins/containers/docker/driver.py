@@ -26,13 +26,23 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from plugins.containers.docker.driver import docker_driver
+from docker import Client
+from plugins.containers.base import container_base
 
-def get_container_driver(driver, socket, image, log):
-    if driver == "docker":
-        log.msg("[PLUGIN:CONTAINERS] Created Docker container driver")
-        return docker_driver(socket, image)
+class docker_driver(container_base):
+    
+    def make_connection(self):
+        self.connection = Client(self.socket)
 
-    else:
-        log.msg("[PLUGIN:CONTAINERS] No valid container driver found")
-        raise(Exception, "No valid container driver found")
+    def launch_container(self):
+        self.container_id = self.connection.create_container(image=self.image, tty=True)['Id']
+        self.connection.start(self.container_id)
+        ssh_cmd = 'service ssh start'
+        exec_id = self.connection.exec_create(self.container_id, ssh_cmd)['Id']
+        self.connection.exec_start(exec_id, tty=True)
+        self.container_data = self.connection.inspect_container(self.container_id)
+        return {"id": self.container_id,
+                "ip": self.container_data['NetworkSettings']['Networks']['bridge']['IPAddress']}
+
+    def teardown_container(self):
+        self.connection.stop(self.container_id)

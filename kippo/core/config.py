@@ -27,7 +27,7 @@
 # SUCH DAMAGE.
 
 import ConfigParser, os, re
-from plugins.containers.config import validate_container_config
+from plugins.containers.config import validate_containers_config
 
 def config():
     cfg = ConfigParser.ConfigParser()
@@ -123,7 +123,7 @@ def validateConfig(cfg):
 
     #Check for container support
     if cfg.get('containers','enabled') == 'true':
-        if not validate_container_config(cfg):
+        if not validate_containers_config(cfg):
             validConfig = False
 
     return validConfig

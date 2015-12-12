@@ -26,13 +26,23 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from plugins.containers.docker.driver import docker_driver
+class container_base():
+    socket = ''
+    image = ''
+    connection = ''
+    ipaddr = ''
+    container_id = ''
 
-def get_container_driver(driver, socket, image, log):
-    if driver == "docker":
-        log.msg("[PLUGIN:CONTAINERS] Created Docker container driver")
-        return docker_driver(socket, image)
+    def __init__(self, socket, image):
+        self.socket = socket
+        self.image = image
+        self.make_connection()
 
-    else:
-        log.msg("[PLUGIN:CONTAINERS] No valid container driver found")
-        raise(Exception, "No valid container driver found")
+    def launch_container(self):
+        pass
+
+    def teardown_container(self):
+        pass
+
+    def make_connection(self):
+        self.connection = ''
