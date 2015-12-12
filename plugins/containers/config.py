@@ -33,7 +33,7 @@ def validate_containers_config(cfg):
     cfgvalid = True
 
     if cfg.get('containers','enabled') == 'true':
-        props = [['containers','driver'], ['containers','image'], ['containers','uri']]
+        props = [['containers','driver'], ['containers','image'], ['containers','uri'], ['containers','launch_cmd'], ['containers','hostname']]
         for prop in props:
             if not checkExist(cfg,prop):
                 cfgvalid = False

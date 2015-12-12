@@ -35,10 +35,9 @@ class docker_driver(container_base):
         self.connection = Client(self.socket)
 
     def launch_container(self):
-        self.container_id = self.connection.create_container(image=self.image, tty=True)['Id']
+        self.container_id = self.connection.create_container(image=self.image, tty=True, hostname=self.hostname)['Id']
         self.connection.start(self.container_id)
-        ssh_cmd = 'service ssh start'
-        exec_id = self.connection.exec_create(self.container_id, ssh_cmd)['Id']
+        exec_id = self.connection.exec_create(self.container_id, self.launch_cmd)['Id']
         self.connection.exec_start(exec_id, tty=True)
         self.container_data = self.connection.inspect_container(self.container_id)
         return {"id": self.container_id,

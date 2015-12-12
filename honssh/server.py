@@ -119,7 +119,9 @@ class HonsshServerTransport(honsshServer.HonsshServer):
             socket = self.cfg.get('containers', 'uri')
             image = self.cfg.get('containers', 'image')
             driver = self.cfg.get('containers', 'driver')
-            self.container_driver = get_container_driver(driver, socket, image, log)
+            launch_cmd = self.cfg.get('containers', 'launch_cmd')
+            hostname = self.cfg.get('containers', 'hostname')
+            self.container_driver = get_container_driver(driver, socket, image, log, launch_cmd, hostname)
             self.container = self.container_driver.launch_container()
 
             log.msg("[PLUGIN:CONTAINERS] Launched container (%s, %s)" % (self.container['ip'], self.container['id']))

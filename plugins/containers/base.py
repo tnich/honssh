@@ -33,9 +33,11 @@ class container_base():
     ipaddr = ''
     container_id = ''
 
-    def __init__(self, socket, image):
+    def __init__(self, socket, image, launch_cmd, hostname):
         self.socket = socket
         self.image = image
+        self.hostname = hostname
+        self.launch_cmd = launch_cmd
         self.make_connection()
 
     def launch_container(self):

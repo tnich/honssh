@@ -28,10 +28,10 @@
 
 from plugins.containers.docker.driver import docker_driver
 
-def get_container_driver(driver, socket, image, log):
+def get_container_driver(driver, socket, image, log, launch_cmd, hostname):
     if driver == "docker":
         log.msg("[PLUGIN:CONTAINERS] Created Docker container driver")
-        return docker_driver(socket, image)
+        return docker_driver(socket, image, launch_cmd, hostname)
 
     else:
         log.msg("[PLUGIN:CONTAINERS] No valid container driver found")
