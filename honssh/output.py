@@ -33,7 +33,19 @@ from honssh import txtlog
 from kippo.core import ttylog
 from kippo.dblog import mysql
 from hpfeeds import hpfeeds
-import datetime, time, os, struct, re, subprocess, uuid, GeoIP, getopt, hashlib, socket
+import datetime
+import time
+import os
+import struct
+import re
+import subprocess
+import uuid
+import GeoIP
+import getopt
+import hashlib
+import socket
+import urllib2
+import base64
 
 class Output():
     cfg = config()
@@ -191,9 +203,9 @@ class Output():
                     username = ''
                     password = ''
                     for a in args:
-                        if a[0] in ['user', 'http-user', 'ftp-user']:
+                        if a[0] in ['--user', '--http-user', '--ftp-user']:
                             username = a[1]
-                        if a[0] in ['password', 'http-password', 'ftp-password']:
+                        if a[0] in ['--password', '--http-password', '--ftp-password']:
                             password = a[1]
                             
                     for l in links:
@@ -206,14 +218,8 @@ class Output():
 
         filename = dt + "-" + link.split("/")[-1]
         fileOut = self.downloadFolder + filename
-        wgetCommand = 'wget -O "' + fileOut + '" '
-        if user != '':
-            wgetCommand = wgetCommand + '--user=' + user + ' '
-        if password != '':
-            wgetCommand = wgetCommand + '--password=' + password + ' '
-        wgetCommand = wgetCommand + link
         
-        d = threads.deferToThread(self.wget, channelName, uuid, wgetCommand, link, fileOut)
+        d = threads.deferToThread(self.wget, channelName, uuid, link, fileOut, user, password)
         d.addCallback(self.fileDownloaded)
         
         if self.cfg.has_option('app_hooks', 'download_started'):
@@ -224,7 +230,7 @@ class Output():
     def fileDownloaded(self, input):
         dt = self.getDateTime()
 
-        channelName, uuid, success, link, file, wgetError = input
+        channelName, uuid, success, link, file, error = input
         if success:
             if self.cfg.get('txtlog', 'enabled') == 'true':
                 threads.deferToThread(self.generateMD5, channelName, dt, self.cfg.get('folders', 'log_path') + '/downloads.log', self.endIP, link, file)
@@ -237,8 +243,8 @@ class Output():
                     cmdString = self.cfg.get('app_hooks', 'download_finished') + " DOWNLOAD_FINISHED " + dt + " " + self.endIP + " " + link + " " + file
                     threads.deferToThread(self.runCommand, cmdString)  
         else:
-            log.msg('[OUTPUT] FILE DOWNLOAD FAILED')
-            log.msg('[OUTPUT] ' + wgetError)
+            log.msg('[OUTPUT][DOWNLOAD][ERR]' + error)
+            txtlog.log(self.getDateTime(), self.txtlog_file, channelName + ' [DOWNLOAD] - Cannot download URL: ' + link)
 
     def channelOpened(self, uuid, channelName):
         dt = self.getDateTime()
@@ -395,13 +401,30 @@ class Output():
         txtlog.log(dt, self.txtlog_file, channelName + ' Downloaded: ' + link + ' - Saved: ' + outFile + ' - Size: ' + str(theSize) + ' - MD5: ' + str(theMD5))
         txtlog.downloadLog(dt, logPath, theIP, link, outFile, theSize, theMD5)
     
-    def wget(self, channelName, uuid, wgetCommand, link, fileOut):
-        sp = subprocess.Popen(wgetCommand, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-        result = sp.communicate()
-        if sp.returncode == 0:
+    def wget(self, channelName, uuid, link, fileOut, user, password):
+        response = False
+        error = ''
+        try:
+            request = urllib2.Request(link)
+            if user and password:
+                if link.startswith('ftp://'):
+                    link = link[:6] + user + ':' + password + '@' + link[6:]
+                    request = urllib2.Request(link)
+                else:
+                    base64string = base64.encodestring('%s:%s' % (user, password)).replace('\n', '')
+                    request.add_header("Authorization", "Basic %s" % base64string)
+            response = urllib2.urlopen(request)
+        except Exception, ex:
+            error = str(ex)
+            
+        if response:
+            theFile = response.read()
+            f = open(fileOut, 'wb')
+            f.write(theFile)
+            f.close()
             return channelName, uuid, True, link, fileOut, None
         else:
-            return channelName, uuid, False, link, None, result[0]
+            return channelName, uuid, False, link, None, error
         
     def runCommand(self, command):
         log.msg('[APP-HOOKS] - ' + command)
