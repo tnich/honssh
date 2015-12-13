@@ -26,7 +26,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-# Should be compatible with user mode linux
+# Should be compatible with user mode Linux
 
 import struct, sys, os
 

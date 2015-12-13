@@ -4,7 +4,7 @@ https://github.com/tnich/honssh
 
 Copyright (C) 2013 Thomas Nicholson
 
-HonSSH is designed to be used in conjuction with a high interaction honeypot. HonSSH sits between the attacker and the honey pot and creates two separate SSH conncetions.
+HonSSH is designed to be used in conjunction with a high interaction honeypot. HonSSH sits between the attacker and the honey pot and creates two separate SSH conncetions.
 
 ----
 

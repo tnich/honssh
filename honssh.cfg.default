@@ -68,7 +68,7 @@ private_key_dsa = id_dsa
 #-----------------------#
 [hp-restrict]
 
-# When enabled, HonSSH will restirct connections to password only and decline any public keys.
+# When enabled, HonSSH will restrict connections to password only and decline any public keys.
 # HonSSH will not work with public keys - this should always be true.
 #
 # input: true/false
@@ -332,7 +332,7 @@ from =
 
 # The address(es) the email is sent to
 #
-# input: Email Addresses in a comma seperated list without spaces
+# input: Email Addresses in a comma seperated list spaces without
 # required: if login or attack = true
 to = 
 
@@ -382,7 +382,7 @@ secret =
 
 # File Download
 #
-# HonSSH wil attempt to download all scp and sftp files to a local store if this is true
+# HonSSH will attempt to download all scp and sftp files to a local store if this is true
 #
 # input: true/false
 # required: YES
@@ -391,7 +391,7 @@ passive = false
 
 # HonSSH wil attempt to download all wget files to a local store.
 # 
-# I believe another tool should be used to passivley capture all http(s) connections on all ports - maybe the next project?
+# I believe another tool should be used to passively capture all http(s) connections on all ports - maybe the next project?
 # Until then HonSSH will use a 'best effort' approach to capture files when the wget commands is detected.
 # It will not be able to capture commands such as:
 # url=www.test.url; wget $url
