@@ -414,6 +414,41 @@ active = false
 enabled = false
 
 #-----------------------#
+#   Containers          #
+#-----------------------#
+[containers]
+# Allows honey pot to run as a container
+#
+# input: true/false
+# required: YES
+enabled = true
+
+# driver: docker (please contribute more :-))
+# required: YES
+driver = docker
+
+# image: image id to use for honeypot container
+# required: YES
+image = d9ab09f20773
+
+# uri: socket to interact with container daemon
+# required: YES
+uri = unix://var/run/docker.sock
+
+# honey_hostname: the hostname for the container
+# required: YES
+hostname = app2.samplepot.xyz
+
+# launch_cmd: command to run when container is first launched
+# required: YES
+launch_cmd = service ssh start
+
+# ssh_banner: ssh banner to send to clients
+# required: YES
+# default: 
+ssh_banner = SSH-2.0-OpenSSH_6.6.1p1 Ubuntu-2ubuntu2.3
+
+#-----------------------#
 #   APPLICATION HOOKS   #
 #-----------------------#
 [app_hooks]

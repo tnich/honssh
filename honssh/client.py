@@ -71,16 +71,23 @@ class HonsshSlimClientTransport(transport.SSHClientTransport):
     def dataReceived(self, data):
         self.buf = self.buf + data
         if not self.gotVersion:
-            if self.buf.find('\n', self.buf.find('SSH-')) == -1:
-                return
-            lines = self.buf.split('\n')
-            for p in lines:
-                if p.startswith('SSH-'):
-                    self.gotVersion = True
-                    self.ourVersionString = p.strip()
-                    self.factory.server.ourVersionString = self.ourVersionString
-                    log.msg("[CLIENT] Got SSH Version String: " + self.factory.server.ourVersionString)
-                    self.loseConnection()
+            cfg = self.factory.server.cfg
+            if cfg.get('containers', 'enabled') == "true":
+                self.ourVersionString = cfg.get('containers', 'ssh_banner')
+                self.factory.server.ourVersionString = self.ourVersionString
+                log.msg("[PLUGIN:CONTAINERS] Using containers ssh_banner for SSH Version String: " + self.factory.server.ourVersionString)
+                self.gotVersion = True
+            else:
+                if self.buf.find('\n', self.buf.find('SSH-')) == -1:
+                    return
+                lines = self.buf.split('\n')
+                for p in lines:
+                    if p.startswith('SSH-'):
+                        self.gotVersion = True
+                        self.ourVersionString = p.strip()
+                        self.factory.server.ourVersionString = self.ourVersionString
+                        log.msg("[CLIENT] Got SSH Version String: " + self.factory.server.ourVersionString)
+                        self.loseConnection()
             
 class HonsshSlimClientFactory(protocol.ClientFactory):
     protocol = HonsshSlimClientTransport  
