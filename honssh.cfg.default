@@ -63,6 +63,15 @@ private_key = id_rsa
 public_key_dsa = id_dsa.pub
 private_key_dsa = id_dsa
 
+# SSH banner to send to clients
+# If not specified, HonSSH will try and obtain it by connecting to
+# honey_addr:honey_port
+# 
+# input: text
+# required: No
+# default: 
+ssh_banner = 
+
 #-----------------------#
 # HONEYPOT RESTRICTIONS #
 #-----------------------#
@@ -226,7 +235,7 @@ enabled = true
 [database_mysql]
 
 # All activity will be logged to a MYSQL Database
-# Database structure for this module is supplied in doc/sql/mysql.sql
+# Database structure for this module is supplied in utils/honssh.sql
 #
 # input: true/false
 # required: yes
@@ -421,32 +430,31 @@ enabled = false
 #
 # input: true/false
 # required: YES
-enabled = true
+# default: false
+enabled = false
 
 # driver: docker (please contribute more :-))
-# required: YES
+# default docker
+# required: if enabled = true
 driver = docker
 
-# image: image id to use for honeypot container
-# required: YES
-image = d9ab09f20773
+# image: image id/name to use for honeypot container
+# required: if enabled = true
+image = 
 
 # uri: socket to interact with container daemon
-# required: YES
+# required: if enabled = true
+# default: unix://var/run/docker.sock
 uri = unix://var/run/docker.sock
 
 # honey_hostname: the hostname for the container
-# required: YES
-hostname = app2.samplepot.xyz
+# required: if enabled = true
+hostname = 
 
 # launch_cmd: command to run when container is first launched
-# required: YES
+# required: if enabled = true
+# default = service ssh start
 launch_cmd = service ssh start
-
-# ssh_banner: ssh banner to send to clients
-# required: YES
-# default: 
-ssh_banner = SSH-2.0-OpenSSH_6.6.1p1 Ubuntu-2ubuntu2.3
 
 #-----------------------#
 #   APPLICATION HOOKS   #

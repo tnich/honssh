@@ -27,7 +27,6 @@
 # SUCH DAMAGE.
 
 import ConfigParser, os, re
-from plugins.containers.config import validate_containers_config
 
 def config():
     cfg = ConfigParser.ConfigParser()
@@ -88,7 +87,7 @@ def validateConfig(cfg):
             if not checkExist(cfg,prop):
                 validConfig = False
                 
-    #If email is enabled check it's config            
+    #If email is enabled check it's config
     if cfg.get('email','login') == 'true' or cfg.get('email','login') == 'attack':
         if cfg.get('txtlog','enabled') == 'true':
             prop = ['email','port']
@@ -123,6 +122,7 @@ def validateConfig(cfg):
 
     #Check for container support
     if cfg.get('containers','enabled') == 'true':
+        from plugins.containers.config import validate_containers_config
         if not validate_containers_config(cfg):
             validConfig = False
 
@@ -154,6 +154,7 @@ def checkValidPort(cfg, property):
         else:
             print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] should be between 1 and 65535'
             return False 
+        
 def checkValidBool(cfg, property):
     if cfg.get(property[0], property[1]) in ['true', 'false']:
         return True
@@ -167,6 +168,8 @@ def checkValidNumber(cfg, property):
     else:
         print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] should be number.'
         return False
+    
+    
 def checkValidChance(cfg, property):
     if checkValidNumber(cfg, property):
         if 1 <= int(cfg.get(property[0], property[1])):

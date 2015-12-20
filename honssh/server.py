@@ -35,7 +35,6 @@ from honssh.protocols import sftp, ssh
 from kippo.core.config import config
 from kippo.dblog import mysql
 from hpfeeds import hpfeeds
-from plugins.containers import get_container_driver
 import datetime, time, os, struct, re, subprocess, random
 
 class HonsshServerTransport(honsshServer.HonsshServer):
@@ -76,7 +75,7 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         if self.networkingSetup:
             self.net.removeNetworking(self.factory.connections.connections)
         
-        if self.cfg.get('containers', 'enabled'):
+        if self.cfg.get('containers', 'enabled') == 'true':
             self.container_driver.teardown_container()
             log.msg("[PLUGIN:CONTAINERS] Shutdown container (%s, %s)" % (self.container['ip'], self.container['id']))
         
@@ -115,7 +114,8 @@ class HonsshServerTransport(honsshServer.HonsshServer):
                 else:
                     return False, result[0], None, None
                 
-        if self.cfg.get('containers', 'enabled'):
+        if self.cfg.get('containers', 'enabled') == 'true':
+            from plugins.containers import get_container_driver
             socket = self.cfg.get('containers', 'uri')
             image = self.cfg.get('containers', 'image')
             driver = self.cfg.get('containers', 'driver')
@@ -145,7 +145,7 @@ class HonsshServerTransport(honsshServer.HonsshServer):
                 clientFactory.server = self
                 self.bindIP = self.net.setupNetworking(self.endIP, str(thePort))
                 self.networkingSetup = True
-                reactor.connectTCP(theIP, thePort, clientFactory, bindAddress=(self.bindIP, self.transport.getPeer().port), timeout=10)
+                reactor.connectTCP(theIP, thePort, clientFactory, bindAddress=(self.bindIP, self.transport.getPeer().port+1), timeout=10)
                 
                 self.sshParse = ssh.SSH(self, self.out)
                             
@@ -186,11 +186,18 @@ class HonsshServerFactory(factory.SSHFactory):
     dbLog = None
     
     def __init__(self):
-        clientFactory = client.HonsshSlimClientFactory()
-        clientFactory.server = self
+        self.ourVersionString = self.cfg.get('honeypot', 'ssh_banner')
+        log.msg("HELLO")
+        if self.ourVersionString == '':
+            log.msg('[SERVER] Acquiring SSH Version String from honey_addr:honey_port')
+            clientFactory = client.HonsshSlimClientFactory()
+            clientFactory.server = self
+            
+            reactor.connectTCP(self.cfg.get('honeypot', 'honey_addr'), int(self.cfg.get('honeypot', 'honey_port')), clientFactory)
+        else:
+            log.msg("[SERVER] Using ssh_banner for SSH Version String: " + self.ourVersionString)
+            log.msg('[HONSSH] HonSSH Boot Sequence Complete - Ready for attacks!')
         
-        reactor.connectTCP(self.cfg.get('honeypot', 'honey_addr'), int(self.cfg.get('honeypot', 'honey_port')), clientFactory)
-               
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             hp = hpfeeds.HPLogger()
             self.hpLog = hp.start(self.cfg)
@@ -198,8 +205,6 @@ class HonsshServerFactory(factory.SSHFactory):
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             db = mysql.DBLogger()
             self.dbLog = db.start(self.cfg)
-            
-        log.msg('[SERVER] Acquiring SSH Version String from honey_addr:honey_port') 
     
     def buildProtocol(self, addr):
         t = HonsshServerTransport()
