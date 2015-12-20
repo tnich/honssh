@@ -35,6 +35,7 @@ from honssh.protocols import sftp, ssh
 from kippo.core.config import config
 from kippo.dblog import mysql
 from hpfeeds import hpfeeds
+from plugins.containers import get_container_driver
 import datetime, time, os, struct, re, subprocess, random
 
 class HonsshServerTransport(honsshServer.HonsshServer):
@@ -75,6 +76,10 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         if self.networkingSetup:
             self.net.removeNetworking(self.factory.connections.connections)
         
+        if self.cfg.get('containers', 'enabled'):
+            self.container_driver.teardown_container()
+            log.msg("[PLUGIN:CONTAINERS] Shutdown container (%s, %s)" % (self.container['ip'], self.container['id']))
+        
     def ssh_KEXINIT(self, packet):
         return honsshServer.HonsshServer.ssh_KEXINIT(self, packet)
        
@@ -109,9 +114,26 @@ class HonsshServerTransport(honsshServer.HonsshServer):
                     return True, self.sensorName, self.honeyIP, self.honeyPort
                 else:
                     return False, result[0], None, None
-        self.sensorName = self.cfg.get('honeypot','sensor_name')
-        self.honeyIP = self.cfg.get('honeypot','honey_addr')
-        self.honeyPort = int(self.cfg.get('honeypot','honey_port'))
+                
+        if self.cfg.get('containers', 'enabled'):
+            socket = self.cfg.get('containers', 'uri')
+            image = self.cfg.get('containers', 'image')
+            driver = self.cfg.get('containers', 'driver')
+            launch_cmd = self.cfg.get('containers', 'launch_cmd')
+            hostname = self.cfg.get('containers', 'hostname')
+            self.container_driver = get_container_driver(driver, socket, image, log, launch_cmd, hostname)
+            self.container = self.container_driver.launch_container()
+
+            log.msg("[PLUGIN:CONTAINERS] Launched container (%s, %s)" % (self.container['ip'], self.container['id']))
+            self.sensorName = self.container['id']
+            self.honeyIP = self.container['ip']
+            self.honeyPort = int(self.cfg.get('honeypot','honey_port'))
+
+        else:
+            self.sensorName = self.cfg.get('honeypot','sensor_name')
+            self.honeyIP = self.cfg.get('honeypot','honey_addr')
+            self.honeyPort = int(self.cfg.get('honeypot','honey_port'))
+
         return True, self.sensorName, self.honeyIP, self.honeyPort
         
     def preAuthConn(self, input):
