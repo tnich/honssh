@@ -3,6 +3,6 @@ python-twisted
 python-mysqldb
 python-geoip
 
-If you are using Docker:
+# If you require docker support:
 docker
 docker-py
