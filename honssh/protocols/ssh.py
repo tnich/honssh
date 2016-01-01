@@ -28,7 +28,7 @@
 
 from honssh.protocols import baseProtocol, sftp, term, execTerm, portForward
 from twisted.python import log
-from kippo.core.config import config
+from honssh.config import config
 import struct, uuid, random, os, ConfigParser, re
 
 class SSH(baseProtocol.BaseProtocol):
@@ -89,12 +89,11 @@ class SSH(baseProtocol.BaseProtocol):
         else:
             direction = 'SERVER -> CLIENT'
                 
-        if self.cfg.get('packets', 'enabled') == 'true':
-            self.out.advancedLog(direction + ' - ' + packet.ljust(35) + ' - ' + repr(payload))
+        self.out.packet_logged(direction, packet, payload)
             
         if self.cfg.has_option('devmode', 'enabled'):   
             if self.cfg.get('devmode', 'enabled') == 'true':
-                log.msg(direction + ' - ' + packet.ljust(35) + ' - ' + repr(payload))
+                log.msg(direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))
         
         # - UserAuth            
         if packet == 'SSH_MSG_USERAUTH_REQUEST':
@@ -309,11 +308,11 @@ class SSH(baseProtocol.BaseProtocol):
         else:
             direction = 'HONSSH -> SERVER'
             
-        if self.cfg.get('packets', 'enabled') == 'true':
-            self.out.advancedLog(direction + ' - ' + packet.ljust(33) + ' - ' + repr(payload))
+        self.out.packet_logged(direction, packet, payload)
+
         if self.cfg.has_option('devmode', 'enabled'):   
             if self.cfg.get('devmode', 'enabled') == 'true':
-                log.msg(direction + ' - ' + packet.ljust(35) + ' - ' + repr(payload))
+                log.msg(direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))
             
         if parent == '[SERVER]':
             self.server.sendPacket(messageNum, payload)
@@ -366,11 +365,12 @@ class SSH(baseProtocol.BaseProtocol):
     def inject(self, packetNum, payload):
         direction = 'INTERACT -> SERVER'
         packet = self.packetLayout[packetNum]
-        if self.cfg.get('packets', 'enabled') == 'true':
-            self.out.advancedLog(direction + ' - ' + packet.ljust(33) + ' - ' + repr(payload))
+        
+        self.out.packet_logged(direction, packet, payload)
+
         if self.cfg.has_option('devmode', 'enabled'):   
             if self.cfg.get('devmode', 'enabled') == 'true':
-                log.msg(direction + ' - ' + packet.ljust(35) + ' - ' + repr(payload))   
+                log.msg(direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))   
         
         self.client.sendPacket(packetNum, payload)
 

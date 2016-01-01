@@ -148,13 +148,14 @@ class HonsshProtocol(protocol.Protocol):
         for sensor in theJson:
             for session in sensor['sessions']:
                 if len(session['channels']) == 0:
-                    print 'AUTHENTICATING'.ljust(34) + sensor['sensor_name'].ljust(sensorLength+2) + session['peerIP'].ljust(17)
+                    print 'AUTHENTICATING'.ljust(34) + sensor['sensor_name'].ljust(sensorLength+2) + session['peer_ip'].ljust(17)
                 else:
                     for channel in session['channels']:
-                        dt = datetime.datetime.strptime(channel['startTime'],"%Y%m%d_%H%M%S_%f")
-                        now = datetime.datetime.now()
-                        totalTime = time.gmtime((now - dt).total_seconds())
-                        print channel['uuid'].ljust(34) + sensor['sensor_name'].ljust(sensorLength+2) + session['peerIP'].ljust(17) + channel['name'].ljust(9) + time.strftime("%H:%M:%S", totalTime)
+                        if 'end_time' not in channel:
+                            dt = datetime.datetime.strptime(channel['start_time'],"%Y%m%d_%H%M%S_%f")
+                            now = datetime.datetime.now()
+                            totalTime = time.gmtime((now - dt).total_seconds())
+                            print channel['channel_id'].ljust(34) + sensor['sensor_name'].ljust(sensorLength+2) + session['peer_ip'].ljust(17) + channel['name'].ljust(9) + time.strftime("%H:%M:%S", totalTime)
 
 
 

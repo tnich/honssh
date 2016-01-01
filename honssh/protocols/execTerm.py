@@ -45,7 +45,7 @@ class ExecTerm(baseProtocol.BaseProtocol):
                 
         if command.startswith('scp'):
             self.scp = True
-            self.out.commandEntered(self.uuid, self.name + ' [SCP]', command)
+            self.out.commandEntered(self.uuid, command)
         else:
             self.ttylog_file = self.out.logLocation + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") + '_' + self.name[1:-1] + '.tty'
             self.out.openTTY(self.ttylog_file)
@@ -65,7 +65,8 @@ class ExecTerm(baseProtocol.BaseProtocol):
                     match = re.match('C\d{4} (\d*) (.*)', self.data)
                     if match:
                         self.size = int(match.group(1))
-                        self.fileName = str(match.group(2))                    
+                        self.fileName = str(match.group(2))      
+                        self.out.downloadStarted(self.uuid, self.fileName)
                 else:
                     self.theFile = self.theFile + self.data[:self.size]
                     self.size = self.size - len(self.data[:self.size])
@@ -76,7 +77,7 @@ class ExecTerm(baseProtocol.BaseProtocol):
                             f = open(outfile, 'wb')
                             f.write(self.theFile)
                             f.close()
-                            self.out.fileDownloaded((self.name + ' [SCP]', self.uuid, True, self.fileName, outfile, None))
+                            self.out.fileDownloaded((self.uuid, True, self.fileName, outfile, None))
                         
                         self.fileName = ''
                         self.theFile = ''

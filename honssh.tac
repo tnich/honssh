@@ -32,8 +32,8 @@ from twisted.python import log
 from twisted.application import internet, service
 import sys, os
 from honssh import server, interact
-from kippo.core.config import config
-from kippo.core.config import validateConfig
+from honssh.config import config
+from honssh.config import validateConfig
 
 if not os.path.exists('honssh.cfg'):
     print '[ERR][FATAL] honssh.cfg is missing!'

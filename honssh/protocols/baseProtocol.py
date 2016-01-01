@@ -54,7 +54,7 @@ class BaseProtocol():
         self.ssh.injectDisconnect()
     
     def processCommand(self, uuid, name, command):
-        self.out.commandEntered(uuid, name, command)
+        self.out.commandEntered(uuid, command)
     
     def channelClosed(self):
         pass
@@ -83,3 +83,6 @@ class BaseProtocol():
         self.packetSize = self.packetSize - len(value)
         self.data = ''
         return value
+    
+    def __deepcopy__(self, memo):
+        return None

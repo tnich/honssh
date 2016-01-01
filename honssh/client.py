@@ -29,7 +29,7 @@
 from twisted.conch.ssh import transport, service
 from twisted.python import log
 from twisted.internet import reactor, protocol, defer
-from kippo.core.config import config
+from honssh.config import config
 import datetime, time, os, re, io, struct
 
 class HonsshClientTransport(transport.SSHClientTransport):

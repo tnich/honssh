@@ -125,7 +125,7 @@ class SFTP(baseProtocol.BaseProtocol):
             self.path = self.extractString()
             self.command = 'cd ' + self.path
             log.msg(parent + '[SFTP] - Entered Command: ' + self.command)
-            self.out.commandEntered(self.uuid, self.name, self.command)
+            self.out.commandEntered(self.uuid, self.command)
             
         elif packet == 'SSH_FXP_OPEN':
             self.path = self.extractString()
@@ -133,13 +133,14 @@ class SFTP(baseProtocol.BaseProtocol):
             if pflags[6] == '1':
                 self.command = 'put ' + self.path
                 self.theFile = ''
+                self.out.downloadStarted(self.uuid, self.path)
             elif pflags[7] == '1':
                 self.command = 'get ' + self.path
             else:
                 #Unknown PFlag
                 log.msg(parent + '[SFTP] - New SFTP pflag detected - Please raise a HonSSH issue on github with the details: %s %s' % (pflags, self.data))
             log.msg(parent + '[SFTP] - Entered Command: ' + self.command)
-            self.out.commandEntered(self.uuid, self.name, self.command)
+            self.out.commandEntered(self.uuid, self.command)
                 
         elif packet == 'SSH_FXP_READ':
             pass
@@ -176,7 +177,7 @@ class SFTP(baseProtocol.BaseProtocol):
             
         elif packet == 'SSH_FXP_EXTENDED_REPLY':
             log.msg(parent + '[SFTP] - Entered Command: ' + self.command)
-            self.out.commandEntered(self.uuid, self.name, self.command)
+            self.out.commandEntered(self.uuid, self.command)
             
         elif packet == 'SSH_FXP_CLOSE':
             if self.handle == self.extractString():
@@ -191,7 +192,7 @@ class SFTP(baseProtocol.BaseProtocol):
                         f = open(outfile, 'wb')
                         f.write(self.theFile)
                         f.close()
-                        self.out.fileDownloaded((self.name, self.uuid, True, self.path.split('/')[-1], outfile, None))
+                        self.out.fileDownloaded((self.uuid, True, self.path.split('/')[-1], outfile, None))
                         
         elif packet == 'SSH_FXP_SYMLINK':
             self.command = 'ln -s ' + self.extractString() + ' ' + self.extractString()
@@ -211,11 +212,11 @@ class SFTP(baseProtocol.BaseProtocol):
                 if code in [0, 1]:
                     if 'get' not in self.command and 'put' not in self.command:
                         log.msg(parent + '[SFTP] - Entered Command: ' + self.command)
-                        self.out.commandEntered(self.uuid, self.name, self.command)
+                        self.out.commandEntered(self.uuid, self.command)
                 else:
                     message = self.extractString()
                     log.msg(parent + '[SFTP] - Failed Command: ' + self.command + ' Reason: ' + message)
-                    self.out.commandEntered(self.uuid, self.name + ' [FAILED]', self.command)
+                    self.out.commandEntered(self.uuid, '[FAILED]:' + self.command)
                        
     def extractAttrs(self):
         cmd = ''

@@ -277,7 +277,15 @@ password =
 #-----------------------#
 #      EMAIL LOGGING    #
 #-----------------------#
-[email]
+[email_sender]
+
+# Enable email output plugin
+#
+# dependency: txtlog MUST be enabled
+# input: true/false
+# required: YES
+# default: false
+enabled = false
 
 # Send an email upon hacker connect
 #
@@ -413,10 +421,20 @@ active = false
 #-----------------------#
 #     PACKET LOGGING    #
 #-----------------------#
+[packet_logging]
+
+# Set to true to enable plugins to use the packet_logged function
+#
+# input: true/false
+# required: YES
+# default: false
+enabled = false
+
 [packets]
 
 # Log all SSH Packets to text file (.log-adv)
 #
+# dependency: packet_logging MUST be enabled
 # input: true/false
 # required: YES
 # default: false
@@ -460,6 +478,14 @@ launch_cmd = service ssh start
 #   APPLICATION HOOKS   #
 #-----------------------#
 [app_hooks]
+
+# Enable app_hooks output plugin
+#
+# input: true/false
+# required: YES
+# default: false
+enabled = false
+
 # If you want any other application hooks or arguments passing, raise an issue
 # on the HonSSH code page. 
 
@@ -511,6 +537,10 @@ download_started =
 # input: path of script to run
 # required: NO
 download_finished = 
+
+channel_opened = 
+
+channel_closed = 
 
 #Multi HonSSH
 #

@@ -1,13 +1,10 @@
 from twisted.python import log
-from twisted.internet import threads
 
 import os
 import struct
 import hashlib
 import json
 import socket
-import uuid
-import datetime
 
 BUFSIZ = 16384
 
@@ -79,7 +76,7 @@ class FeedUnpack(object):
 
 class hpclient(object):
 	def __init__(self, server, port, ident, secret):
-		log.msg('[HPFEEDS] - hpfeeds client init broker {0}:{1}, identifier {2}'.format(server, port, ident))
+		log.msg('[PLUGIN][HPFEEDS] - hpfeeds client init broker {0}:{1}, identifier {2}'.format(server, port, ident))
 		self.server, self.port = server, int(port)
 		self.ident, self.secret = ident.encode('latin1'), secret.encode('latin1')
 		self.unpacker = FeedUnpack()
@@ -94,7 +91,7 @@ class hpclient(object):
 		self.s.settimeout(3)
 		try: self.s.connect((self.server, self.port))
 		except:
-			log.msg('[HPFEEDS] - hpfeeds client could not connect to broker.')
+			log.msg('[PLUGIN][HPFEEDS] - hpfeeds client could not connect to broker.')
 			self.s = None
 		else:
 			self.s.settimeout(None)
@@ -109,7 +106,7 @@ class hpclient(object):
 		self.s = None
 
 	def handle_established(self):
-		log.msg('[HPFEEDS] - hpclient established')
+		log.msg('[PLUGIN][HPFEEDS] - hpclient established')
 		while self.state != 'GOTINFO':
 			self.read()
 
@@ -131,32 +128,32 @@ class hpclient(object):
 		self.unpacker.feed(d)
 		try:
 			for opcode, data in self.unpacker:
-				log.msg('[HPFEEDS] - hpclient msg opcode {0} data {1}'.format(opcode, data))
+				log.msg('[PLUGIN][HPFEEDS] - hpclient msg opcode {0} data {1}'.format(opcode, data))
 				if opcode == OP_INFO:
 					name, rand = strunpack8(data)
-					log.msg('[HPFEEDS] - hpclient server name {0} rand {1}'.format(name, rand))
+					log.msg('[PLUGIN][HPFEEDS] - hpclient server name {0} rand {1}'.format(name, rand))
 					self.send(msgauth(rand, self.ident, self.secret))
 					self.state = 'GOTINFO'
 
 				elif opcode == OP_PUBLISH:
 					ident, data = strunpack8(data)
 					chan, data = strunpack8(data)
-					log.msg('[HPFEEDS] - publish to {0} by {1}: {2}'.format(chan, ident, data))
+					log.msg('[PLUGIN][HPFEEDS] - publish to {0} by {1}: {2}'.format(chan, ident, data))
 
 				elif opcode == OP_ERROR:
-					log.err('[HPFEEDS] - errormessage from server: {0}'.format(data))
+					log.err('[PLUGIN][HPFEEDS] - errormessage from server: {0}'.format(data))
 				else:
-					log.err('[HPFEEDS] - unknown opcode message: {0}'.format(opcode))
+					log.err('[PLUGIN][HPFEEDS] - unknown opcode message: {0}'.format(opcode))
 		except BadClient:
-			log.err('[HPFEEDS] - unpacker error, disconnecting.')
+			log.err('[PLUGIN][HPFEEDS] - unpacker error, disconnecting.')
 			self.close()
 
 	def publish(self, channel, **kwargs):
 		try:
 			self.send(msgpublish(self.ident, channel, json.dumps(kwargs).encode('latin1')))
 		except Exception, e:
-			log.err('[HPFEEDS] - connection to hpfriends lost: {0}'.format(e))
-			log.err('[HPFEEDS] - connecting')
+			log.err('[PLUGIN][HPFEEDS] - connection to hpfriends lost: {0}'.format(e))
+			log.err('[PLUGIN][HPFEEDS] - connecting')
 			self.connect()
 			self.send(msgpublish(self.ident, channel, json.dumps(kwargs).encode('latin1')))
 
@@ -186,63 +183,3 @@ class hpclient(object):
 		else:
 			self.send(tmp)
 
-class HPLogger():
-    def start(self, cfg):
-        log.msg('[HPFEEDS] - hpfeeds DBLogger start')
-
-        server	= cfg.get('hpfeeds', 'server')
-        port	= cfg.get('hpfeeds', 'port')
-        ident	= cfg.get('hpfeeds', 'identifier')
-        secret	= cfg.get('hpfeeds', 'secret')
-        return hpclient(server, port, ident, secret)
-    
-    def setClient(self, hpClient, cfg, sensor):
-        self.sensor_name = sensor
-        self.client = hpClient
-
-    def createSession(self, dt, session, peerIP, peerPort, honeyIP, honeyPort):
-        self.sessionMeta = { 'sensor_name': self.sensor_name, 'uuid': session, 'startTime': dt, 'channels': [] }
-        self.sessionMeta['connection'] = {'peerIP': peerIP, 'peerPort': peerPort, 'honeyIP': honeyIP, 'honeyPort': honeyPort, 'version': None}
-        return session
-    
-    def handleConnectionLost(self, dt):
-        log.msg('[HPFEEDS] - publishing metadata to hpfeeds')
-        meta = self.sessionMeta
-        meta['endTime'] = dt
-        log.msg("[HPFEEDS] - sessionMeta: " + str(meta))
-        
-        threads.deferToThread(self.client.publish, HONSSHSESHCHAN, **meta)
-
-    def handleLoginFailed(self, dt, username, password):
-        authMeta = {'sensor_name': self.sensor_name, 'datetime': dt,'username': username, 'password': password, 'success': False}
-        log.msg('[HPFEEDS] - authMeta: ' + str(authMeta))
-        threads.deferToThread(self.client.publish, HONSSHAUTHCHAN, **authMeta)
-
-    def handleLoginSucceeded(self, dt, username, password):
-        authMeta = {'sensor_name': self.sensor_name, 'datetime': dt,'username': username, 'password': password, 'success': True}
-        log.msg('[HPFEEDS] - authMeta: ' + str(authMeta))
-        threads.deferToThread(self.client.publish, HONSSHAUTHCHAN, **authMeta)
-        
-    def channelOpened(self, dt, uuid, channelName):
-        self.sessionMeta['channels'].append({'name': channelName, 'uuid': uuid, 'startTime': dt, 'commands': []})
-        
-    def channelClosed(self, dt, uuid, ttylog=None):
-        chan = self.findChannel(uuid)
-        chan['endTime'] = dt
-        if ttylog != None: 
-            fp = open(ttylog, 'rb')
-            ttydata = fp.read()
-            fp.close()
-            chan['ttylog'] = ttydata.encode('hex')
-                
-    def handleCommand(self, dt, uuid, command):
-        chan = self.findChannel(uuid)
-        chan['commands'].append([dt, command])
-
-    def handleClientVersion(self, version):
-        self.sessionMeta['connection']['version'] = version
-            
-    def findChannel(self, uuid):
-        for chan in self.sessionMeta['channels']:
-            if chan['uuid'] == uuid:
-                return chan

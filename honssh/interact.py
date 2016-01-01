@@ -64,8 +64,11 @@ class Interact(protocol.Protocol):
             theCommand = theJson['command']
             if theCommand:
                 if theCommand == 'list':
-                    theList = []
-                    ##METHOD ME
+                    theList = self.factory.connections.return_connections()
+                    num_sessions = 0
+                    for sensor in theList:
+                        num_sessions = num_sessions + len(sensor['sessions'])
+                    '''
                     for sensor in self.factory.connections.connections:
                         tempSensor = dict.copy(sensor)
                         tempSensor['sessions'] = []    
@@ -79,12 +82,14 @@ class Interact(protocol.Protocol):
                             tempSensor['sessions'].append(tempSession)
                         theList.append(tempSensor)
                     if theList == []:
+                    '''
+                    if num_sessions == 0:
                         theList = {'msg':'INFO: No active sessions'}
                     self.sendData(theList)
                 elif theCommand in ['view', 'interact', 'disconnect']:
                     theUUID = theJson['uuid']
                     if theUUID:
-                        chan = self.factory.connections.getChan(theUUID)
+                        sensor, session, chan = self.factory.connections.get_channel(theUUID)
                         if chan != None:
                             if theCommand in ['view', 'interact']:
                                 if 'TERM' in chan['name']:

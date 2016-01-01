@@ -27,7 +27,7 @@
 # SUCH DAMAGE.
 
 from twisted.python import log
-from kippo.core.config import config
+from honssh.config import config
 import subprocess
 
 class Networking():
@@ -118,7 +118,7 @@ class Networking():
                 found = False
                 for sensor in connections:
                     for session in sensor['sessions']:
-                        if session['peerIP'] == self.theIP:
+                        if session['peer_ip'] == self.theIP:
                             found = True
                             break
                 if not found:    

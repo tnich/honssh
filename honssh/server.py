@@ -30,11 +30,12 @@ from twisted.conch.ssh import factory, transport, service
 from twisted.conch.ssh.transport import SSHCiphers
 from twisted.python import log
 from twisted.internet import reactor, defer, threads
-from honssh import client, output, networking, honsshServer, connections
+from honssh import client, networking, honsshServer, connections, plugins
+from honssh import output_handler
 from honssh.protocols import sftp, ssh
-from kippo.core.config import config
+from honssh.config import config
 from kippo.dblog import mysql
-from hpfeeds import hpfeeds
+#from hpfeeds import hpfeeds
 import datetime, time, os, struct, re, subprocess, random
 
 class HonsshServerTransport(honsshServer.HonsshServer):
@@ -45,8 +46,8 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         self.interactors = []
         self.wasConnected = False
         self.networkingSetup = False
-      
-        self.out = output.Output(self.factory)
+
+        self.out = output_handler.Output(self.factory)
         self.net = networking.Networking()
 
         self.disconnected = False
@@ -182,12 +183,14 @@ class HonsshServerFactory(factory.SSHFactory):
     cfg = config()
     otherVersionString = ''
     connections = connections.Connections()
+    '''
     hpLog = None
     dbLog = None
+    '''
+    plugin_servers = []
     
     def __init__(self):
         self.ourVersionString = self.cfg.get('honeypot', 'ssh_banner')
-        log.msg("HELLO")
         if self.ourVersionString == '':
             log.msg('[SERVER] Acquiring SSH Version String from honey_addr:honey_port')
             clientFactory = client.HonsshSlimClientFactory()
@@ -198,6 +201,13 @@ class HonsshServerFactory(factory.SSHFactory):
             log.msg("[SERVER] Using ssh_banner for SSH Version String: " + self.ourVersionString)
             log.msg('[HONSSH] HonSSH Boot Sequence Complete - Ready for attacks!')
         
+        plugin_list = plugins.get_plugin_list(type='output')
+        loaded_plugins = plugins.import_plugins(plugin_list, self.cfg)
+        for plugin in loaded_plugins:
+            plugin_server = plugins.run_plugins_function([plugin], 'start_server', False)
+            plugin_name = plugins.get_plugin_name(plugin)
+            self.plugin_servers.append({'name':plugin_name, 'server':plugin_server})
+        '''
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             hp = hpfeeds.HPLogger()
             self.hpLog = hp.start(self.cfg)
@@ -205,6 +215,7 @@ class HonsshServerFactory(factory.SSHFactory):
         if self.cfg.get('database_mysql', 'enabled') == 'true':
             db = mysql.DBLogger()
             self.dbLog = db.start(self.cfg)
+        '''
     
     def buildProtocol(self, addr):
         t = HonsshServerTransport()

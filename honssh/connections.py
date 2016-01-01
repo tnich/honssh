@@ -26,62 +26,178 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
+from twisted.python import log
+import copy
+
 class Connections():
     connections = []
     
-    def getSensor(self, theName, honeyIP='', honeyPort=''):
+    def return_connections(self):
+        connections_copy = copy.deepcopy(self.connections)
+        return connections_copy
+    
+    def get_sensor(self, sensor_name, honey_ip='', honey_port=''):
         sensor = {}
         for s in self.connections:
-            if s['sensor_name'] == theName:
+            if s['sensor_name'] == sensor_name:
                 sensor = s
         if not sensor:
-            sensor = {'sensor_name':theName, 'honeyIP':honeyIP, 'honeyPort':honeyPort, 'sessions':[]}
+            sensor = {'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port, 'sessions':[]}
             self.connections.append(sensor)
-    
         return sensor
     
-    def addConn(self, sensor, ip, port, dt, honeyIP, honeyPort):
-       s = self.getSensor(sensor, honeyIP=honeyIP, honeyPort=honeyPort)
-       s['sessions'].append({'peerIP':ip, 'peerPort':port, 'startTime':dt, 'channels':[]})
-    
-    def delConn(self, sensor, ip, port):
-        s = self.getSensor(sensor)
-        for session in s['sessions']:
-            if session['peerIP'] == ip and session['peerPort'] == port:
-                s['sessions'].remove(session)
-                break
-        if len(s['sessions']) == 0:
-            self.connections.remove(s)
+    def add_session(self, sensor, peer_ip, peer_port, dt, honey_ip, honey_port, session_id, log_location):
+        sensor = self.get_sensor(sensor, honey_ip=honey_ip, honey_port=honey_port)
+        if sensor:
+            session = {'session_id':session_id, 'peer_ip':peer_ip, 'peer_port':peer_port, 'start_time':dt, 'log_location':log_location, 'channels':[], 'auths':[]}
+            sensor['sessions'].append(session)
+            return self.return_session(sensor, session)            
+        return None
             
-    def getConn(self, sensor, ip, port):
-        s = self.getSensor(sensor)
-        for session in s['sessions']:
-            if session['peerIP'] == ip and session['peerPort'] == port:
-                return session
+    def set_session_close(self, session_id, dt):
+        sensor, session = self.get_session(session_id)
+        if sensor and session:
+            session['end_time'] = dt
+            return self.return_session(sensor, session)
+        return None
+        
+    def return_session(self, sensor, session):
+        sensor_copy = copy.deepcopy(sensor)
+        sensor_copy.pop('sessions')
+        sensor_copy['session'] = copy.deepcopy(session)
+        return sensor_copy
+    
+    def del_session(self, session_id):
+        sensor, session = self.get_session(session_id)
+        if sensor and session:
+            sensor['sessions'].remove(session)
+                
+            if len(sensor['sessions']) == 0:
+                self.connections.remove(sensor)
+            
+    def get_session(self, session_id):
+        for sensor in self.connections:
+            for session in sensor['sessions']:
+                if session['session_id'] == session_id:
+                    return sensor, session
+        return None, None
+    
+    def add_auth(self, session_id, date_time, username, password, success):
+        sensor, session = self.get_session(session_id)
+        if session:
+            auth = {'date_time':date_time, 'username':username, 'password':password, 'success':success}
+            session['auths'].append(auth)
+            return self.return_auth(sensor, session, auth)
+        return None
+        
+    def return_auth(self, sensor, session, auth):
+        session_copy = copy.deepcopy(session)
+        session_copy.pop('channels')
+        session_copy.pop('auths')
+        session_copy['auth'] = copy.deepcopy(auth)
+        return self.return_session(sensor, session_copy)
+            
+    def set_client(self, session_id, version):
+        sensor, session = self.get_session(session_id)
+        if session:
+            session['version'] = version
+            return self.return_session(sensor, session)
         return None
     
-    def addChannel(self, sensor, ip, port, name, dt, uuid):
-        c = self.getConn(sensor, ip, port)
-        c['channels'].append({'name': name, 'startTime': dt, 'uuid':uuid})
-        
-    def delChannel(self, sensor, ip, port, uuid):
-        c = self.getConn(sensor, ip, port)
-        for channel in c['channels']:
-            if channel['uuid'] == uuid:
-                c['channels'].remove(channel)
-                break
+    def get_passwords_attempted(self, session_id):
+        sensor, session = self.get_session(session_id)
+        if session:
+            if len(session['auths']) == 0:
+                return False
+            else:
+                return True
+        return None
+    
+    def get_login_successful(self, session_id):
+        sensor, session = self.get_session(session_id)
+        if session:
+            for auth in session['auths']:
+                if auth['success'] == True:
+                    return True
+            return False
+        return None        
+    
+    def add_channel(self, session_id, name, dt, channel_id):
+        sensor, session = self.get_session(session_id)
+        if session:
+            channel = {'name': name, 'start_time': dt, 'channel_id':channel_id, 'commands':[], 'downloads':[]}
+            session['channels'].append(channel)
+            return self.return_channel(sensor, session, channel)
+        return None
 
-    def getChan(self, uuid):
+    def set_channel_close(self, channel_id, dt, ttylog_file):
+        sensor, session, channel = self.get_channel(channel_id)
+        if sensor and session and channel:
+            channel['end_time'] = dt
+            if ttylog_file != None:
+                channel['ttylog_file'] = ttylog_file
+            return self.return_channel(sensor, session, channel)
+        return None
+    
+    def return_channel(self, sensor, session, channel):
+        session_copy = copy.deepcopy(session)
+        session_copy.pop('channels')
+        session_copy.pop('auths')
+        session_copy['channel'] = copy.deepcopy(channel)
+        return self.return_session(sensor, session_copy)
+
+    def del_channel(self, channel_id):
+        sensor, session, channel = self.get_channel(channel_id)
+        if sensor and session and channel:
+            session['channels'].remove(channel)
+
+    def get_channel(self, channel_id):
         for sensor in self.connections:
             for session in sensor['sessions']:
                 for channel in session['channels']:
-                    if channel['uuid'] == uuid:
-                        return channel
+                    if channel['channel_id'] == channel_id:
+                        return sensor, session, channel
+        return None, None, None
+    
+    def add_command(self, channel_id, dt, command_string):
+        sensor, session, channel = self.get_channel(channel_id)
+        if channel:
+            command = {'command':command_string, 'date_time':dt}
+            channel['commands'].append(command)
+            return self.return_command(sensor, session, channel, command)
         return None
     
-    def setClient(self, sensor, ip, version):
-        s = self.getSensor(sensor)
-        for session in s['sessions']:
-            if session['peerIP'] == ip:
-                session['version'] = version
-                break
+    def return_command(self, sensor, session, channel, command):
+        channel_copy = copy.deepcopy(channel)
+        channel_copy.pop('commands')
+        channel_copy.pop('downloads')
+        channel_copy['command'] = copy.deepcopy(command)
+        return self.return_channel(sensor, session, channel_copy)
+    
+    def add_download(self, channel_id, dt, link):
+        sensor, session, channel = self.get_channel(channel_id)
+        if channel:
+            download = {'start_time':dt, 'link':link, 'file':'', 'success':False}
+            channel['downloads'].append(download)
+            return self.return_download(sensor, session, channel, download)
+        return None
+    
+    def set_download_close(self, channel_id, dt, link, file, success, md5, size):
+        sensor, session, channel = self.get_channel(channel_id)
+        for download in channel['downloads']:
+            if download['link'] == link and download['success'] == False:
+                download['file'] = file
+                download['end_time'] = dt
+                download['success'] = success
+                download['md5'] = md5
+                download['size'] = size
+                return self.return_download(sensor, session, channel, download)
+        return None
+    
+    def return_download(self, sensor, session, channel, download):
+        channel_copy = copy.deepcopy(channel)
+        channel_copy.pop('commands')
+        channel_copy.pop('downloads')
+        channel_copy['download'] = copy.deepcopy(download)
+        return self.return_channel(sensor, session, channel_copy)
+    

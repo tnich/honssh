@@ -27,16 +27,22 @@
 # SUCH DAMAGE.
 
 import ConfigParser, os, re
+from honssh import plugins
 
 def config():
+    plugin_list = plugins.get_plugin_list()
+    cfg_files = plugins.get_plugin_cfg_files(plugin_list)
     cfg = ConfigParser.ConfigParser()
-    if os.path.exists('honssh.cfg'):
-        cfg.read('honssh.cfg')
-        return cfg
-    return None
+    cfg_files.append('honssh.cfg')
+    cfg.read(cfg_files)
+    return cfg
 
 def validateConfig(cfg):
     validConfig = True
+    
+    plugin_list = plugins.get_plugin_list()
+    loaded_plugins = plugins.import_plugins(plugin_list, cfg)
+    validConfig = plugins.run_plugins_function(loaded_plugins, 'validate_config', False)
     
     #Check prop exists and is an IP address
     props = [['honeypot','ssh_addr'], ['honeypot','client_addr'], ['honeypot','honey_addr']]
@@ -57,7 +63,7 @@ def validateConfig(cfg):
             validConfig = False
             
     #Check prop exists and is true/false
-    props = [['advNet','enabled'], ['interact','enabled'], ['spoof','enabled'], ['txtlog','enabled'], ['database_mysql','enabled'], ['email','login'], ['email','attack'], ['hpfeeds','enabled'], ['download','passive'], ['download','active'], ['packets','enabled'], ['hp-restrict', 'disable_publicKey'], ['hp-restrict', 'disable_x11'], ['hp-restrict', 'disable_sftp'], ['hp-restrict', 'disable_exec'], ['hp-restrict', 'disable_port_forwarding']]
+    props = [['advNet','enabled'], ['interact','enabled'], ['spoof','enabled'], ['download','passive'], ['download','active'], ['hp-restrict', 'disable_publicKey'], ['hp-restrict', 'disable_x11'], ['hp-restrict', 'disable_sftp'], ['hp-restrict', 'disable_exec'], ['hp-restrict', 'disable_port_forwarding'], ['packet_logging', 'enabled']]
     for prop in props:
         if not checkExist(cfg,prop) or not checkValidBool(cfg, prop):
             validConfig = False
@@ -77,49 +83,8 @@ def validateConfig(cfg):
         if not checkExist(cfg,prop):
             validConfig = False
     
-    #If database_mysql is enabled check it's config
-    if cfg.get('database_mysql','enabled') == 'true':
-        prop = ['database_mysql','port']
-        if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
-            validConfig = False
-        props = [['database_mysql','host'], ['database_mysql','database'], ['database_mysql','username'], ['database_mysql','password']]
-        for prop in props:
-            if not checkExist(cfg,prop):
-                validConfig = False
-                
-    #If email is enabled check it's config
-    if cfg.get('email','login') == 'true' or cfg.get('email','login') == 'attack':
-        if cfg.get('txtlog','enabled') == 'true':
-            prop = ['email','port']
-            if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
-                validConfig = False
-            props = [['email','use_tls'], ['email','use_smtpauth']]
-            for prop in props:
-                if not checkExist(cfg,prop) or not checkValidBool(cfg,prop):
-                    validConfig = False
-            if cfg.get('email','use_smtpauth') == 'true':
-                props = [['email','username'], ['email','password']]
-                for prop in props:
-                    if not checkExist(cfg,prop):
-                        validConfig = False
-            props = [['email','host'], ['email','from'], ['email','to']]
-            for prop in props:
-                if not checkExist(cfg,prop):
-                    validConfig = False
-        else:
-            print '[txtlog][enabled] must be set to true for email support to work'
-            validConfig = False
-            
-    #If hpfeeds is enabled check it's config
-    if cfg.get('hpfeeds','enabled') == 'true':
-        props = [['hpfeeds','server'], ['hpfeeds','identifier'], ['hpfeeds','secret']]
-        for prop in props:
-            if not checkExist(cfg,prop):
-                validConfig = False
-        prop = ['hpfeeds','port']
-        if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
-            validConfig = False
 
+                
     #Check for container support
     if cfg.get('containers','enabled') == 'true':
         from plugins.containers.config import validate_containers_config
