@@ -20,12 +20,12 @@ class Plugin():
         self.login_success = True
         session = sensor['session']
         self.log_file = session['log_location'] + session['start_time'] + '.log'
-        if self.cfg.get('email_sender', 'login') == 'true':
+        if self.cfg.get('output-email', 'login') == 'true':
             self.email(sensor['sensor_name'] + ' - Login Successful', self.log_file)
 
     def connection_lost(self, sensor):
         if self.login_success:
-            if self.cfg.get('email_sender', 'attack') == 'true':
+            if self.cfg.get('output-email', 'attack') == 'true':
                 self.ttyFiles = []
                 session = sensor['session']
                 for channel in session['channels']:
@@ -39,8 +39,8 @@ class Plugin():
             #Start send mail code - provided by flofrihandy, modified by peg
             msg = MIMEMultipart()
             msg['Subject'] = subject
-            msg['From'] = self.cfg.get('email_sender', 'from')
-            msg['To'] = self.cfg.get('email_sender', 'to')
+            msg['From'] = self.cfg.get('output-email', 'from')
+            msg['To'] = self.cfg.get('output-email', 'to')
             fp = open(self.txtlog_file, 'rb')
             msg_text = MIMEText(fp.read())
             fp.close()
@@ -54,13 +54,13 @@ class Plugin():
                     Encoders.encode_base64(logdata)
                     logdata.add_header('Content-Disposition', 'attachment', filename=os.path.basename(tty))
                     msg.attach(logdata)
-            s = smtplib.SMTP(self.cfg.get('email_sender', 'host'), int(self.cfg.get('email_sender', 'port')))
-            if self.cfg.get('email_sender', 'username') != '' and self.cfg.get('email_sender', 'password') != '':
+            s = smtplib.SMTP(self.cfg.get('output-email', 'host'), int(self.cfg.get('output-email', 'port')))
+            if self.cfg.get('output-email', 'username') != '' and self.cfg.get('output-email', 'password') != '':
                 s.ehlo()
-                if self.cfg.get('email_sender', 'use_tls') == 'true':
+                if self.cfg.get('output-email', 'use_tls') == 'true':
                     s.starttls()
-                if self.cfg.get('email_sender', 'use_smtpauth') == 'true':
-                    s.login(self.cfg.get('email_sender', 'username'), self.cfg.get('email_sender', 'password'))
+                if self.cfg.get('output-email', 'use_smtpauth') == 'true':
+                    s.login(self.cfg.get('output-email', 'username'), self.cfg.get('output-email', 'password'))
             s.sendmail(msg['From'], msg['To'].split(','), msg.as_string())
             s.quit() #End send mail code
         except Exception, ex:
@@ -68,27 +68,27 @@ class Plugin():
 
         
     def validate_config(self):
-        props = [['email_sender','enabled'], ['email_sender','login'], ['email_sender','attack']]
+        props = [['output-email','enabled'], ['output-email','login'], ['output-email','attack']]
         for prop in props:
             if not config.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg, prop):
                 return False
 
         #If email is enabled check it's config
-        if self.cfg.get('email_sender','login') == 'true' or self.cfg.get('email_sender','login') == 'attack':
+        if self.cfg.get('output-email','login') == 'true' or self.cfg.get('output-email','login') == 'attack':
             if self.cfg.get('txtlog','enabled') == 'true':
-                prop = ['email_sender','port']
+                prop = ['output-email','port']
                 if not config.checkExist(self.cfg,prop) or not config.checkValidPort(self.cfg,prop):
                     return False
-                props = [['email_sender','use_tls'], ['email_sender','use_smtpauth']]
+                props = [['output-email','use_tls'], ['output-email','use_smtpauth']]
                 for prop in props:
                     if not config.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg,prop):
                         return False
-                if self.cfg.get('email_sender','use_smtpauth') == 'true':
-                    props = [['email_sender','username'], ['email_sender','password']]
+                if self.cfg.get('output-email','use_smtpauth') == 'true':
+                    props = [['output-email','username'], ['output-email','password']]
                     for prop in props:
                         if not config.checkExist(self.cfg,prop):
                             return False
-                props = [['email_sender','host'], ['email_sender','from'], ['email_sender','to']]
+                props = [['output-email','host'], ['output-email','from'], ['output-email','to']]
                 for prop in props:
                     if not config.checkExist(self.cfg,prop):
                         return False

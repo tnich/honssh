@@ -73,7 +73,7 @@ class Plugin():
         self.download_log(download['end_time'], sensor['session']['peer_ip'], download['link'], download['size'], download['md5'], download['file'])
         
     def validate_config(self):
-        props = [['txtlog','enabled']]
+        props = [['output-txtlog','enabled']]
         for prop in props:
             if not config.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg, prop):
                 return False

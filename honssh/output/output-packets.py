@@ -15,7 +15,7 @@ class Plugin():
 
    
     def validate_config(self):
-        props = [['packets','enabled']]
+        props = [['output-packets','enabled']]
         for prop in props:
             if not config.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg, prop):
                 return False

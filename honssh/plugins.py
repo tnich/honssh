@@ -29,19 +29,20 @@
 import os
 import importlib
 import inspect
+import copy
 from twisted.python import log
 from twisted.internet import threads
 
 output_plugin_folders = ['honssh/output', 'plugins/output']
-container_plugin_folders = []
+honeypot_plugin_folders = ['honssh/honeypot', 'plugins/honeypot']
 
 def get_plugin_list(type='all'):
     if type == 'all':
-        plugin_folders = output_plugin_folders + container_plugin_folders
+        plugin_folders = output_plugin_folders + honeypot_plugin_folders
     elif type == 'output':
         plugin_folders = output_plugin_folders
-    elif type == 'container':
-        plugin_folders = container_plugin_folders
+    elif type == 'honeypot':
+        plugin_folders = honeypot_plugin_folders
     
     plugins = []
     for folder in plugin_folders:
@@ -61,15 +62,34 @@ def get_plugin_cfg_files(plugin_files):
             cfg_files.append(cfg_file)
     return cfg_files
 
-def import_plugins(plugins, cfg):
+def import_plugin(plugin, cfg):
+    plugin = plugin.replace('/', '.')
+    import_plugin = importlib.import_module(plugin)
+    return import_plugin.Plugin(cfg)
+
+def import_plugins(plugins, cfg, search=None):
     plugin_list = []
     for plugin in plugins:
         cfg_section = plugin.split('/')[-1]
         if cfg.get(cfg_section, 'enabled') == 'true':
-            plugin = plugin.replace('/', '.')
-            import_plugin = importlib.import_module(plugin)
-            plugin_list.append(import_plugin.Plugin(cfg))
+            if search:
+                if cfg.get(cfg_section, search) == 'true':
+                    plugin_list.append(import_plugin(plugin, cfg))
+            else:
+                plugin_list.append(import_plugin(plugin, cfg))
     return plugin_list
+
+def import_pre_auth_plugins(plugins, cfg):
+    imported_plugins = import_plugins(plugins, cfg, 'pre-auth')
+    if len(imported_plugins) > 0:
+        return [imported_plugins[0]]
+    return None
+
+def import_post_auth_plugins(plugins, cfg):
+    imported_plugins = import_plugins(plugins, cfg, 'post-auth')
+    if len(imported_plugins) > 0:
+        return [imported_plugins[0]]
+    return None
 
 def run_plugins_function(plugins, function, thread, *args, **kwargs):
     for plugin in plugins:
@@ -79,7 +99,7 @@ def run_plugins_function(plugins, function, thread, *args, **kwargs):
             func = getattr(plugin, function)
             log.msg('[PLUGIN][' + class_name +  '] - ' + function.upper())
             if thread:
-                threads.deferToThread(func, *args, **kwargs)
+                threads.deferToThread(func, *copy.deepcopy(args), **copy.deepcopy(kwargs))
             else:
                 return_value = func(*args, **kwargs)
                 if not return_value:
@@ -93,3 +113,4 @@ def run_plugins_function(plugins, function, thread, *args, **kwargs):
 
 def get_plugin_name(plugin):
     return inspect.getfile(plugin.__class__).split('/')[-1].split('.')[0]
+    

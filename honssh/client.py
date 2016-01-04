@@ -51,7 +51,7 @@ class HonsshClientTransport(transport.SSHClientTransport):
         
     def connectionLost(self, reason):
         transport.SSHClientTransport.connectionLost(self, reason)
-        log.msg('[CLIENT] Lost connection with the Honeypot: ' + self.factory.server.sensorName + ' (' + self.factory.server.honeyIP + ':' + str(self.factory.server.honeyPort) + ')')
+        log.msg('[CLIENT] Lost connection with the Honeypot: ' + self.factory.server.pre_auth.sensor_name + ' (' + self.factory.server.pre_auth.honey_ip + ':' + str(self.factory.server.pre_auth.honey_port) + ')')
         try:
             self.factory.server.loseConnection()       
         except:
@@ -88,7 +88,7 @@ class HonsshSlimClientFactory(protocol.ClientFactory):
     
     def clientConnectionFailed(self, connector, reason):
         log.msg('[ERR][FATAL] HonSSH could not connect to the honeypot to accquire the SSH Version String.')
-        log.msg('[ERR][FATAL] Please ensure connectivity between HonSSH\'s client_addr to honey_addr:honey_port')
+        log.msg('[ERR][FATAL] Please ensure connectivity between HonSSH\'s client_addr to honey_ip:honey_port or set ssh_banner manually')
         log.msg('[ERR][FATAL] ...Gracefully Exiting')
         reactor.stop()
         

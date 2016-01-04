@@ -181,8 +181,8 @@ class Output():
 
     def channelClosed(self, channel):
         dt = self.getDateTime()
-        channel_out = self.connections.set_channel_close(channel.uuid, dt, channel.ttylog_file)
-        plugins.run_plugins_function(self.loaded_plugins, 'channel_closed', True, channel_out)
+        channel = self.connections.set_channel_close(channel.uuid, dt, channel.ttylog_file)
+        plugins.run_plugins_function(self.loaded_plugins, 'channel_closed', True, channel)
         #self.connections.del_channel(channel.uuid)
 
     def packet_logged(self, direction, packet, payload):

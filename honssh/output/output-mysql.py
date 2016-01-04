@@ -13,11 +13,11 @@ class Plugin():
         
     def start_server(self):
         return mysql.ReconnectingConnectionPool('MySQLdb',
-            host = self.cfg.get('database_mysql', 'host'),
-            db = self.cfg.get('database_mysql', 'database'),
-            user = self.cfg.get('database_mysql', 'username'),
-            passwd = self.cfg.get('database_mysql', 'password'),
-            port = int(self.cfg.get('database_mysql', 'port')),
+            host = self.cfg.get('output-mysql', 'host'),
+            db = self.cfg.get('output-mysql', 'database'),
+            user = self.cfg.get('output-mysql', 'username'),
+            passwd = self.cfg.get('output-mysql', 'password'),
+            port = int(self.cfg.get('output-mysql', 'port')),
             cp_min = 1,
             cp_max = 1)
             
@@ -94,17 +94,17 @@ class Plugin():
     
     
     def validate_config(self):
-        props = [['database_mysql','enabled']]
+        props = [['output-mysql','enabled']]
         for prop in props:
             if not config.checkExist(self.self.cfg,prop) or not config.checkValidBool(self.self.cfg, prop):
                 return False    
         
-        #If database_mysql is enabled check it's config
-        if self.cfg.get('database_mysql','enabled') == 'true':
-            prop = ['database_mysql','port']
+        #If output-mysql is enabled check it's config
+        if self.cfg.get('output-mysql','enabled') == 'true':
+            prop = ['output-mysql','port']
             if not config.checkExist(self.cfg,prop) or not config.checkValidPort(self.cfg,prop):
                 return False
-            props = [['database_mysql','host'], ['database_mysql','database'], ['database_mysql','username'], ['database_mysql','password']]
+            props = [['output-mysql','host'], ['output-mysql','database'], ['output-mysql','username'], ['output-mysql','password']]
             for prop in props:
                 if not config.checkExist(self.cfg,prop):
                     return False

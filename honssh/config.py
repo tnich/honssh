@@ -42,16 +42,17 @@ def validateConfig(cfg):
     
     plugin_list = plugins.get_plugin_list()
     loaded_plugins = plugins.import_plugins(plugin_list, cfg)
+    #TODO: Is this right?
     validConfig = plugins.run_plugins_function(loaded_plugins, 'validate_config', False)
     
     #Check prop exists and is an IP address
-    props = [['honeypot','ssh_addr'], ['honeypot','client_addr'], ['honeypot','honey_addr']]
+    props = [['honeypot','ssh_addr'], ['honeypot','client_addr']]
     for prop in props:
         if not checkExist(cfg,prop) or not checkValidIP(cfg,prop):
             validConfig = False
         
     #Check prop exists and is a port number
-    props = [['honeypot','ssh_port'],['honeypot','honey_port']]
+    props = [['honeypot','ssh_port']]
     for prop in props:
         if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
             validConfig = False
@@ -84,12 +85,13 @@ def validateConfig(cfg):
             validConfig = False
     
 
-                
+    '''
     #Check for container support
     if cfg.get('containers','enabled') == 'true':
         from plugins.containers.config import validate_containers_config
         if not validate_containers_config(cfg):
             validConfig = False
+    '''
 
     return validConfig
     

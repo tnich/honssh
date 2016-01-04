@@ -11,10 +11,10 @@ class Plugin():
     def start_server(self):
         log.msg('[PLUGIN][HPFEEDS] - hpfeeds DBLogger start')
 
-        server	= self.cfg.get('hpfeeds', 'server')
-        port	= self.cfg.get('hpfeeds', 'port')
-        ident	= self.cfg.get('hpfeeds', 'identifier')
-        secret	= self.cfg.get('hpfeeds', 'secret')
+        server	= self.cfg.get('output-hpfeeds', 'server')
+        port	= self.cfg.get('output-hpfeeds', 'port')
+        ident	= self.cfg.get('output-hpfeeds', 'identifier')
+        secret	= self.cfg.get('output-hpfeeds', 'secret')
         return hpfeeds_server.hpclient(server, port, ident, secret)
 
     def set_server(self, server):
@@ -49,18 +49,18 @@ class Plugin():
         self.server.publish(hpfeeds_server.HONSSHAUTHCHAN, **authMeta)  
         
     def validate_config(self):
-        props = [['hpfeeds','enabled']]
+        props = [['output-hpfeeds','enabled']]
         for prop in props:
             if not config.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg, prop):
                 return False
             
         #If hpfeeds is enabled check it's config
-        if self.cfg.get('hpfeeds','enabled') == 'true':
-            props = [['hpfeeds','server'], ['hpfeeds','identifier'], ['hpfeeds','secret']]
+        if self.cfg.get('output-hpfeeds','enabled') == 'true':
+            props = [['output-hpfeeds','server'], ['output-hpfeeds','identifier'], ['output-hpfeeds','secret']]
             for prop in props:
                 if not config.checkExist(self.cfg,prop):
                     return False
-            prop = ['hpfeeds','port']
+            prop = ['output-hpfeeds','port']
             if not config.checkExist(self.cfg,prop) or not config.checkValidPort(self.cfg,prop):
                 return False
         
