@@ -46,6 +46,7 @@ import hashlib
 import socket
 import urllib2
 import base64
+import magic
 
 class Output():
     cfg = config()
@@ -233,7 +234,7 @@ class Output():
         channelName, uuid, success, link, file, error = input
         if success:
             if self.cfg.get('txtlog', 'enabled') == 'true':
-                threads.deferToThread(self.generateSHA256, channelName, dt, self.cfg.get('folders', 'log_path') + '/downloads.log', self.endIP, link, file)
+                threads.deferToThread(self.generateSHA256, channelName, uuid, dt, self.cfg.get('folders', 'log_path') + '/downloads.log', self.endIP, link, file)
                 
             if self.cfg.get('database_mysql', 'enabled') == 'true':
                 self.dbLog.handleFileDownload(dt, uuid, link, file)
@@ -386,7 +387,7 @@ class Output():
         country = geo.country_name_by_addr(ipv4_str)
         return country
     
-    def generateSHA256(self, channelName, dt, logPath, theIP, link, outFile):
+    def generateSHA256(self, channelName, uuid, dt, logPath, theIP, link, outFile):
         f = file(outFile, 'rb')
         sha256 = hashlib.sha256()
         while True:
@@ -399,7 +400,22 @@ class Output():
         theSHA256 = sha256.hexdigest()
         theSize = os.path.getsize(outFile)
         txtlog.log(dt, self.txtlog_file, channelName + ' Downloaded: ' + link + ' - Saved: ' + outFile + ' - Size: ' + str(theSize) + ' - SHA256: ' + str(theSHA256))
+        log.msg("Downloaded: %s" % outFile)
         txtlog.downloadLog(dt, logPath, theIP, link, outFile, theSize, theSHA256)
+
+        if re.search("\.sh$", outFile):
+            m = magic.open(magic.MAGIC_NONE)
+            m.load()
+            filetype =  m.file(outFile)
+            if re.search("ASCII", filetype):
+                f = file(outFile, 'r+')
+                for line in f:
+                    if re.search("(wget|curl)", line):
+                        links = re.findall("(http\S*) ", line)
+
+                        for l in links:
+                            self.activeDownload(channelName, uuid, l, '', '')
+                f.close()
     
     def wget(self, channelName, uuid, link, fileOut, user, password):
         response = False
