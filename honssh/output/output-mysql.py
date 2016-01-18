@@ -1,7 +1,7 @@
 from honssh import config
 
 from kippo.dblog import mysql
-from twisted.python import log
+from honssh import log
 
 import datetime
 import time
@@ -81,7 +81,7 @@ class Plugin():
         
     
     def sqlerror(self, error):
-        log.msg('[PLUGIN][MYSQL] SQL Error:' + str(error.value))
+        log.msg(LOG.LRED, '[PLUGIN][MYSQL]', 'SQL Error:' + str(error.value))
 
     def simpleQuery(self, sql, args):
         """ Just run a deferred sql query, only care about errors """

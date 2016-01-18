@@ -1,16 +1,29 @@
 from honssh import config
+from honssh import spoof
 
 from docker import Client
 
-from twisted.python import log
+from honssh import log
 
 class Plugin():
     
     def __init__(self, cfg):
         self.cfg = cfg
         
-    def get_connection_details(self, conn_details):
+    def get_pre_auth_details(self, conn_details):
+        return self.get_connection_details()
+
+    def get_post_auth_details(self, conn_details):
+        success, username, password = spoof.get_connection_details(self.cfg, conn_details)
+        if success:
+            details = self.get_connection_details()
+            details['username'] = username
+            details['password'] = password
+        else:
+            details = {'success':False}
+        return details
         
+    def get_connection_details(self):
         socket = self.cfg.get('honeypot-docker', 'uri')
         image = self.cfg.get('honeypot-docker', 'image')
         launch_cmd = self.cfg.get('honeypot-docker', 'launch_cmd')
@@ -18,17 +31,16 @@ class Plugin():
         honey_port = int(self.cfg.get('honeypot-docker', 'honey_port'))
 
         self.docker_drive = docker_driver(socket, image, launch_cmd, hostname)
-        log.msg(self.docker_drive)
         self.container = self.docker_drive.launch_container()
 
-        log.msg("[PLUGIN][DOCKER] Launched container (%s, %s)" % (self.container['ip'], self.container['id']))
+        log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Launched container (%s, %s)' % (self.container['ip'], self.container['id']))
         sensor_name = self.container['id']
         honey_ip = self.container['ip']
         
         return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port}
     
     def connection_lost(self, conn_details):
-        log.msg("[PLUGIN][DOCKER] Stopping container (%s, %s)" % (self.container['ip'], self.container['id']))
+        log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Stopping container (%s, %s)' % (self.container['ip'], self.container['id']))
         self.docker_drive.teardown_container()
         
     def validate_config(self):

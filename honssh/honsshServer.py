@@ -27,7 +27,7 @@
 # SUCH DAMAGE.
 
 from twisted.conch.ssh import transport
-from twisted.python import log
+from honssh import log
 
 class HonsshServer(transport.SSHServerTransport):
     def connectionMade(self):
@@ -86,5 +86,5 @@ class HonsshServer(transport.SSHServerTransport):
             transport.SSHServerTransport.sendDisconnect(self, reason, desc)
         else:
             self.transport.write('Protocol mismatch.\n')
-            log.msg('[SERVER] - Disconnecting with error, code %s\nreason: %s' % (reason, desc))
+            log.msg(log.LRED, '[SERVER]', 'Disconnecting with error, code %s\nreason: %s' % (reason, desc))
             self.transport.loseConnection()

@@ -26,7 +26,6 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from twisted.python import log
 from honssh.protocols import baseProtocol 
 import re, io, datetime
 
@@ -36,7 +35,7 @@ class ExecTerm(baseProtocol.BaseProtocol):
     theFile = ''
     scp = False
    
-    def __init__(self, out, uuid, chanName, command, ssh):
+    def __init__(self, out, uuid, chanName, command, ssh, blocked):
         self.name = chanName
         self.out = out
         self.ssh = ssh
@@ -45,12 +44,11 @@ class ExecTerm(baseProtocol.BaseProtocol):
                 
         if command.startswith('scp'):
             self.scp = True
-            self.out.commandEntered(self.uuid, command)
         else:
             self.ttylog_file = self.out.logLocation + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") + '_' + self.name[1:-1] + '.tty'
             self.out.openTTY(self.ttylog_file)
             self.out.inputTTY(self.ttylog_file, 'INPUT: ' + command + '\n\n')
-            self.processCommand(self.uuid, self.name, command)
+        self.out.commandEntered(self.uuid, command, blocked=blocked)
                         
     def channelClosed(self):
         if not self.scp:

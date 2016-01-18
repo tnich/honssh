@@ -26,7 +26,6 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from twisted.python import log
 import copy
 
 class Connections():
@@ -46,10 +45,10 @@ class Connections():
             self.connections.append(sensor)
         return sensor
     
-    def add_session(self, sensor, peer_ip, peer_port, dt, honey_ip, honey_port, session_id, log_location):
+    def add_session(self, sensor, peer_ip, peer_port, dt, honey_ip, honey_port, session_id, log_location, country):
         sensor = self.get_sensor(sensor, honey_ip=honey_ip, honey_port=honey_port)
         if sensor:
-            session = {'session_id':session_id, 'peer_ip':peer_ip, 'peer_port':peer_port, 'start_time':dt, 'log_location':log_location, 'channels':[], 'auths':[]}
+            session = {'session_id':session_id, 'peer_ip':peer_ip, 'peer_port':peer_port, 'start_time':dt, 'log_location':log_location, 'country':country, 'channels':[], 'auths':[]}
             sensor['sessions'].append(session)
             return self.return_session(sensor, session)            
         return None
@@ -82,10 +81,10 @@ class Connections():
                     return sensor, session
         return None, None
     
-    def add_auth(self, session_id, date_time, username, password, success):
+    def add_auth(self, session_id, date_time, username, password, success, spoofed):
         sensor, session = self.get_session(session_id)
         if session:
-            auth = {'date_time':date_time, 'username':username, 'password':password, 'success':success}
+            auth = {'date_time':date_time, 'username':username, 'password':password, 'success':success, 'spoofed':spoofed}
             session['auths'].append(auth)
             return self.return_auth(sensor, session, auth)
         return None
@@ -159,10 +158,15 @@ class Connections():
                         return sensor, session, channel
         return None, None, None
     
-    def add_command(self, channel_id, dt, command_string):
+    def add_command(self, channel_id, dt, command_string, blocked):
         sensor, session, channel = self.get_channel(channel_id)
         if channel:
-            command = {'command':command_string, 'date_time':dt}
+            if blocked:
+                success = False
+            else:
+                success = True
+            
+            command = {'command':command_string, 'date_time':dt, 'success':success}
             channel['commands'].append(command)
             return self.return_command(sensor, session, channel, command)
         return None
@@ -182,14 +186,14 @@ class Connections():
             return self.return_download(sensor, session, channel, download)
         return None
     
-    def set_download_close(self, channel_id, dt, link, file, success, md5, size):
+    def set_download_close(self, channel_id, dt, link, file, success, sha256, size):
         sensor, session, channel = self.get_channel(channel_id)
         for download in channel['downloads']:
             if download['link'] == link and download['success'] == False:
                 download['file'] = file
                 download['end_time'] = dt
                 download['success'] = success
-                download['md5'] = md5
+                download['sha256'] = sha256
                 download['size'] = size
                 return self.return_download(sensor, session, channel, download)
         return None

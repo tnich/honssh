@@ -26,7 +26,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from twisted.python import log
+from honssh import log
 from honssh.config import config
 import subprocess
 
@@ -38,7 +38,7 @@ class Networking():
     def setupNetworking(self, peer_ip, honey_ip, honey_port):
         if self.cfg.get('advNet', 'enabled') == 'true':
             self.peer_ip = peer_ip
-            self.honey_port = honey_port
+            self.honey_port = str(honey_port)
             self.honey_ip = honey_ip
 
             self.fake_ip = self.getFakeIP(self.peer_ip)
@@ -47,22 +47,22 @@ class Networking():
             result = sp.communicate()
             if sp.returncode != 0:
                 if 'File exists' in result[0]:
-                    log.msg("[ADV-NET] - HonSSH Interface already exists, not re-adding")
+                    log.msg(log.LPURPLE, '[ADV-NET]', 'HonSSH Interface already exists, not re-adding')
                     return self.addFakeIP()
                 else:
-                    log.msg('[ADV-NET] - Error creating HonSSH Interface - Using client_addr: ' + result[0])
+                    log.msg(log.LRED, '[ADV-NET]', 'Error creating HonSSH Interface - Using client_addr: ' + result[0])
                     return self.cfg.get('honeypot', 'client_addr')
             else:    
                 sp = self.runCommand('ip link set honssh up')
                 result = sp.communicate()
                 if sp.returncode != 0:
-                    log.msg('[ADV-NET] - Error setting HonSSH Interface UP - Using client_addr: ' + result[0])
+                    log.msg(log.LRED, '[ADV-NET]', 'Error setting HonSSH Interface UP - Using client_addr: ' + result[0])
                     return self.cfg.get('honeypot', 'client_addr')
                 else:
-                    log.msg("[ADV-NET] - HonSSH Interface created")
+                    log.msg(log.LGREEN, '[ADV-NET]', 'HonSSH Interface created')
                     return self.addFakeIP()
         else:
-            log.msg("[ADV-NET] - Advanced Networking disabled - Using client_addr")
+            log.msg(log.LPURPLE, '[ADV-NET]', 'Advanced Networking disabled - Using client_addr')
             return self.cfg.get('honeypot', 'client_addr')
 
     def addFakeIP(self):
@@ -70,42 +70,42 @@ class Networking():
         result = sp.communicate()
         if sp.returncode != 0:
             if 'File exists' in result[0]:
-                log.msg("[ADV-NET] - Fake IP Address already exists, not re-adding")
+                log.msg(log.LPURPLE, '[ADV-NET]', 'Fake IP Address already exists, not re-adding')
                 return self.fake_ip
             else:
-                log.msg('[ADV-NET] - Error adding IP address to HonSSH Interface - Using client_addr: ' + result[0])
+                log.msg(log.LRED, '[ADV-NET]', 'Error adding IP address to HonSSH Interface - Using client_addr: ' + result[0])
                 return self.cfg.get('honeypot', 'client_addr')
         else:
             sp = self.runCommand('iptables -t nat -A POSTROUTING -s ' + self.fake_ip + '/32 -d ' + self.honey_ip + '/32 -p tcp --dport ' + self.honey_port + ' -j SNAT --to ' + self.peer_ip)
             result = sp.communicate()
             if sp.returncode != 0:
-                log.msg('[ADV-NET] - Error creating POSTROUTING Rule - Using client_addr: ' + result[0])
+                log.msg(log.LRED, '[ADV-NET]', 'Error creating POSTROUTING Rule - Using client_addr: ' + result[0])
                 return self.cfg.get('honeypot', 'client_addr')
             else:
                 sp = self.runCommand('iptables -t nat -A PREROUTING -s ' + self.honey_ip + '/32 -d ' + self.peer_ip +'/32 -p tcp --sport ' + self.honey_port + ' -j DNAT --to ' + self.fake_ip)
                 result = sp.communicate()
                 if sp.returncode != 0:
-                    log.msg('[ADV-NET] - Error creating PREROUTING Rule - Using client_addr: ' + result[0])
+                    log.msg(log.LRED, '[ADV-NET]', 'Error creating PREROUTING Rule - Using client_addr: ' + result[0])
                     return self.cfg.get('honeypot', 'client_addr')
                 else:
-                    log.msg("[ADV-NET] - HonSSH FakeIP and iptables rules added")
+                    log.msg(log.LGREEN, '[ADV-NET]', 'HonSSH FakeIP and iptables rules added')
                     return self.fake_ip
         
     def removeFakeIP(self):
         sp = self.runCommand('ip addr del ' + self.fake_ip + '/32 dev honssh')
         result = sp.communicate()
         if sp.returncode != 0:
-            log.msg('[ADV-NET] - Error removing IP address to HonSSH Interface: ' + result[0])
+            log.msg(log.LRED, '[ADV-NET]', 'Error removing IP address to HonSSH Interface: ' + result[0])
  
         sp = self.runCommand('iptables -t nat -D POSTROUTING -s ' + self.fake_ip + '/32 -d ' + self.honey_ip + '/32 -p tcp --dport ' + self.honey_port + ' -j SNAT --to ' + self.peer_ip)
         result = sp.communicate()
         if sp.returncode != 0:
-            log.msg('[ADV-NET] - Error removing POSTROUTING Rule: ' + result[0])
+            log.msg(log.LRED, '[ADV-NET]', 'Error removing POSTROUTING Rule: ' + result[0])
  
         sp = self.runCommand('iptables -t nat -D PREROUTING -s ' + self.honey_ip + '/32 -d ' + self.peer_ip +'/32 -p tcp --sport ' + self.honey_port + ' -j DNAT --to ' + self.fake_ip)
         result = sp.communicate()
         if sp.returncode != 0:
-            log.msg('[ADV-NET] - Error removing PREROUTING Rule: ' + result[0])
+            log.msg(log.LRED, '[ADV-NET]', 'Error removing PREROUTING Rule: ' + result[0])
         
     def removeNetworking(self, connections):
         if self.cfg.get('advNet', 'enabled') == 'true':
@@ -114,7 +114,7 @@ class Networking():
                 sp = self.runCommand('ip link del dev honssh')
                 result = sp.communicate()
                 if sp.returncode != 0:
-                    log.msg("[ADV-NET] - Error removing HonSSH Interface: " + result[0])
+                    log.msg(log.LRED, '[ADV-NET]', 'Error removing HonSSH Interface: ' + result[0])
             else:
                 found = False
                 for sensor in connections:

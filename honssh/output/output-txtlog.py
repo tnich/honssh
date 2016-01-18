@@ -1,8 +1,5 @@
 from honssh import config
 
-from twisted.python import log
-
-import GeoIP
 import os
 
 class Plugin():
@@ -19,10 +16,8 @@ class Plugin():
         session = sensor['session']
         self.log_file = session['log_location'] + session['start_time'] + '.log'
     
-        country = self.cname(session['peer_ip'])
-        if country == None:
-            country = ''
-        else:
+        country = session['country']
+        if country != '':
             country = ' - ' + country
     
         self.text_log(session['start_time'], '[POT  ] %s - %s:%s' % (sensor['sensor_name'], sensor['honey_ip'], sensor['honey_port']))
@@ -37,6 +32,8 @@ class Plugin():
             else:
                 login = 'Failed'
             self.text_log(auth['date_time'], '[SSH  ] Login %s: %s:%s' % (login, auth['username'], auth['password']))
+            if auth['spoofed']:
+                self.text_log(auth['date_time'], '[SSH  ] Login was spoofed' %())
             
         self.login_success = True
 
@@ -64,13 +61,17 @@ class Plugin():
         channel = sensor['session']['channel']
         command = channel['command']
         command_string = command['command'].replace('\n', '\\n')
-        self.text_log(command['date_time'], '%s Command Executed: %s' % (channel['name'], command_string))
+        if command['success']:
+            outcome = 'Executed'
+        else:
+            outcome = 'Blocked'
+        self.text_log(command['date_time'], '%s Command %s: %s' % (channel['name'], outcome, command_string))
         
     def download_finished(self, sensor):
         channel = sensor['session']['channel']
         download = channel['download']
-        self.text_log(download['end_time'], '%s Downloaded: %s - Saved: %s - Size: %s - MD5: %s' % (channel['name'], download['link'], download['file'], str(download['size']), download['md5']))
-        self.download_log(download['end_time'], sensor['session']['peer_ip'], download['link'], download['size'], download['md5'], download['file'])
+        self.text_log(download['end_time'], '%s Downloaded: %s - Saved: %s - Size: %s - SHA256: %s' % (channel['name'], download['link'], download['file'], str(download['size']), download['sha256']))
+        self.download_log(download['end_time'], sensor['session']['peer_ip'], download['link'], download['size'], download['sha256'], download['file'])
         
     def validate_config(self):
         props = [['output-txtlog','enabled']]
@@ -85,9 +86,9 @@ class Plugin():
     def auth_log(self, dt, ip, username, password, success): 
         self.log_to_file(self.auth_log_file, '%s,%s,%s,%s,%s\n' % (dt,ip,username,password,success))
             
-    def download_log(self, dt, ip, link, size, md5, file):
+    def download_log(self, dt, ip, link, size, sha256, file):
         download_log_file = self.cfg.get('folders', 'log_path') + '/downloads.log'
-        self.log_to_file(download_log_file, '%s,%s,%s,%s,%s,%s\n' % (dt, ip, link, size, md5, file))
+        self.log_to_file(download_log_file, '%s,%s,%s,%s,%s,%s\n' % (dt, ip, link, size, sha256, file))
         
     def log_to_file(self, the_file, string):
         setPermissions = False
@@ -101,10 +102,3 @@ class Plugin():
     
         if(setPermissions):
             os.chmod(the_file, 0644)
-        
-    def cname(self, ipv4_str): #Thanks Are.
-        """Checks the ipv4_str against the GeoIP database. Returns the full country name of origin if 
-        the IPv4 address is found in the database. Returns None if not found."""
-        geo = GeoIP.new(GeoIP.GEOIP_MEMORY_CACHE)
-        country = geo.country_name_by_addr(ipv4_str)
-        return country

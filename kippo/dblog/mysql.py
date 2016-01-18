@@ -28,7 +28,7 @@
 
 from twisted.enterprise import adbapi
 from twisted.internet import defer
-from twisted.python import log
+from honssh import log
 import MySQLdb, uuid, time, datetime
 
 class ReconnectingConnectionPool(adbapi.ConnectionPool):
@@ -50,7 +50,7 @@ class ReconnectingConnectionPool(adbapi.ConnectionPool):
         except MySQLdb.OperationalError, e:
             if e[0] not in (2006, 2013):
                 raise
-            log.msg("RCP: got error %s, retrying operation" %(e))
+            log.msg(log.LRED, '[MYSQL]', 'RCP: got error %s, retrying operation' %(e))
             conn = self.connections.get(self.threadID())
             self.disconnect(conn)
             # try the interaction again

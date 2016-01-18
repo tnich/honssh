@@ -1,7 +1,7 @@
 from honssh import config
 from hpfeeds_server import hpfeeds_server
 
-from twisted.python import log
+from honssh import log
 
 class Plugin():
 
@@ -9,7 +9,7 @@ class Plugin():
         self.cfg = cfg
 
     def start_server(self):
-        log.msg('[PLUGIN][HPFEEDS] - hpfeeds DBLogger start')
+        log.msg(log.LCYAN, '[PLUGIN][HPFEEDS]', 'hpfeeds HPLogger start')
 
         server	= self.cfg.get('output-hpfeeds', 'server')
         port	= self.cfg.get('output-hpfeeds', 'port')
@@ -21,7 +21,7 @@ class Plugin():
         self.server = server
    
     def connection_lost(self, sensor):
-        log.msg('[PLUGIN][HPFEEDS] - publishing metadata to hpfeeds')
+        log.msg(log.LCYAN, '[PLUGIN][HPFEEDS]', 'publishing metadata to hpfeeds')
         
         sensor['session'].pop('log_location')
         for channel in sensor['session']['channels']:
@@ -33,7 +33,7 @@ class Plugin():
                 fp.close()
                 channel['ttylog'] = ttydata.encode('hex')
                 channel.pop('ttylog_file')
-        log.msg("[PLUGIN][HPFEEDS] - sessionMeta: " + str(sensor))
+        log.msg(log.LCYAN, '[PLUGIN][HPFEEDS]', 'sessionMeta: ' + str(sensor))
         self.server.publish(hpfeeds_server.HONSSHSESHCHAN, **sensor)
        
     def login_successful(self, sensor):
@@ -45,7 +45,7 @@ class Plugin():
     def send_auth_meta(self, sensor):
         auth = sensor['session']['auth']
         authMeta = {'sensor_name': sensor['sensor_name'], 'datetime': auth['date_time'],'username': auth['username'], 'password': auth['password'], 'success': auth['success']}
-        log.msg('[PLUGIN][HPFEEDS] - authMeta: ' + str(authMeta))
+        log.msg(log.LCYAN, '[PLUGIN][HPFEEDS]', 'authMeta: ' + str(authMeta))
         self.server.publish(hpfeeds_server.HONSSHAUTHCHAN, **authMeta)  
         
     def validate_config(self):

@@ -1,4 +1,4 @@
-from twisted.python import log
+from honssh import log
 
 import os
 import struct
@@ -76,7 +76,7 @@ class FeedUnpack(object):
 
 class hpclient(object):
 	def __init__(self, server, port, ident, secret):
-		log.msg('[PLUGIN][HPFEEDS] - hpfeeds client init broker {0}:{1}, identifier {2}'.format(server, port, ident))
+		log.msg(log.LCYAN, '[PLUGIN][HPFEEDS]', 'hpfeeds client init broker {0}:{1}, identifier {2}'.format(server, port, ident))
 		self.server, self.port = server, int(port)
 		self.ident, self.secret = ident.encode('latin1'), secret.encode('latin1')
 		self.unpacker = FeedUnpack()
@@ -91,7 +91,7 @@ class hpclient(object):
 		self.s.settimeout(3)
 		try: self.s.connect((self.server, self.port))
 		except:
-			log.msg('[PLUGIN][HPFEEDS] - hpfeeds client could not connect to broker.')
+			log.msg(log.LCYAN, '[PLUGIN][HPFEEDS]', 'hpfeeds client could not connect to broker.')
 			self.s = None
 		else:
 			self.s.settimeout(None)
@@ -106,7 +106,7 @@ class hpclient(object):
 		self.s = None
 
 	def handle_established(self):
-		log.msg('[PLUGIN][HPFEEDS] - hpclient established')
+		log.msg(log.LCYAN, '[PLUGIN][HPFEEDS]', 'hpclient established')
 		while self.state != 'GOTINFO':
 			self.read()
 
@@ -128,17 +128,17 @@ class hpclient(object):
 		self.unpacker.feed(d)
 		try:
 			for opcode, data in self.unpacker:
-				log.msg('[PLUGIN][HPFEEDS] - hpclient msg opcode {0} data {1}'.format(opcode, data))
+				log.msg(log.LCYAN, '[PLUGIN][HPFEEDS]', 'hpclient msg opcode {0} data {1}'.format(opcode, data))
 				if opcode == OP_INFO:
 					name, rand = strunpack8(data)
-					log.msg('[PLUGIN][HPFEEDS] - hpclient server name {0} rand {1}'.format(name, rand))
+					log.msg(log.LCYAN, '[PLUGIN][HPFEEDS]', 'hpclient server name {0} rand {1}'.format(name, rand))
 					self.send(msgauth(rand, self.ident, self.secret))
 					self.state = 'GOTINFO'
 
 				elif opcode == OP_PUBLISH:
 					ident, data = strunpack8(data)
 					chan, data = strunpack8(data)
-					log.msg('[PLUGIN][HPFEEDS] - publish to {0} by {1}: {2}'.format(chan, ident, data))
+					log.msg(log.LCYAN, '[PLUGIN][HPFEEDS]', 'publish to {0} by {1}: {2}'.format(chan, ident, data))
 
 				elif opcode == OP_ERROR:
 					log.err('[PLUGIN][HPFEEDS] - errormessage from server: {0}'.format(data))

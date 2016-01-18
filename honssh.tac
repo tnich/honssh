@@ -34,6 +34,8 @@ import sys, os
 from honssh import server, interact
 from honssh.config import config
 from honssh.config import validateConfig
+from honssh import log as hlog
+
 
 if not os.path.exists('honssh.cfg'):
     print '[ERR][FATAL] honssh.cfg is missing!'

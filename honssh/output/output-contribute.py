@@ -1,6 +1,6 @@
 from honssh import config
 
-from twisted.python import log
+from honssh import log
 
 import json
 import urllib2
@@ -22,6 +22,9 @@ class Plugin():
                 fp.close()
                 channel['ttylog'] = ttydata.encode('hex')
                 channel.pop('ttylog_file')
+            for download in channel['downloads']:
+                if 'file' in download:
+                    download.pop('file')
                 
         self.post_json(sensor)
     
@@ -31,7 +34,7 @@ class Plugin():
         req.add_header('User-Agent', 'HonSSH-Contribute')
         req.add_header('Accept', 'text/plain')
         response = urllib2.urlopen(req, json.dumps(the_json))
-        log.msg('[PLUGIN][CONTRIBUTE] RESPONSE ' + str(response.read()))
+        log.msg(log.LCYAN, '[PLUGIN][CONTRIBUTE]', 'RESPONSE ' + str(response.read()))
         
     def validate_config(self):
         props = [['output-contribute','enabled']]

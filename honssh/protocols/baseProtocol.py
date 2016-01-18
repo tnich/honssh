@@ -26,8 +26,6 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from twisted.python import log
-
 class BaseProtocol():
     
     data = ''
@@ -52,9 +50,6 @@ class BaseProtocol():
     
     def injectDisconnect(self):
         self.ssh.injectDisconnect()
-    
-    def processCommand(self, uuid, name, command):
-        self.out.commandEntered(uuid, command)
     
     def channelClosed(self):
         pass

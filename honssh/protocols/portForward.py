@@ -29,7 +29,6 @@
 # Inspiration and code snippets used from:
 # http://www.codeproject.com/Tips/612847/Generate-a-quick-and-easy-custom-pcap-file-using-P
 
-from twisted.python import log
 from honssh.protocols import baseProtocol 
 import binascii
 import socket

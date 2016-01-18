@@ -28,11 +28,12 @@
 
 from twisted.conch.ssh import factory, transport, service
 from twisted.conch.ssh.transport import SSHCiphers
-from twisted.python import log
+from honssh import log
 from twisted.internet import reactor, defer, threads
 from honssh import client, networking, honsshServer, connections, plugins
 from honssh import output_handler
 from honssh import pre_auth_handler
+from honssh import post_auth_handler
 from honssh.protocols import sftp, ssh
 from honssh.config import config
 #from kippo.dblog import mysql
@@ -53,8 +54,10 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         
         self.sshParse = ssh.SSH(self, self.out)
 
-##        self.disconnected = False
+        self.disconnected = False
         self.clientConnected = False
+        self.post_auth_started = False
+        self.spoofed = False
 ##        self.finishedSending = False
 ##        self.delayedPackets = []
         
@@ -64,6 +67,7 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         self.local_port = self.transport.getHost().port
         
         self.pre_auth = pre_auth_handler.Pre_Auth(self)
+        self.post_auth = post_auth_handler.Post_Auth(self)
         
  ##       preAuthDefer = threads.deferToThread(self.preAuth)
  ##       preAuthDefer.addCallback(self.preAuthConn)
@@ -80,38 +84,45 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         if self.wasConnected:       
             self.out.connectionLost()
             
-        self.pre_auth.connection_lost()
-            
-        '''       
-        if self.cfg.get('containers', 'enabled') == 'true':
-            self.container_driver.teardown_container()
-            log.msg("[PLUGIN:CONTAINERS] Shutdown container (%s, %s)" % (self.container['ip'], self.container['id']))
-        '''       
-
     def ssh_KEXINIT(self, packet):
         return honsshServer.HonsshServer.ssh_KEXINIT(self, packet)
        
     def dispatchMessage(self, messageNum, payload):
         if honsshServer.HonsshServer.isEncrypted(self, "both"):
-            if not self.clientConnected:
-                log.msg("[SERVER] CONNECTION TO HONEYPOT NOT READY, BUFFERING PACKET")
-                self.pre_auth.delayedPackets.append([messageNum, payload])
+            if not self.post_auth_started:
+                self.packet_buffer(self.pre_auth, messageNum, payload)
             else:
-                if not self.pre_auth.finishedSending:
-                    self.pre_auth.delayedPackets.append([messageNum, payload])
-                else:
-                    self.sshParse.parsePacket("[SERVER]", messageNum, payload)
+                self.packet_buffer(self.post_auth, messageNum, payload)
         else:                    
             honsshServer.HonsshServer.dispatchMessage(self, messageNum, payload)
+
+    def packet_buffer(self, stage, messageNum, payload):
+        if not self.clientConnected:
+            log.msg(log.LPURPLE, '[SERVER]', 'CONNECTION TO HONEYPOT NOT READY, BUFFERING PACKET')
+            stage.delayedPackets.append([messageNum, payload])
+        else:
+            if not stage.finishedSending:
+                stage.delayedPackets.append([messageNum, payload])
+            else:
+                self.sshParse.parsePacket("[SERVER]", messageNum, payload)
         
     def sendPacket(self, messageNum, payload):
         honsshServer.HonsshServer.sendPacket(self, messageNum, payload)
         
-    def connection_setup(self, sensor_name, honey_ip, honey_port):
+    def connection_init(self, sensor_name, honey_ip, honey_port):
+        self.sensor_name = sensor_name
+        self.honey_ip = honey_ip
+        self.honey_port = honey_port
+        
+    def connection_setup(self):
         self.wasConnected = True
-        self.out.connectionMade(self.peer_ip, self.peer_port, honey_ip, honey_port, sensor_name)
+        self.out.connectionMade(self.peer_ip, self.peer_port, self.honey_ip, self.honey_port, self.sensor_name)
         self.out.setVersion(self.otherVersionString)
-
+        
+    def start_post_auth(self, username, password):
+        self.post_auth_started = True
+        self.post_auth.start(username, password)
+        
     '''        
     def preAuth(self):
         if self.cfg.has_option('app_hooks', 'pre_auth_script'):
@@ -201,13 +212,13 @@ class HonsshServerFactory(factory.SSHFactory):
     def __init__(self):
         self.ourVersionString = self.cfg.get('honeypot', 'ssh_banner')
         if self.ourVersionString == '':
-            log.msg('[SERVER] Acquiring SSH Version String from honey_ip:honey_port')
+            log.msg(log.LPURPLE, '[SERVER]', 'Acquiring SSH Version String from honey_ip:honey_port')
             clientFactory = client.HonsshSlimClientFactory()
             clientFactory.server = self
             
             reactor.connectTCP(self.cfg.get('honeypot-static', 'honey_ip'), int(self.cfg.get('honeypot-static', 'honey_port')), clientFactory)
         else:
-            log.msg("[SERVER] Using ssh_banner for SSH Version String: " + self.ourVersionString)
+            log.msg(log.LPURPLE, '[SERVER]', 'Using ssh_banner for SSH Version String: ' + self.ourVersionString)
         
         plugin_list = plugins.get_plugin_list(type='output')
         loaded_plugins = plugins.import_plugins(plugin_list, self.cfg)
@@ -216,7 +227,8 @@ class HonsshServerFactory(factory.SSHFactory):
             plugin_name = plugins.get_plugin_name(plugin)
             self.plugin_servers.append({'name':plugin_name, 'server':plugin_server})
             
-        log.msg('[HONSSH] HonSSH Boot Sequence Complete - Ready for attacks!')
+        if self.ourVersionString != '':    
+            log.msg(log.LGREEN, '[HONSSH]', 'HonSSH Boot Sequence Complete - Ready for attacks!')
     
     def buildProtocol(self, addr):
         t = HonsshServerTransport()

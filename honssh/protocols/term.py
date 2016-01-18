@@ -26,7 +26,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from twisted.python import log
+from honssh import log
 from honssh.protocols import baseProtocol 
 import datetime
 import re
@@ -75,8 +75,8 @@ class Term(baseProtocol.BaseProtocol):
                         self.command = self.command + "^C"
                     self.data = self.data[1:]
                     if self.command != '':
-                        log.msg("[SERVER] - Entered command: %s" % (self.command))
-                        self.processCommand(self.uuid, self.name, self.command)
+                        log.msg(log.LPURPLE, '[TERM]', 'Entered command: %s' % (self.command))
+                        self.out.commandEntered(self.uuid, self.command)
                     
                     self.command = ''
                     self.pointer = 0

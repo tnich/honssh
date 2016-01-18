@@ -26,7 +26,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from twisted.python import log
+from honssh import log
 from honssh.protocols import baseProtocol
 import datetime, io 
 
@@ -124,7 +124,7 @@ class SFTP(baseProtocol.BaseProtocol):
         elif packet == 'SSH_FXP_REALPATH':
             self.path = self.extractString()
             self.command = 'cd ' + self.path
-            log.msg(parent + '[SFTP] - Entered Command: ' + self.command)
+            log.msg(log.LPURPLE, parent + '[SFTP]', 'Entered Command: ' + self.command)
             self.out.commandEntered(self.uuid, self.command)
             
         elif packet == 'SSH_FXP_OPEN':
@@ -138,8 +138,8 @@ class SFTP(baseProtocol.BaseProtocol):
                 self.command = 'get ' + self.path
             else:
                 #Unknown PFlag
-                log.msg(parent + '[SFTP] - New SFTP pflag detected - Please raise a HonSSH issue on github with the details: %s %s' % (pflags, self.data))
-            log.msg(parent + '[SFTP] - Entered Command: ' + self.command)
+                log.msg(log.LRED, parent + '[SFTP]', 'New SFTP pflag detected - Please raise a HonSSH issue on github with the details: %s %s' % (pflags, self.data))
+            log.msg(log.LPURPLE, parent + '[SFTP]', 'Entered Command: ' + self.command)
             self.out.commandEntered(self.uuid, self.command)
                 
         elif packet == 'SSH_FXP_READ':
@@ -173,18 +173,18 @@ class SFTP(baseProtocol.BaseProtocol):
                 self.command = 'mv ' + self.path + ' ' + self.extractString()
             else:
                 #UNKNOWN COMMAND
-                log.msg(parent + '[SFTP] - New SFTP Extended Command detected - Please raise a HonSSH issue on github with the details: %s %s' % (cmd, self.data))
+                log.msg(log.LRED, parent + '[SFTP]', 'New SFTP Extended Command detected - Please raise a HonSSH issue on github with the details: %s %s' % (cmd, self.data))
             
         elif packet == 'SSH_FXP_EXTENDED_REPLY':
-            log.msg(parent + '[SFTP] - Entered Command: ' + self.command)
+            log.msg(log.LPURPLE, parent + '[SFTP]', 'Entered Command: ' + self.command)
             self.out.commandEntered(self.uuid, self.command)
             
         elif packet == 'SSH_FXP_CLOSE':
             if self.handle == self.extractString():
                 if 'get' in self.command:
-                    log.msg(parent + '[SFTP] - Finished Downloading: ' + self.path) 
+                    log.msg(log.LPURPLE, parent + '[SFTP]', 'Finished Downloading: ' + self.path) 
                 elif 'put' in self.command:
-                    log.msg(parent + '[SFTP] - Finished Uploading: ' + self.path)
+                    log.msg(log.LPURPLE, parent + '[SFTP]', 'Finished Uploading: ' + self.path)
                     
                     if self.out.cfg.get('download','passive') == 'true':
                         self.out.makeDownloadsFolder()
@@ -192,7 +192,7 @@ class SFTP(baseProtocol.BaseProtocol):
                         f = open(outfile, 'wb')
                         f.write(self.theFile)
                         f.close()
-                        self.out.fileDownloaded((self.uuid, True, self.path.split('/')[-1], outfile, None))
+                        self.out.fileDownloaded((self.uuid, True, self.path, outfile, None))
                         
         elif packet == 'SSH_FXP_SYMLINK':
             self.command = 'ln -s ' + self.extractString() + ' ' + self.extractString()
@@ -211,11 +211,11 @@ class SFTP(baseProtocol.BaseProtocol):
                 code = self.extractInt(4)
                 if code in [0, 1]:
                     if 'get' not in self.command and 'put' not in self.command:
-                        log.msg(parent + '[SFTP] - Entered Command: ' + self.command)
+                        log.msg(log.LPURPLE, parent + '[SFTP]', 'Entered Command: ' + self.command)
                         self.out.commandEntered(self.uuid, self.command)
                 else:
                     message = self.extractString()
-                    log.msg(parent + '[SFTP] - Failed Command: ' + self.command + ' Reason: ' + message)
+                    log.msg(log.LRED, parent + '[SFTP]', 'Failed Command: ' + self.command + ' Reason: ' + message)
                     self.out.commandEntered(self.uuid, '[FAILED]:' + self.command)
                        
     def extractAttrs(self):
@@ -223,7 +223,7 @@ class SFTP(baseProtocol.BaseProtocol):
         flags = '{0:08b}'.format(self.extractInt(4))
         if flags[5] == '1':
             perms = '{0:09b}'.format(self.extractInt(4))
-            log.msg(parent + "[SFTP] - PERMS:" + perms)
+            log.msg(log.LPURPLE, parent + '[SFTP]', 'PERMS:' + perms)
             chmod = str(int(perms[:3], 2)) + str(int(perms[3:6], 2)) + str(int(perms[6:], 2))
             cmd = 'chmod ' + chmod
         elif flags[6] == '1':
@@ -232,7 +232,7 @@ class SFTP(baseProtocol.BaseProtocol):
             cmd = 'chown ' + user + ':'  + group
         else:
             #Unknown attribute
-            log.msg(parent + '[SFTP] - New SFTP Attribute detected - Please raise a HonSSH issue on github with the details: %s %s' % (flags, self.data))
+            log.msg(log.LRED, parent + '[SFTP]', 'New SFTP Attribute detected - Please raise a HonSSH issue on github with the details: %s %s' % (flags, self.data))
         return cmd
 
 

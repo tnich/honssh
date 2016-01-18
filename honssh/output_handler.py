@@ -26,7 +26,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from twisted.python import log
+from honssh import log
 from twisted.internet import threads, reactor
 from honssh.config import config
 #from honssh import txtlog
@@ -46,6 +46,7 @@ import hashlib
 import socket
 import urllib2
 import base64
+import GeoIP
 
 class Output():
     cfg = config()
@@ -75,12 +76,16 @@ class Output():
                 if plugin_server['name'] == plugin_name:
                     plugins.run_plugins_function([plugin], 'set_server', False, plugin_server['server'])
                     break
+        
+        country = self.cname(self.end_ip)
+        if not country:
+            country = ''
 
-        session = self.connections.add_session(self.sensor_name, self.end_ip, self.end_port, dt, self.honey_ip, self.honey_port, self.session_id, self.logLocation)
+        session = self.connections.add_session(self.sensor_name, self.end_ip, self.end_port, dt, self.honey_ip, self.honey_port, self.session_id, self.logLocation, country)
         plugins.run_plugins_function(self.loaded_plugins, 'connection_made', True, session)
         
     def connectionLost(self):
-        log.msg("[OUTPUT] Lost Connection with the attacker: %s" % self.end_ip)
+        log.msg(log.LRED, '[OUTPUT]', 'Lost Connection with the attacker: %s' % self.end_ip)
         
         dt = self.getDateTime()
         session = self.connections.set_session_close(self.session_id, dt)
@@ -91,22 +96,22 @@ class Output():
         session = self.connections.set_client(self.session_id, version)
         plugins.run_plugins_function(self.loaded_plugins, 'set_client', True, session)
      
-    def loginSuccessful(self, username, password):
+    def loginSuccessful(self, username, password, spoofed):
         dt = self.getDateTime()
         self.makeSessionFolder()
         
-        auth = self.connections.add_auth(self.session_id, dt, username, password, True)
+        auth = self.connections.add_auth(self.session_id, dt, username, password, True, spoofed)
         plugins.run_plugins_function(self.loaded_plugins, 'login_successful', True, auth)
         
     def loginFailed(self, username, password):
         dt = self.getDateTime()
 
-        auth = self.connections.add_auth(self.session_id, dt, username, password, False)        
+        auth = self.connections.add_auth(self.session_id, dt, username, password, False, False)        
         plugins.run_plugins_function(self.loaded_plugins, 'login_failed', True, auth)
 
-    def commandEntered(self, channel_id, the_command):
+    def commandEntered(self, channel_id, the_command, blocked=False):
         dt = self.getDateTime()
-        command = self.connections.add_command(channel_id, dt, the_command)
+        command = self.connections.add_command(channel_id, dt, the_command, blocked)
         plugins.run_plugins_function(self.loaded_plugins, 'command_entered', True, command)
             
         the_commands_split = re.findall(r'(?:[^;&|<>"\']|["\'](?:\\.|[^"\'])*[\'"])+', the_command)
@@ -162,6 +167,8 @@ class Output():
             finished = input[1]
             file_meta = input[2]
             input = input[0]
+        else:
+            error = input[4]
         if finished:
             if file_meta != '':
                 dt = self.getDateTime()
@@ -170,9 +177,11 @@ class Output():
                 download = self.connections.set_download_close(channel_id, dt, link, file, success, file_meta[0], file_meta[1])
                 plugins.run_plugins_function(self.loaded_plugins, 'download_finished', True, download)
         else:
-            log.msg(input)
-            d = threads.deferToThread(self.get_file_meta, input)
-            d.addCallback(self.fileDownloaded)
+            if error:
+                log.msg(log.LRED, '[OUTPUT]', input)
+            else:
+                d = threads.deferToThread(self.get_file_meta, input)
+                d.addCallback(self.fileDownloaded)
 
     def channelOpened(self, channel_id, channel_name):
         dt = self.getDateTime()
@@ -205,19 +214,6 @@ class Output():
     def closeTTY(self, ttylog_file):
         ttylog.ttylog_close(ttylog_file, time.time())
         
-           
-    def addConnectionString(self, message):
-        dt = self.getDateTime()
-        self.connectionString = self.connectionString + '\n' + dt + ' - ' + message
-        
-    def writePossibleLink(self, ips):
-        dt = self.getDateTime()
-        if not self.end_ip in ips:
-            self.connectionString = self.connectionString + '\n' + dt + ' - [SSH  ] Attempted login with the same username and password as ' + ', '.join(ips) + ' - Possible link'
-        
-    def writeSpoofPass(self, username, password):
-        txtlog.spoofLog(self.cfg.get('folders', 'log_path') + "/spoof.log", username, password, self.end_ip)
-        
     def portForwardLog(self, channelName, connDetails):
         dt = self.getDateTime()
         theDNS = ''
@@ -225,15 +221,17 @@ class Output():
             theDNS = ' (' + socket.gethostbyaddr(connDetails['srcIP'])[0] + ')'
         except:
             pass
-        txtlog.log(dt, self.txtlog_file, channelName + ' Source: ' + connDetails['srcIP'] + ':' + str(connDetails['srcPort']) + theDNS)
+        ##txtlog.log(dt, self.txtlog_file, channelName + ' Source: ' + connDetails['srcIP'] + ':' + str(connDetails['srcPort']) + theDNS)
+        log.msg(log.LPURPLE, '[OUTPUT]', channelName + ' Source: ' + connDetails['srcIP'] + ':' + str(connDetails['srcPort']) + theDNS)
         
         theDNS = ''
         try:
             theDNS = ' (' + socket.gethostbyaddr(connDetails['dstIP'])[0] + ')'
         except:
             pass
-        txtlog.log(dt, self.txtlog_file, channelName + ' Destination: ' + connDetails['dstIP'] + ':' + str(connDetails['dstPort']) + theDNS)
-    
+        ##txtlog.log(dt, self.txtlog_file, channelName + ' Destination: ' + connDetails['dstIP'] + ':' + str(connDetails['dstPort']) + theDNS)
+        log.msg(log.LPURPLE, '[OUTPUT]', channelName + ' Destination: ' + connDetails['dstIP'] + ':' + str(connDetails['dstPort']) + theDNS)
+
 
 
 
@@ -252,17 +250,17 @@ class Output():
         channel_id, success, link, the_file, error = input
         if success:
             f = file(the_file, 'rb')
-            md5 = hashlib.md5()
+            sha256 = hashlib.sha256()
             while True:
                 data = f.read(2**20)
                 if not data:
                     break
-                md5.update(data)
+                sha256.update(data)
             f.close()
         
-            theMD5 = md5.hexdigest()
+            theSHA2256 = sha256.hexdigest()
             theSize = os.path.getsize(the_file)
-            return input, True, [theMD5, theSize]
+            return input, True, [theSHA2256, theSize]
         else:
             return input, True, ''
     
@@ -271,6 +269,7 @@ class Output():
         error = ''
         try:
             request = urllib2.Request(link)
+            request.add_header('Accept', 'text/plain')
             if user and password:
                 if link.startswith('ftp://'):
                     link = link[:6] + user + ':' + password + '@' + link[6:]
@@ -297,3 +296,10 @@ class Output():
     def registerSelf(self, register):
         sensor, session, channel = self.connections.get_channel(register.uuid)
         channel['class'] = register
+
+    def cname(self, ipv4_str): #Thanks Are.
+        """Checks the ipv4_str against the GeoIP database. Returns the full country name of origin if 
+        the IPv4 address is found in the database. Returns None if not found."""
+        geo = GeoIP.new(GeoIP.GEOIP_MEMORY_CACHE)
+        country = geo.country_name_by_addr(ipv4_str)
+        return country

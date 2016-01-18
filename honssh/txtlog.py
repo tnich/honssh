@@ -65,14 +65,14 @@ def authLog(dt, logfile, ip, username, password, success):
     if(setPermissions):
         os.chmod(logfile, 0644)
         
-def downloadLog(dt, logfile, ip, link, outFile, theSize, theMD5):
+def downloadLog(dt, logfile, ip, link, outFile, theSize, theSHA256):
     setPermissions = False
     
     if(os.path.isfile(logfile) == False):
         setPermissions = True
       
     f = file(logfile, 'a')
-    f.write("%s,%s,%s,%s,%s,%s\n" % (dt, ip, link, theSize, theMD5, outFile))
+    f.write("%s,%s,%s,%s,%s,%s\n" % (dt, ip, link, theSize, theSHA256, outFile))
     f.close()
     
     if(setPermissions):

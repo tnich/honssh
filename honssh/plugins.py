@@ -30,7 +30,7 @@ import os
 import importlib
 import inspect
 import copy
-from twisted.python import log
+from honssh import log
 from twisted.internet import threads
 
 output_plugin_folders = ['honssh/output', 'plugins/output']
@@ -79,14 +79,8 @@ def import_plugins(plugins, cfg, search=None):
                 plugin_list.append(import_plugin(plugin, cfg))
     return plugin_list
 
-def import_pre_auth_plugins(plugins, cfg):
-    imported_plugins = import_plugins(plugins, cfg, 'pre-auth')
-    if len(imported_plugins) > 0:
-        return [imported_plugins[0]]
-    return None
-
-def import_post_auth_plugins(plugins, cfg):
-    imported_plugins = import_plugins(plugins, cfg, 'post-auth')
+def import_auth_plugins(type, plugins, cfg):
+    imported_plugins = import_plugins(plugins, cfg, type.lower().replace('_','-'))
     if len(imported_plugins) > 0:
         return [imported_plugins[0]]
     return None
@@ -97,7 +91,8 @@ def run_plugins_function(plugins, function, thread, *args, **kwargs):
         class_name = get_plugin_name(plugin).upper()
         try:
             func = getattr(plugin, function)
-            log.msg('[PLUGIN][' + class_name +  '] - ' + function.upper())
+            if function != 'packet_logged':
+                log.msg(log.LCYAN, '[PLUGIN][' + class_name +  ']', function.upper())
             if thread:
                 threads.deferToThread(func, *copy.deepcopy(args), **copy.deepcopy(kwargs))
             else:
@@ -107,7 +102,7 @@ def run_plugins_function(plugins, function, thread, *args, **kwargs):
         except AttributeError:
             pass
         except Exception, ex:
-            log.msg('[PLUGIN][' + class_name +  '][ERR] - ' + str(ex))
+            log.msg(log.LRED, '[PLUGIN][' + class_name +  '][ERR]', str(ex))
             
     return return_value
 

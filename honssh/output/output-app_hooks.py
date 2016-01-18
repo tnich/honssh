@@ -1,6 +1,5 @@
 from honssh import config
 
-from twisted.python import log
 import subprocess
 
 class Plugin():

@@ -27,9 +27,9 @@
 # SUCH DAMAGE.
 
 from honssh.protocols import baseProtocol, sftp, term, execTerm, portForward
-from twisted.python import log
+from honssh import log
 from honssh.config import config
-import struct, uuid, random, os, ConfigParser, re
+import struct, uuid, random, os, re
 
 class SSH(baseProtocol.BaseProtocol):
     
@@ -83,17 +83,24 @@ class SSH(baseProtocol.BaseProtocol):
         self.sendOn = True
 
         packet = self.packetLayout[messageNum]
-            
-        if parent == '[SERVER]':
-            direction = 'CLIENT -> SERVER'
+        
+        
+        if not self.server.post_auth_started:
+            if parent == '[SERVER]':
+                direction = 'CLIENT -> SERVER'
+            else:
+                direction = 'SERVER -> CLIENT'
         else:
-            direction = 'SERVER -> CLIENT'
+            if parent == '[SERVER]':
+                direction = 'HONSSH -> SERVER'
+            else:
+                direction = 'SERVER -> HONSSH'
                 
         self.out.packet_logged(direction, packet, payload)
             
         if self.cfg.has_option('devmode', 'enabled'):   
             if self.cfg.get('devmode', 'enabled') == 'true':
-                log.msg(direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))
+                log.msg(log.LBLUE, '[SSH]', direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))
         
         # - UserAuth            
         if packet == 'SSH_MSG_USERAUTH_REQUEST':
@@ -105,6 +112,12 @@ class SSH(baseProtocol.BaseProtocol):
                 psize = self.packetSize
                 self.password = self.extractString()
                 if self.password != "":
+                    
+                    if not self.server.post_auth_started:
+                        self.server.start_post_auth(self.username, self.password)
+                        self.sendOn = False
+                    
+                    '''
                     if self.cfg.get('spoof', 'enabled') == 'true':
                         user = self.getUsers(self.username)
                         rand = 0
@@ -134,7 +147,7 @@ class SSH(baseProtocol.BaseProtocol):
                             payload = payload[:0-psize] + self.stringToHex(user[1])
                             self.out.addConnectionString("[SSH  ] Spoofing Login - Changing %s to %s" % (self.password, user[1]))
                             self.out.writeSpoofPass(self.username, self.password) 
-
+                    '''
             elif authType == 'publickey':
                 if self.cfg.get('hp-restrict', 'disable_publicKey') == 'true':
                     self.sendOn = False
@@ -144,14 +157,15 @@ class SSH(baseProtocol.BaseProtocol):
             authList = self.extractString()
             if 'publickey' in authList:
                 if self.cfg.get('hp-restrict', 'disable_publicKey') == 'true':
-                    log.msg("[SSH] - Detected Public Key Auth - Disabling!")
+                    log.msg(log.LPURPLE, '[SSH]','Detected Public Key Auth - Disabling!')
                     payload = self.stringToHex('password') + chr(0)
-            if self.username != ''  and self.password != '':
-                self.out.loginFailed(self.username, self.password)
+            if not self.server.post_auth_started:
+                if self.username != ''  and self.password != '':
+                    self.out.loginFailed(self.username, self.password)
                     
         elif packet == 'SSH_MSG_USERAUTH_SUCCESS':
             if self.username != ''  and self.password != '':
-                self.out.loginSuccessful(self.username, self.password)
+                self.out.loginSuccessful(self.username, self.password, self.server.spoofed)
                 
         # - End UserAuth
         # - Channels
@@ -162,7 +176,7 @@ class SSH(baseProtocol.BaseProtocol):
                 self.createChannel(parent, id, type)
             elif type == 'x11':
                 if self.cfg.get('hp-restrict', 'disable_x11') == 'true':
-                    log.msg("[SSH] - Detected X11 Channel - Disabling!")
+                    log.msg(log.LPURPLE, '[SSH]', 'Detected X11 Channel - Disabling!')
                     self.sendOn = False
                     self.sendBack(parent, 92, self.intToHex(id))
                 else:
@@ -175,7 +189,7 @@ class SSH(baseProtocol.BaseProtocol):
                     self.out.channelOpened(theUUID, channel['name'])
             elif type == 'direct-tcpip' or type == 'forwarded-tcpip':
                 if self.cfg.get('hp-restrict', 'disable_port_forwarding') == 'true':
-                    log.msg("[SSH] - Detected Port Forwarding Channel - Disabling!")
+                    log.msg(log.LPURPLE, '[SSH]', 'Detected Port Forwarding Channel - Disabling!')
                     self.sendOn = False
                     self.sendBack(parent, 92, self.intToHex(id) + self.intToHex(1) + self.stringToHex('open failed') + self.intToHex(0))
                 else:
@@ -184,7 +198,7 @@ class SSH(baseProtocol.BaseProtocol):
                     self.extractInt(4)
                     
                     connDetails = {'dstIP':self.extractString(), 'dstPort':self.extractInt(4), 'srcIP':self.extractString(), 'srcPort':self.extractInt(4)}
-                    connDetails['srcIP'] = self.out.endIP
+                    connDetails['srcIP'] = self.out.end_ip
                     theUUID = uuid.uuid4().hex
                     self.createChannel(parent, id, type)
                     
@@ -202,7 +216,7 @@ class SSH(baseProtocol.BaseProtocol):
             else:
                 ##UNKNOWN CHANNEL TYPE
                 if type not in ['exit-status']:
-                    log.msg("[SSH] - Unknown Channel Type Detected - " + type)              
+                    log.msg(log.LRED, '[SSH]', 'Unknown Channel Type Detected - ' + type)              
 
         elif packet == 'SSH_MSG_CHANNEL_OPEN_CONFIRMATION':
             channel = self.getChannel(self.extractInt(4), parent)
@@ -230,21 +244,27 @@ class SSH(baseProtocol.BaseProtocol):
                 channel['session'] = term.Term(self.out, theUUID, channel['name'], self, channel['clientID'])
             elif type == 'exec':
                 if self.cfg.get('hp-restrict','disable_exec') == 'true':
-                    log.msg("[SSH] - Detected EXEC Channel Request - Disabling!")
+                    log.msg(log.LPURPLE, '[SSH]', 'Detected EXEC Channel Request - Disabling!')
                     self.sendOn = False
                     self.sendBack(parent, 100, self.intToHex(channel['serverID']))
+                    blocked = True
                 else:
-                    channel['name'] = '[EXEC' + str(channel['serverID']) + ']'
-                    self.extractBool()
-                    command = self.extractString()
-                    self.out.channelOpened(theUUID, channel['name'])
-                    channel['session'] = execTerm.ExecTerm(self.out, theUUID, channel['name'], command, self)
+                    blocked = False
+                channel['name'] = '[EXEC' + str(channel['serverID']) + ']'
+                self.extractBool()
+                command = self.extractString()
+                self.out.channelOpened(theUUID, channel['name'])
+                channel['session'] = execTerm.ExecTerm(self.out, theUUID, channel['name'], command, self, blocked)
+                if blocked:
+                    channel['session'].channelClosed()
+                    self.out.channelClosed(channel['session'])
+                    self.channels.remove(channel)
             elif type == 'subsystem':
                 self.extractBool()
                 subsystem = self.extractString()
                 if subsystem == 'sftp':
                     if self.cfg.get('hp-restrict','disable_sftp') == 'true':
-                        log.msg("[SSH] - Detected SFTP Channel Request - Disabling!")
+                        log.msg(log.LPURPLE, '[SSH]', 'Detected SFTP Channel Request - Disabling!')
                         self.sendOn = False
                         self.sendBack(parent, 100, self.intToHex(channel['serverID']))
                     else:
@@ -253,15 +273,15 @@ class SSH(baseProtocol.BaseProtocol):
                         channel['session'] = sftp.SFTP(self.out, theUUID, channel['name'], self)
                 else:
                     ##UNKNOWN SUBSYSTEM
-                    log.msg("[SSH] - Unknown Subsystem Type Detected - " + subsystem) 
+                    log.msg(log.LRED, '[SSH]', 'Unknown Subsystem Type Detected - ' + subsystem) 
             elif type == 'x11-req':
                 if self.cfg.get('hp-restrict', 'disable_x11') == 'true':
                     self.sendOn = False
                     self.sendBack(parent, 82, '')
             else:
                 ##UNKNOWN CHANNEL REQUEST TYPE
-                if type not in ['window-change', 'env', 'pty-req', 'exit-status']:
-                    log.msg("[SSH] - Unknown Channel Request Type Detected - " + type) 
+                if type not in ['window-change', 'env', 'pty-req', 'exit-status', 'exit-signal']:
+                    log.msg(log.LRED, '[SSH]', 'Unknown Channel Request Type Detected - ' + type) 
                 
         elif packet == 'SSH_MSG_CHANNEL_FAILURE':
             pass
@@ -293,8 +313,13 @@ class SSH(baseProtocol.BaseProtocol):
                 if self.cfg.get('hp-restrict', 'disable_port_forwarding') == 'true':
                     self.sendOn = False
                     self.sendBack(parent, 82, '')
-                    
-        if self.sendOn:    
+         
+        if self.server.post_auth_started:
+            if parent == '[CLIENT]':
+                self.server.post_auth.send_next()   
+                self.sendOn = False
+                           
+        if self.sendOn: 
             if parent == '[SERVER]':
                 self.client.sendPacket(messageNum, payload)
             else:
@@ -312,7 +337,7 @@ class SSH(baseProtocol.BaseProtocol):
 
         if self.cfg.has_option('devmode', 'enabled'):   
             if self.cfg.get('devmode', 'enabled') == 'true':
-                log.msg(direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))
+                log.msg(log.LBLUE, '[SSH]', direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))
             
         if parent == '[SERVER]':
             self.server.sendPacket(messageNum, payload)
@@ -336,31 +361,16 @@ class SSH(baseProtocol.BaseProtocol):
             if channel[search] == channelNum:
                 theChannel = channel
                 break
-        return channel
-    
-    def getUsers(self, username):
-        usersCfg = ConfigParser.ConfigParser()
-        if os.path.exists(self.cfg.get('spoof','users_conf')):
-            usersCfg.read(self.cfg.get('spoof','users_conf'))
-            users = usersCfg.sections()
-            for user in users:
-                if user == username:
-                    if usersCfg.has_option(user, 'fake_passwords'):
-                        return [user, usersCfg.get(user, 'real_password'), 'fixed', usersCfg.get(user, 'fake_passwords')]
-                    if usersCfg.has_option(user, 'random_chance'):
-                        return [user, usersCfg.get(user, 'real_password'), 'random', usersCfg.get(user, 'random_chance')]
-        else:
-            log.msg("ERROR: users_conf does not exist")
-        
-        return None
+        return theChannel
     
     def injectKey(self, serverID, message):
         payload = self.intToHex(serverID) + self.stringToHex(message)
         self.inject(94, payload)
     
     def injectDisconnect(self):
-        payload = self.intToHex(11) + self.stringToHex('disconnected by user') + self.intToHex(0)
-        self.inject(1, payload)
+        #payload = self.intToHex(11) + self.stringToHex('disconnected by user') + self.intToHex(0)
+        #self.inject(1, payload)
+        self.server.loseConnection()
         
     def inject(self, packetNum, payload):
         direction = 'INTERACT -> SERVER'
@@ -370,7 +380,7 @@ class SSH(baseProtocol.BaseProtocol):
 
         if self.cfg.has_option('devmode', 'enabled'):   
             if self.cfg.get('devmode', 'enabled') == 'true':
-                log.msg(direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))   
+                log.msg(log.LBLUE, '[SSH]', direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))   
         
         self.client.sendPacket(packetNum, payload)
 
