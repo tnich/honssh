@@ -181,7 +181,7 @@ class Output():
         if self.cfg.get('hpfeeds', 'enabled') == 'true':
             self.hpLog.handleCommand(dt, uuid, theCommand)
             
-        theCommandsSplit = re.findall(r'(?:[^;&|<>"\']|["\'](?:\\.|[^"\'])*[\'"])+', theCommand)
+        theCommandsSplit = re.findall(r'(?:[^;&|<>()"\']|["\'](?:\\.|[^"\'])*[\'"])+', theCommand)
         theCMDs = []
         
         for cmd in theCommandsSplit:
