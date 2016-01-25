@@ -57,8 +57,13 @@ ssh_banner =
 #   HONEYPOT STATIC     #
 #-----------------------#
 [honeypot-static]
+# Documentation to come, stick with these options and ignore honeypot-* unless you know what you are doing or fancy a challenge
 enabled = true
+
+# Should HonSSH use this plugin to get the honeypot details (before authentication)
 pre-auth = true
+
+# Should HonSSH use this plugin to get the honeypot details (after authentication)
 post-auth = true
 
 # This name will be used when logging to any of the output mechanisms.
@@ -85,8 +90,13 @@ honey_port =
 #   HONEYPOT SCRIPT     #
 #-----------------------#
 [honeypot-script]
+# Documentation to come
 enabled = false
+
+# Should HonSSH use this plugin to get the honeypot details (before authentication)
 pre-auth = false
+
+# Should HonSSH use this plugin to get the honeypot details (after authentication)
 post-auth = false
 
 # ./script IP LOCALIP PORT LOCALPORT
@@ -99,8 +109,13 @@ post-auth-script =
 #   HONEYPOT DOCKER     #
 #-----------------------#
 [honeypot-docker]
+# Documentation to come
 enabled = false
+
+# Should HonSSH use this plugin to get the honeypot details (before authentication)
 pre-auth = false
+
+# Should HonSSH use this plugin to get the honeypot details (after authentication)
 post-auth = false
 
 # image: image id/name to use for honeypot container
