@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Thomas Nicholson <tnnich@googlemail.com>
+# Copyright (c) 2016 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -114,7 +114,7 @@ class Output():
         command = self.connections.add_command(channel_id, dt, the_command, blocked)
         plugins.run_plugins_function(self.loaded_plugins, 'command_entered', True, command)
             
-        the_commands_split = re.findall(r'(?:[^;&|<>"\']|["\'](?:\\.|[^"\'])*[\'"])+', the_command)
+        the_commands_split = re.findall(r'(?:[^;&|<>()"\']|["\'](?:\\.|[^"\'])*[\'"])+', the_command)
         the_commands = []
         
         for command in the_commands_split:

@@ -11,13 +11,6 @@
 #-----------------------#
 [honeypot]
 
-# This name will be used when logging to any of the output mechanisms.
-# Please ensure it is meaningful.
-#
-# input: Text
-# required: YES
-sensor_name = 
-
 # IP addresses to listen for incoming SSH connections.
 #
 # input: IP Address
@@ -32,23 +25,11 @@ ssh_addr =
 ssh_port = 2222
 
 # IP addresses to send outgoing SSH connections.
+# 0.0.0.0 for all interfaces
 #
 # input: IP Address
 # required: YES
 client_addr = 
-
-# IP addresses of the honeypot.
-#
-# input: IP Address
-# required: YES
-honey_addr = 
-
-# SSH port of the honeypot.
-#
-# input: Number
-# required: YES
-# default: 22
-honey_port = 22
 
 # Public and private SSH key files. 
 #
@@ -71,6 +52,81 @@ private_key_dsa = id_dsa
 # required: No
 # default: 
 ssh_banner = 
+
+#-----------------------#
+#   HONEYPOT STATIC     #
+#-----------------------#
+[honeypot-static]
+enabled = true
+pre-auth = true
+post-auth = true
+
+# This name will be used when logging to any of the output mechanisms.
+# Please ensure it is meaningful.
+#
+# input: Text
+# required: YES
+sensor_name = 
+
+# IP addresses of the honeypot.
+#
+# input: IP Address
+# required: YES
+honey_ip = 
+
+# SSH port of the honeypot.
+#
+# input: Number
+# required: YES
+# default: 22
+honey_port = 
+
+#-----------------------#
+#   HONEYPOT SCRIPT     #
+#-----------------------#
+[honeypot-script]
+enabled = false
+pre-auth = false
+post-auth = false
+
+# ./script IP LOCALIP PORT LOCALPORT
+pre-auth-script = 
+
+# ./script IP LOCALIP PORT LOCALPORT USERNAME PASSWORD
+post-auth-script = 
+
+#-----------------------#
+#   HONEYPOT DOCKER     #
+#-----------------------#
+[honeypot-docker]
+enabled = false
+pre-auth = false
+post-auth = false
+
+# image: image id/name to use for honeypot container
+# required: if enabled = true
+image = 
+
+# uri: socket to interact with container daemon
+# required: if enabled = true
+# default: unix://var/run/docker.sock
+uri = unix://var/run/docker.sock
+
+# honey_hostname: the hostname for the container
+# required: if enabled = true
+hostname = test-box
+
+# launch_cmd: command to run when container is first launched
+# required: if enabled = true
+# default = service ssh start
+launch_cmd = service ssh start
+
+# SSH port of the honeypot.
+#
+# input: Number
+# required: YES
+# default: 22
+honey_port = 
 
 #-----------------------#
 # HONEYPOT RESTRICTIONS #
@@ -216,9 +272,35 @@ users_conf = users.cfg
 #----------------------------------------------#
 
 #-----------------------#
+#    FILE DOWNLOADING   #
+#-----------------------#
+[download]
+
+# File Download
+#
+# HonSSH will attempt to download all scp and sftp files to a local store if this is true
+#
+# input: true/false
+# required: YES
+# default: false
+passive = false
+
+# HonSSH wil attempt to download all wget files to a local store.
+# 
+# I believe another tool should be used to passively capture all http(s) connections on all ports - maybe the next project?
+# Until then HonSSH will use a 'best effort' approach to capture files when the wget commands is detected.
+# It will not be able to capture commands such as:
+# url=www.test.url; wget $url
+# 
+# input: true/false
+# required: YES
+# default: false
+active = false
+
+#-----------------------#
 #      TEXT LOGGING     #
 #-----------------------#
-[txtlog]
+[output-txtlog]
 
 # All activity will be logged to text files
 # A log of entry attempts will be kept in log_path/
@@ -232,7 +314,7 @@ enabled = true
 #-----------------------#
 #      MYSQL LOGGING    #
 #-----------------------#
-[database_mysql]
+[output-mysql]
 
 # All activity will be logged to a MYSQL Database
 # Database structure for this module is supplied in utils/honssh.sql
@@ -277,7 +359,7 @@ password =
 #-----------------------#
 #      EMAIL LOGGING    #
 #-----------------------#
-[email_sender]
+[output-email]
 
 # Enable email output plugin
 #
@@ -356,7 +438,7 @@ to =
 #-----------------------#
 #        HP FEEDS       #
 #-----------------------#
-[hpfeeds]
+[output-hpfeeds]
 
 # All activity will be logged to a hpfeeds broker for dissemination 
 # between the honeypot community. 
@@ -393,30 +475,82 @@ identifier =
 secret = 
 
 #-----------------------#
-#    FILE DOWNLOADING   #
+#   APPLICATION HOOKS   #
 #-----------------------#
-[download]
+[output-app_hooks]
 
-# File Download
-#
-# HonSSH will attempt to download all scp and sftp files to a local store if this is true
+# Enable app_hooks output plugin
 #
 # input: true/false
 # required: YES
 # default: false
-passive = false
+enabled = false
 
-# HonSSH wil attempt to download all wget files to a local store.
-# 
-# I believe another tool should be used to passively capture all http(s) connections on all ports - maybe the next project?
-# Until then HonSSH will use a 'best effort' approach to capture files when the wget commands is detected.
-# It will not be able to capture commands such as:
-# url=www.test.url; wget $url
-# 
-# input: true/false
-# required: YES
-# default: false
-active = false
+# If you want any other application hooks or arguments passing, raise an issue
+# on the HonSSH code page. 
+
+# Calls the script when a connection is made with the following arguments
+# ./script CONNECTION_MADE DATETIME IP PORT HONEYIP HONEYPORT SESSION_ID
+#
+# input: path of script to run
+# required: NO
+connection_made = 
+
+# Calls the script when a connection is lost with the following arguments
+# ./script CONNECTION_LOST DATETIME IP PORT HONEYIP HONEYPORT SESSION_ID
+#
+# input: path of script to run
+# required: NO
+connection_lost = 
+
+# Calls the script when a login is successful with the following arguments
+# ./script LOGIN_SUCCESSFUL DATETIME IP USERNAME PASSWORD
+#
+# input: path of script to run
+# required: NO
+login_successful = 
+
+# Calls the script when a login has failed with the following arguments
+# ./script LOGIN_FAILED DATETIME IP USERNAME PASSWORD
+#
+# input: path of script to run
+# required: NO
+login_failed = 
+
+# Calls the script when a channel is opened with the following arguments
+# ./script CHANNEL_OPENED DATETIME NAME CHANNEL_ID
+#
+# input: path of script to run
+# required: NO
+channel_opened = 
+
+# Calls the script when a channel is closed with the following arguments
+# ./script CHANNEL_CLOSED DATETIME NAME CHANNEL_ID
+#
+# input: path of script to run
+# required: NO
+channel_closed =
+
+# Calls the script when a command is entered with the following arguments
+# ./script COMMAND_ENTERED DATETIME CHANNEL_ID COMMAND
+#
+# input: path of script to run
+# required: NO
+command_entered = 
+
+# Calls the script when a file download is started with the following arguments
+# ./script DOWNLOAD_STARTED DATETIME CHANNEL_ID LINK FILE_PATH
+#
+# input: path of script to run
+# required: NO
+download_started = 
+
+# Calls the script when a file download is finished with the following arguments
+# ./script DOWNLOAD_FININSHED DATETIME CHANNEL_ID LINK FILE_PATH
+#
+# input: path of script to run
+# required: NO
+download_finished = 
 
 #-----------------------#
 #     PACKET LOGGING    #
@@ -440,119 +574,3 @@ enabled = false
 # default: false
 enabled = false
 
-#-----------------------#
-#   Containers          #
-#-----------------------#
-[containers]
-# Allows honey pot to run as a container
-#
-# input: true/false
-# required: YES
-# default: false
-enabled = false
-
-# driver: docker (please contribute more :-))
-# default docker
-# required: if enabled = true
-driver = docker
-
-# image: image id/name to use for honeypot container
-# required: if enabled = true
-image = 
-
-# uri: socket to interact with container daemon
-# required: if enabled = true
-# default: unix://var/run/docker.sock
-uri = unix://var/run/docker.sock
-
-# honey_hostname: the hostname for the container
-# required: if enabled = true
-hostname = 
-
-# launch_cmd: command to run when container is first launched
-# required: if enabled = true
-# default = service ssh start
-launch_cmd = service ssh start
-
-#-----------------------#
-#   APPLICATION HOOKS   #
-#-----------------------#
-[app_hooks]
-
-# Enable app_hooks output plugin
-#
-# input: true/false
-# required: YES
-# default: false
-enabled = false
-
-# If you want any other application hooks or arguments passing, raise an issue
-# on the HonSSH code page. 
-
-# Calls the script when a connection is made with the following arguments
-# ./script CONNECTION_MADE DATETIME IP PORT HONEYIP
-#
-# input: path of script to run
-# required: NO
-connection_made = 
-
-# Calls the script when a connection is lost with the following arguments
-# ./script CONNECTION_LOST DATETIME IP
-#
-# input: path of script to run
-# required: NO
-connection_lost = 
-
-# Calls the script when a login is successful with the following arguments
-# ./script LOGIN_SUCCESSFUL DATETIME IP USERNAME PASSWORD
-#
-# input: path of script to run
-# required: NO
-login_successful = 
-
-# Calls the script when a login has failed with the following arguments
-# ./script LOGIN_FAILED DATETIME IP USERNAME PASSWORD
-#
-# input: path of script to run
-# required: NO
-login_failed = 
-
-# Calls the script when a command is entered with the following arguments
-# ./script COMMAND_ENTERED DATETIME IP COMMAND
-#
-# input: path of script to run
-# required: NO
-command_entered = 
-
-# Calls the script when a file download is started with the following arguments
-# ./script DOWNLOAD_STARTED DATETIME IP LINK FILE_PATH
-#
-# input: path of script to run
-# required: NO
-download_started = 
-
-# Calls the script when a file download is finished with the following arguments
-# ./script DOWNLOAD_FININSHED DATETIME IP LINK FILE_PATH
-#
-# input: path of script to run
-# required: NO
-download_finished = 
-
-channel_opened = 
-
-channel_closed = 
-
-#Multi HonSSH
-#
-#Script to call after a connection is initiated from an attacker
-#
-#Script is passed the following:
-#./script ATTACKER_IP CONNECTING_IP
-#
-#The script must finish with exit 0 otherwise HonSSH will close the connection with the attacker
-#The script must print the following just before exiting: Sensor_Name, HoneyPot_IP, HoneyPot_Port
-#e.g. HonSSH_Sensor 1, 10.0.0.5, 22
-#
-#Wiki article to come...
-#
-pre_auth_script = 

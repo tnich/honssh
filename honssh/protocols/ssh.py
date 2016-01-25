@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Thomas Nicholson <tnnich@googlemail.com>
+# Copyright (c) 2016 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without

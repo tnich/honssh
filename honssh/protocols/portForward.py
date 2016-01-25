@@ -1,4 +1,4 @@
-# Copyright (c) 2013 Thomas Nicholson <tnnich@googlemail.com>
+# Copyright (c) 2016 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -30,10 +30,12 @@
 # http://www.codeproject.com/Tips/612847/Generate-a-quick-and-easy-custom-pcap-file-using-P
 
 from honssh.protocols import baseProtocol 
+from honssh import log
 import binascii
 import socket
 import datetime
 import os
+import socket
 
 class PortForward(baseProtocol.BaseProtocol):  
     
@@ -49,10 +51,8 @@ class PortForward(baseProtocol.BaseProtocol):
         self.otherBaseParent = otherParent
         
         self.connDetails = connDetails
-        if self.connDetails['dstIP'] == 'localhost':
-            self.connDetails['dstIP'] = '127.0.0.1'
-        if self.connDetails['srcIP'] == 'localhost':
-            self.connDetails['srcIP'] = '127.0.0.1'
+        self.connDetails['dstIP'] = socket.gethostbyname_ex(self.connDetails['dstIP'])[2][0]
+        self.connDetails['srcIP'] = socket.gethostbyname_ex(self.connDetails['srcIP'])[2][0]
             
         self.out.portForwardLog(self.name, self.connDetails)
             
@@ -79,7 +79,6 @@ class PortForward(baseProtocol.BaseProtocol):
         
     def createPacket(self):
         self.payload = self.payload.encode('hex')
-        #udpHeader = self.createUDPHeader(srcPort, dstPort, theData)
         tcpHeader = self.createTCPHeader()
         ipHeader = self.createIPHeader(tcpHeader)
         macHeader = self.createMACHeader()
@@ -88,14 +87,11 @@ class PortForward(baseProtocol.BaseProtocol):
     
     def doTCPHandshake(self):
         self.tcpFlags = '002'
-        #self.parsePacket(self.baseParent, '')
         self.serverSeq = self.serverSeq + 1
         self.clientSeq = self.clientSeq + 1
         self.tcpFlags = '012'
-        #self.parsePacket(self.otherBaseParent, '')
         self.clientSeq = self.clientSeq + 1
         self.tcpFlags = '010'
-        #self.parsePacket(self.baseParent, '')
         self.doAcksNow = True
         
     def doAck(self):
@@ -110,13 +106,10 @@ class PortForward(baseProtocol.BaseProtocol):
         
     def doFin(self):
         self.tcpFlags = '011'
-        #self.parsePacket(self.otherBaseParent, '')
         self.clientSeq = self.clientSeq + 1
         self.tcpFlags = '011'
-        #self.parsePacket(self.baseParent, '')
         self.serverSeq = self.serverSeq + 1
         self.tcpFlags = '010'
-        #self.parsePacket(self.otherBaseParent, '')
     
     def createTCPHeader(self):
         tcpHeader = 'AAAABBBBCCCCCCCCDDDDDDDD5EEE1000FFFF0000'
@@ -160,15 +153,10 @@ class PortForward(baseProtocol.BaseProtocol):
 
         ipHeader = ipHeader.replace('EEEEEEEE', binascii.hexlify(socket.inet_aton(dstIP)))
         ipHeader = ipHeader.replace('DDDDDDDD', binascii.hexlify(socket.inet_aton(srcIP)))
-        #ipHeader = ipHeader.replace('BB', '11')
         ipHeader = ipHeader.replace('BB', '06')
         ipLength = (len(ipHeader) + len(tcpHeader) + len(self.payload)) / 2
         ipHeader = ipHeader.replace('AAAA', '%04x' % int(ipLength))
-        
-        #ipChecksum = self.createIPChecksum(ipHeader.replace('CCCC', '0000'))
         ipHeader = ipHeader.replace('CCCC', '0000')
-        #ipHeader = ipHeader.replace('CCCC', '%04x' % ipChecksum)
-
         return ipHeader
     
     def createIPChecksum(self, iph):
