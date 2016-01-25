@@ -29,7 +29,7 @@
 from honssh.protocols import baseProtocol, sftp, term, execTerm, portForward
 from honssh import log
 from honssh.config import config
-import struct, uuid, random, os, re
+import struct, uuid
 
 class SSH(baseProtocol.BaseProtocol):
     
@@ -109,7 +109,6 @@ class SSH(baseProtocol.BaseProtocol):
             authType = self.extractString()
             if authType == 'password':
                 self.extractBool()
-                psize = self.packetSize
                 self.password = self.extractString()
                 if self.password != "":
                     
@@ -117,37 +116,6 @@ class SSH(baseProtocol.BaseProtocol):
                         self.server.start_post_auth(self.username, self.password)
                         self.sendOn = False
                     
-                    '''
-                    if self.cfg.get('spoof', 'enabled') == 'true':
-                        user = self.getUsers(self.username)
-                        rand = 0
-                        if user != None:
-                            if user[2] == 'fixed':
-                                passwords = re.sub(r'\s', '', user[3]).split(',')
-                                if self.password in passwords:
-                                    rand = 1
-                            elif user[2] == 'random':
-                                randomFactor = (100 / int(user[3])) + 1
-                                rand = random.randrange(1, randomFactor)
-                    
-                            found = False
-                            logfile = self.cfg.get('folders', 'log_path') + "/spoof.log"
-                            if os.path.isfile(logfile):
-                                f = file(logfile, 'r')
-                                creds = f.read().splitlines()
-                                f.close()
-                                for cred in creds:
-                                    cred = cred.strip().split(' - ')
-                                    if cred[0] == self.username and cred[1] == self.password:
-                                        rand = 1
-                                        self.out.writePossibleLink(cred[2:])
-                                        break
-
-                        if rand == 1:
-                            payload = payload[:0-psize] + self.stringToHex(user[1])
-                            self.out.addConnectionString("[SSH  ] Spoofing Login - Changing %s to %s" % (self.password, user[1]))
-                            self.out.writeSpoofPass(self.username, self.password) 
-                    '''
             elif authType == 'publickey':
                 if self.cfg.get('hp-restrict', 'disable_publicKey') == 'true':
                     self.sendOn = False
@@ -368,8 +336,6 @@ class SSH(baseProtocol.BaseProtocol):
         self.inject(94, payload)
     
     def injectDisconnect(self):
-        #payload = self.intToHex(11) + self.stringToHex('disconnected by user') + self.intToHex(0)
-        #self.inject(1, payload)
         self.server.loseConnection()
         
     def inject(self, packetNum, payload):

@@ -29,8 +29,6 @@
 from honssh import log
 from honssh.protocols import baseProtocol 
 import datetime
-import re
-import binascii
 
 class Term(baseProtocol.BaseProtocol):    
     command = ''

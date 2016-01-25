@@ -28,7 +28,7 @@
 
 # Should be compatible with user mode Linux
 
-import struct, sys, os
+import struct, os
 
 OP_OPEN, OP_CLOSE, OP_WRITE, OP_EXEC = 1, 2, 3, 4
 TYPE_INPUT, TYPE_OUTPUT, TYPE_INTERACT = 1, 2, 3

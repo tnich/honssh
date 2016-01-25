@@ -73,13 +73,10 @@ class Post_Auth(base_auth_handler.Base_Auth):
                         client_factory.server = self.server
                         self.bind_ip = self.server.net.setupNetworking(self.server.peer_ip, self.honey_ip, self.honey_port)
                         self.networkingSetup = True
-                        #TODO: REMOVE + 1
                         reactor.connectTCP(self.honey_ip, self.honey_port, client_factory, bindAddress=(self.bind_ip, self.server.peer_port+1), timeout=10)
                         pot_connect_defer = threads.deferToThread(self.is_pot_connected)
                         pot_connect_defer.addCallback(self.pot_connected)
             else:
-                ##log.msg("[POST_AUTH][ERROR] PLUGIN ERROR - DISCONNECTING ATTACKER")
-                ##self.server.loseConnection()
                 log.msg(log.LBLUE, '[POST_AUTH]', 'SUCCESS = FALSE, NOT POST-AUTHING')
                 self.dont_post_auth()
         else:
@@ -89,15 +86,7 @@ class Post_Auth(base_auth_handler.Base_Auth):
     def pot_connected(self, success):
         if success:
             if not self.server.disconnected:
-                
                 self.send_next()
-                
-                #self.server.connection_setup()
-                #log.msg("[POST_AUTH] CLIENT CONNECTED, REPLAYING BUFFERED PACKETS")
-                #for packet in self.delayedPackets:
-                #    self.server.sshParse.parsePacket("[SERVER]", packet[0], packet[1])
-                #self.finishedSending = True
-                #self.server.post_auth_started = False
             else:
                 self.server.client.loseConnection()
         else:

@@ -26,11 +26,9 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from twisted.conch.ssh import transport, service
+from twisted.conch.ssh import transport
 from honssh import log
 from twisted.internet import reactor, protocol, defer
-from honssh.config import config
-import datetime, time, os, re, io, struct
 
 class HonsshClientTransport(transport.SSHClientTransport):
     
@@ -57,11 +55,6 @@ class HonsshClientTransport(transport.SSHClientTransport):
         else:
             self.factory.server.post_auth.connection_lost()
 
-        #try:
-        #    self.factory.server.loseConnection()       
-        #except:
-        #    pass
-
     def dispatchMessage(self, messageNum, payload):
         if transport.SSHClientTransport.isEncrypted(self, "both"):
             self.factory.server.sshParse.parsePacket('[CLIENT]', messageNum, payload)
@@ -76,7 +69,6 @@ class HonsshSlimClientTransport(transport.SSHClientTransport):
     def dataReceived(self, data):
         self.buf = self.buf + data
         if not self.gotVersion:
-            cfg = self.factory.server.cfg
             if self.buf.find('\n', self.buf.find('SSH-')) == -1:
                 return
             lines = self.buf.split('\n')

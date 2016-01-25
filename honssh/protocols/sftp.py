@@ -28,7 +28,7 @@
 
 from honssh import log
 from honssh.protocols import baseProtocol
-import datetime, io 
+import datetime 
 
 class SFTP(baseProtocol.BaseProtocol):
     prevID = ''
@@ -80,6 +80,8 @@ class SFTP(baseProtocol.BaseProtocol):
         self.serverPacket = baseProtocol.BaseProtocol()
        
     def parsePacket(self, parent, payload): 
+
+        self.parent = parent
         
         if parent == '[SERVER]':
             self.parentPacket = self.serverPacket
@@ -223,7 +225,7 @@ class SFTP(baseProtocol.BaseProtocol):
         flags = '{0:08b}'.format(self.extractInt(4))
         if flags[5] == '1':
             perms = '{0:09b}'.format(self.extractInt(4))
-            log.msg(log.LPURPLE, parent + '[SFTP]', 'PERMS:' + perms)
+            log.msg(log.LPURPLE, self.parent + '[SFTP]', 'PERMS:' + perms)
             chmod = str(int(perms[:3], 2)) + str(int(perms[3:6], 2)) + str(int(perms[6:], 2))
             cmd = 'chmod ' + chmod
         elif flags[6] == '1':
@@ -232,7 +234,7 @@ class SFTP(baseProtocol.BaseProtocol):
             cmd = 'chown ' + user + ':'  + group
         else:
             #Unknown attribute
-            log.msg(log.LRED, parent + '[SFTP]', 'New SFTP Attribute detected - Please raise a HonSSH issue on github with the details: %s %s' % (flags, self.data))
+            log.msg(log.LRED, self.parent + '[SFTP]', 'New SFTP Attribute detected - Please raise a HonSSH issue on github with the details: %s %s' % (flags, self.data))
         return cmd
 
 

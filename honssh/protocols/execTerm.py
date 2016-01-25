@@ -27,7 +27,7 @@
 # SUCH DAMAGE.
 
 from honssh.protocols import baseProtocol 
-import re, io, datetime
+import re, datetime
 
 class ExecTerm(baseProtocol.BaseProtocol):  
     size = -1

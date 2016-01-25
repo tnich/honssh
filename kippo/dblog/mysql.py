@@ -27,9 +27,8 @@
 # SUCH DAMAGE.
 
 from twisted.enterprise import adbapi
-from twisted.internet import defer
 from honssh import log
-import MySQLdb, uuid, time, datetime
+import MySQLdb
 
 class ReconnectingConnectionPool(adbapi.ConnectionPool):
     """Reconnecting adbapi connection pool for MySQL.

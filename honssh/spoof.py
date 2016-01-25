@@ -49,7 +49,6 @@ def get_connection_details(cfg, conn_details):
                         randomFactor = (100 / int(user[3])) + 1
                         rand = random.randrange(1, randomFactor)
         
-                found = False
                 logfile = cfg.get('folders', 'log_path') + "/spoof.log"
                 if os.path.isfile(logfile):
                     f = file(logfile, 'r')
@@ -59,12 +58,9 @@ def get_connection_details(cfg, conn_details):
                         cred = cred.strip().split(' - ')
                         if cred[0] == conn_details['username'] and cred[1] == conn_details['password']:
                             rand = 1
-                            #self.out.writePossibleLink(cred[2:])
                             break
 
         if rand == 1:
-            #self.out.addConnectionString("[SSH  ] Spoofing Login - Changing %s to %s" % (conn_details['password'], user[1]))
-            #self.out.writeSpoofPass(conn_details['username'], conn_details['password']) 
             write_spoof_log(cfg, conn_details)
             return True, conn_details['username'], user[1]
     

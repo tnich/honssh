@@ -26,19 +26,15 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from twisted.conch.ssh import factory, transport, service
-from twisted.conch.ssh.transport import SSHCiphers
+from twisted.conch.ssh import factory
 from honssh import log
-from twisted.internet import reactor, defer, threads
+from twisted.internet import reactor
 from honssh import client, networking, honsshServer, connections, plugins
 from honssh import output_handler
 from honssh import pre_auth_handler
 from honssh import post_auth_handler
-from honssh.protocols import sftp, ssh
+from honssh.protocols import ssh
 from honssh.config import config
-#from kippo.dblog import mysql
-#from hpfeeds import hpfeeds
-import datetime, time, os, struct, re, subprocess, random
 
 class HonsshServerTransport(honsshServer.HonsshServer):
     cfg = config()
@@ -47,7 +43,6 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         self.timeoutCount = 0
         self.interactors = []
         self.wasConnected = False
-##        self.networkingSetup = False
 
         self.out = output_handler.Output(self.factory)
         self.net = networking.Networking()
@@ -58,8 +53,6 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         self.clientConnected = False
         self.post_auth_started = False
         self.spoofed = False
-##        self.finishedSending = False
-##        self.delayedPackets = []
         
         self.peer_ip = self.transport.getPeer().host
         self.peer_port = self.transport.getPeer().port+1
@@ -68,9 +61,6 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         
         self.pre_auth = pre_auth_handler.Pre_Auth(self)
         self.post_auth = post_auth_handler.Post_Auth(self)
-        
- ##       preAuthDefer = threads.deferToThread(self.preAuth)
- ##       preAuthDefer.addCallback(self.preAuthConn)
         
         honsshServer.HonsshServer.connectionMade(self)
         
@@ -123,86 +113,7 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         self.post_auth_started = True
         self.post_auth.start(username, password)
         
-    '''        
-    def preAuth(self):
-        if self.cfg.has_option('app_hooks', 'pre_auth_script'):
-            if self.cfg.get('app_hooks', 'pre_auth_script') != '':
-                log.msg('[SERVER] Calling pre_auth_script')
-                preAuthCommand = self.cfg.get('app_hooks', 'pre_auth_script') + ' ' + self.peer_ip + ' ' + self.local_ip
-                sp = subprocess.Popen(preAuthCommand, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-                result = sp.communicate()
-                if sp.returncode == 0:
-                    binder = result[0].split(',')
-                    self.sensorName = binder[0].lstrip().strip()
-                    self.honeyIP = binder[1].lstrip().strip()
-                    self.honeyPort = int(binder[2].lstrip().strip())
-                    return True, self.sensorName, self.honeyIP, self.honeyPort
-                else:
-                    return False, result[0], None, None
-                
-        if self.cfg.get('containers', 'enabled') == 'true':
-            from plugins.containers import get_container_driver
-            socket = self.cfg.get('containers', 'uri')
-            image = self.cfg.get('containers', 'image')
-            driver = self.cfg.get('containers', 'driver')
-            launch_cmd = self.cfg.get('containers', 'launch_cmd')
-            hostname = self.cfg.get('containers', 'hostname')
-            self.container_driver = get_container_driver(driver, socket, image, log, launch_cmd, hostname)
-            self.container = self.container_driver.launch_container()
 
-            log.msg("[PLUGIN:CONTAINERS] Launched container (%s, %s)" % (self.container['ip'], self.container['id']))
-            self.sensorName = self.container['id']
-            self.honeyIP = self.container['ip']
-            self.honeyPort = int(self.cfg.get('honeypot','honey_port'))
-
-        else:
-            self.sensorName = self.cfg.get('honeypot','sensor_name')
-            self.honeyIP = self.cfg.get('honeypot','honey_addr')
-            self.honeyPort = int(self.cfg.get('honeypot','honey_port'))
-
-        return True, self.sensorName, self.honeyIP, self.honeyPort
-        
-    def preAuthConn(self, input):
-        success, theSensorName, theIP, thePort = input
-        if success:
-            if not self.disconnected:
-                log.msg('[SERVER] Connecting to Honeypot: ' + theSensorName + ' (' + theIP + ':' + str(thePort) + ')')
-                clientFactory = client.HonsshClientFactory()
-                clientFactory.server = self
-                self.bindIP = self.net.setupNetworking(self.peer_ip, str(thePort))
-                self.networkingSetup = True
-                reactor.connectTCP(theIP, thePort, clientFactory, bindAddress=(self.bindIP, self.peer_port), timeout=10)
-                            
-                tunnelsUpDefer = threads.deferToThread(self.tunnelsUp)
-                tunnelsUpDefer.addCallback(self.tunnelsUpConn)
-        else:
-            log.msg("[SERVER][ERROR] SCRIPT ERROR - " + theSensorName)
-            log.msg("[SERVER][ERROR] - DISCONNECTING ATTACKER")
-            self.loseConnection()
-        
-    def tunnelsUp(self):
-        self.timeoutCount = 0
-        while not self.clientConnected:
-            time.sleep(0.5)
-            self.timeoutCount = self.timeoutCount + 0.5
-            if self.timeoutCount == 10:
-                break
-        return self.clientConnected
-
-    def tunnelsUpConn(self, success):
-        if success:
-            log.msg("[SERVER] CLIENT CONNECTED, REPLAYING BUFFERED PACKETS")
-            self.out.connectionMade(self.peer_ip, self.peer_port, self.honeyIP, self.honeyPort, self.sensorName)
-            self.out.setVersion(self.otherVersionString)
-            self.wasConnected = True
-            for packet in self.delayedPackets:
-                self.sshParse.parsePacket("[SERVER]", packet[0], packet[1])
-            self.finishedSending = True
-        else:
-            log.msg("[SERVER][ERROR] COULD NOT CONNECT TO HONEYPOT AFTER 10 SECONDS - DISCONNECTING CLIENT")
-            self.loseConnection()
-        '''
-        
 class HonsshServerFactory(factory.SSHFactory):
     cfg = config()
     otherVersionString = ''

@@ -26,7 +26,8 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-import ConfigParser, os, re
+import ConfigParser
+import re
 from honssh import plugins
 
 def config():
@@ -83,15 +84,6 @@ def validateConfig(cfg):
         prop = ['spoof','users_conf']
         if not checkExist(cfg,prop):
             validConfig = False
-    
-
-    '''
-    #Check for container support
-    if cfg.get('containers','enabled') == 'true':
-        from plugins.containers.config import validate_containers_config
-        if not validate_containers_config(cfg):
-            validConfig = False
-    '''
 
     return validConfig
     

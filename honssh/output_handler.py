@@ -27,19 +27,15 @@
 # SUCH DAMAGE.
 
 from honssh import log
-from twisted.internet import threads, reactor
+from twisted.internet import threads
 from honssh.config import config
-#from honssh import txtlog
 from honssh import plugins
 from kippo.core import ttylog
-#from kippo.dblog import mysql
-#from hpfeeds import hpfeeds
+
 import datetime
 import time
 import os
-import struct
 import re
-import subprocess
 import uuid
 import getopt
 import hashlib
@@ -215,13 +211,12 @@ class Output():
         ttylog.ttylog_close(ttylog_file, time.time())
         
     def portForwardLog(self, channelName, connDetails):
-        dt = self.getDateTime()
         theDNS = ''
         try:
             theDNS = ' (' + socket.gethostbyaddr(connDetails['srcIP'])[0] + ')'
         except:
             pass
-        ##txtlog.log(dt, self.txtlog_file, channelName + ' Source: ' + connDetails['srcIP'] + ':' + str(connDetails['srcPort']) + theDNS)
+        #TODO: LOG SOMEWHERE
         log.msg(log.LPURPLE, '[OUTPUT]', channelName + ' Source: ' + connDetails['srcIP'] + ':' + str(connDetails['srcPort']) + theDNS)
         
         theDNS = ''
@@ -229,7 +224,7 @@ class Output():
             theDNS = ' (' + socket.gethostbyaddr(connDetails['dstIP'])[0] + ')'
         except:
             pass
-        ##txtlog.log(dt, self.txtlog_file, channelName + ' Destination: ' + connDetails['dstIP'] + ':' + str(connDetails['dstPort']) + theDNS)
+        #TODO: LOG SOMEWHERE
         log.msg(log.LPURPLE, '[OUTPUT]', channelName + ' Destination: ' + connDetails['dstIP'] + ':' + str(connDetails['dstPort']) + theDNS)
 
 

@@ -29,7 +29,7 @@
 # SUCH DAMAGE.
 
 
-import os, sys, time, struct, string, getopt
+import os, sys, time, struct, getopt
 
 OP_OPEN, OP_CLOSE, OP_WRITE, OP_EXEC = 1, 2, 3, 4
 TYPE_INPUT, TYPE_OUTPUT, TYPE_INTERACT = 1, 2, 3

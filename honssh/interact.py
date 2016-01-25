@@ -30,6 +30,7 @@ import json
 import base64 
 
 from twisted.internet import protocol
+from honssh import log
 
 class Interact(protocol.Protocol):
 
@@ -69,21 +70,6 @@ class Interact(protocol.Protocol):
                     num_sessions = 0
                     for sensor in theList:
                         num_sessions = num_sessions + len(sensor['sessions'])
-                    '''
-                    for sensor in self.factory.connections.connections:
-                        tempSensor = dict.copy(sensor)
-                        tempSensor['sessions'] = []    
-                        for session in sensor['sessions']:
-                            tempSession = dict.copy(session)
-                            tempSession['channels'] = []
-                            for channel in session['channels']:
-                                tempChannel = dict.copy(channel)
-                                tempChannel.pop('class', None)
-                                tempSession['channels'].append(tempChannel)
-                            tempSensor['sessions'].append(tempSession)
-                        theList.append(tempSensor)
-                    if theList == []:
-                    '''
                     if num_sessions == 0:
                         theList = {'msg':'INFO: No active sessions'}
                     self.sendData(theList)

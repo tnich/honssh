@@ -35,7 +35,6 @@ import binascii
 import socket
 import datetime
 import os
-import socket
 
 class PortForward(baseProtocol.BaseProtocol):  
     

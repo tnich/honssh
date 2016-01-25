@@ -111,7 +111,7 @@ class Plugin():
         
     
     def sqlerror(self, error):
-        log.msg(LOG.LRED, '[PLUGIN][MYSQL]', 'SQL Error:' + str(error.value))
+        log.msg(log.LRED, '[PLUGIN][MYSQL]', 'SQL Error:' + str(error.value))
 
     def simpleQuery(self, sql, args):
         """ Just run a deferred sql query, only care about errors """
