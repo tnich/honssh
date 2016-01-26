@@ -579,7 +579,7 @@ download_finished =
 # default: false
 enabled = false
 
-[packets]
+[output-packets]
 
 # Log all SSH Packets to text file (.log-adv)
 #
