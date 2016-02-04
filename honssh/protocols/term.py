@@ -131,7 +131,10 @@ class Term(baseProtocol.BaseProtocol):
                         self.command = self.command[:self.pointer] + self.data[:1] + self.command[self.pointer:]
                         self.pointer = self.pointer + 1
                         self.data = self.data[1:]
-                    
+                    else:
+                        self.pointer = self.pointer + 1
+                        self.data = self.data[1:]
+
                 self.upArrow = False
             
     def addInteractor(self, interactor):
