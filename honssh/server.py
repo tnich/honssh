@@ -152,8 +152,8 @@ class HonsshServerFactory(factory.SSHFactory):
             ske = t.supportedKeyExchanges[:]
             if 'diffie-hellman-group-exchange-sha1' in ske:
                 ske.remove('diffie-hellman-group-exchange-sha1')
-            if 'diffie-hellman-group-exchange-sha256' in ske:
-                ske.remove('diffie-hellman-group-exchange-sha256')
+#            if 'diffie-hellman-group-exchange-sha256' in ske:
+#                ske.remove('diffie-hellman-group-exchange-sha256')
             t.supportedKeyExchanges = ske
             
         t.supportedCiphers = ['aes128-ctr', 'aes192-ctr', 'aes256-ctr', 'aes128-cbc', '3des-cbc', 'blowfish-cbc', 'cast128-cbc', 'aes192-cbc', 'aes256-cbc' ]
