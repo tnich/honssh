@@ -42,7 +42,8 @@ class Pre_Auth(base_auth_handler.Base_Auth):
         self.sensor_name = ''
         self.honey_ip = ''
         self.honey_port = ''
-        
+        self.conection_timeout = 10
+
         self.conn_details = {'peer_ip':self.server.peer_ip, 'peer_port':self.server.peer_port, 'local_ip':self.server.local_ip, 'local_port':self.server.local_port}
         
         conn_details_defer = threads.deferToThread(self.get_conn_details)
@@ -54,7 +55,7 @@ class Pre_Auth(base_auth_handler.Base_Auth):
                 self.sensor_name = returned_conn_details['sensor_name']
                 self.honey_ip = returned_conn_details['honey_ip']
                 self.honey_port = returned_conn_details['honey_port']
-                connection_timeout = returned_conn_details['connection_timeout']
+                self.conection_timeout = returned_conn_details['connection_timeout']
 
                 if not self.server.disconnected:
                     log.msg(log.LGREEN, '[PRE_AUTH]', 'Connecting to Honeypot: %s (%s:%s)' % (self.sensor_name, self.honey_ip, self.honey_port))
@@ -62,7 +63,7 @@ class Pre_Auth(base_auth_handler.Base_Auth):
                     client_factory.server = self.server
                     self.bind_ip = self.server.net.setupNetworking(self.server.peer_ip, self.honey_ip, self.honey_port)
                     self.networkingSetup = True
-                    reactor.connectTCP(self.honey_ip, self.honey_port, client_factory, bindAddress=(self.bind_ip, self.server.peer_port+2), timeout=connection_timeout)
+                    reactor.connectTCP(self.honey_ip, self.honey_port, client_factory, bindAddress=(self.bind_ip, self.server.peer_port+2), timeout=self.conection_timeout)
 
                     pot_connect_defer = threads.deferToThread(self.is_pot_connected)
                     pot_connect_defer.addCallback(self.pot_connected)
@@ -85,7 +86,7 @@ class Pre_Auth(base_auth_handler.Base_Auth):
             else:
                 self.server.client.loseConnection()
         else:
-            log.msg(log.LRED, '[PRE_AUTH][ERROR]', 'COULD NOT CONNECT TO HONEYPOT AFTER 10 SECONDS - DISCONNECTING CLIENT')
+            log.msg(log.LRED, '[PRE_AUTH][ERROR]', 'COULD NOT CONNECT TO HONEYPOT AFTER %s SECONDS - DISCONNECTING CLIENT' % (self.conection_timeout))
             self.server.loseConnection()
         
     def connection_lost(self):
