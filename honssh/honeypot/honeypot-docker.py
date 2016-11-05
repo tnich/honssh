@@ -59,7 +59,7 @@ class Plugin():
         launch_cmd = self.cfg.get('honeypot-docker', 'launch_cmd')
         hostname = self.cfg.get('honeypot-docker', 'hostname')
         honey_port = int(self.cfg.get('honeypot-docker', 'honey_port'))
-	pids_limit = int(self.cfg.get('honeypot-docker', 'pids_limit'))
+	pids_limit = int(self.cfg.get('honeypot-docker', 'pids_limit') or "-1")
 
         self.docker_drive = docker_driver(socket, image, launch_cmd, hostname, pids_limit)
         self.container = self.docker_drive.launch_container()
