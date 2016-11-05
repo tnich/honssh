@@ -151,7 +151,7 @@ honey_port =
 pids_limit =
 
 # Memory limit of the honeypot
-# Exemple: 1G
+# Example: 1G
 # 
 # required: NO
 mem_limit =
@@ -161,6 +161,30 @@ mem_limit =
 # 
 # required: NO
 memswap_limit =
+
+# Shm size limit of the honeypot
+# Exemple: 1G
+# 
+# required: NO
+shm_size =
+
+# Microseconds of CPU time that the container can get in a CPU period of the honeypot
+# 
+# input: Number
+# required: NO
+cpu_period =
+
+# CPU shares (relative weight) of the honeypot
+# Example: Percentage * value of cat /sys/fs/cgroup/cpu/docker/cpu.shares
+#
+# required: NO
+cpu_shares  =
+
+# CPUs in which to allow execution of the honeypot
+# Example: 0-3, 0,1
+# 
+# required: NO
+cpuset_cpus = 
 
 #-----------------------#
 # HONEYPOT RESTRICTIONS #
