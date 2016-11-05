@@ -51,7 +51,12 @@ private_key_dsa = id_dsa
 # input: text
 # required: No
 # default: 
-ssh_banner = 
+ssh_banner =
+
+# connection_timeout: connection timeout for pre and post auth handlers
+# required: YES
+# default: 10
+connection_timeout =
 
 #-----------------------#
 #   HONEYPOT STATIC     #

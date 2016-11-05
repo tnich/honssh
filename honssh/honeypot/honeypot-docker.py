@@ -59,6 +59,7 @@ class Plugin():
         launch_cmd = self.cfg.get('honeypot-docker', 'launch_cmd')
         hostname = self.cfg.get('honeypot-docker', 'hostname')
         honey_port = int(self.cfg.get('honeypot-docker', 'honey_port'))
+        connection_timeout = int(self.cfg.get('honeypot','connection_timeout'))
 
         self.docker_drive = docker_driver(socket, image, launch_cmd, hostname)
         self.container = self.docker_drive.launch_container()
@@ -66,8 +67,8 @@ class Plugin():
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Launched container (%s, %s)' % (self.container['ip'], self.container['id']))
         sensor_name = self.container['id']
         honey_ip = self.container['ip']
-        
-        return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port}
+
+        return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port, 'connection_timeout':connection_timeout}
     
     def connection_lost(self, conn_details):
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Stopping container (%s, %s)' % (self.container['ip'], self.container['id']))
