@@ -55,8 +55,8 @@ ssh_banner =
 
 # connection_timeout: connection timeout for pre and post auth handlers
 # required: YES
-# default: 10
-connection_timeout =
+# default:
+connection_timeout = 10
 
 #-----------------------#
 #   HONEYPOT STATIC     #
