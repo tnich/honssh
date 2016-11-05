@@ -150,6 +150,18 @@ honey_port =
 # default: -1
 pids_limit =
 
+# Memory limit of the honeypot
+# Exemple: 1G
+# 
+# required: NO
+mem_limit =
+
+# Swap limit of the honeypot
+# Exemple: 1G
+# 
+# required: NO
+memswap_limit =
+
 #-----------------------#
 # HONEYPOT RESTRICTIONS #
 #-----------------------#
