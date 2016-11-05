@@ -143,6 +143,13 @@ launch_cmd = service ssh start
 # default: 22
 honey_port = 
 
+# Pid limit of the honeypot (-1 for ilimited)
+# 
+# input: Number
+# required: NO
+# default: -1
+pids_limit =
+
 #-----------------------#
 # HONEYPOT RESTRICTIONS #
 #-----------------------#

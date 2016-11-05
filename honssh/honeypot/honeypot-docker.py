@@ -59,8 +59,9 @@ class Plugin():
         launch_cmd = self.cfg.get('honeypot-docker', 'launch_cmd')
         hostname = self.cfg.get('honeypot-docker', 'hostname')
         honey_port = int(self.cfg.get('honeypot-docker', 'honey_port'))
+	pids_limit = int(self.cfg.get('honeypot-docker', 'pids_limit'))
 
-        self.docker_drive = docker_driver(socket, image, launch_cmd, hostname)
+        self.docker_drive = docker_driver(socket, image, launch_cmd, hostname, pids_limit)
         self.container = self.docker_drive.launch_container()
 
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Launched container (%s, %s)' % (self.container['ip'], self.container['id']))
@@ -88,18 +89,20 @@ class Plugin():
     
     
 class docker_driver():
-    def __init__(self, socket, image, launch_cmd, hostname):
+    def __init__(self, socket, image, launch_cmd, hostname, pids_limit):
         self.socket = socket
         self.image = image
         self.hostname = hostname
         self.launch_cmd = launch_cmd
+	self.pids_limit = pids_limit
         self.make_connection()
     
     def make_connection(self):
         self.connection = Client(self.socket)
         
     def launch_container(self):
-        self.container_id = self.connection.create_container(image=self.image, tty=True, hostname=self.hostname)['Id']
+        host_config = self.connection.create_host_config(pids_limit=self.pids_limit)
+	self.container_id = self.connection.create_container(image=self.image, tty=True, hostname=self.hostname, host_config=host_config)['Id']
         self.connection.start(self.container_id)
         exec_id = self.connection.exec_create(self.container_id, self.launch_cmd)['Id']
         self.connection.exec_start(exec_id, tty=True)
