@@ -123,7 +123,7 @@ def checkValidBool(cfg, property):
     
 def checkValidNumber(cfg, property):
     try:
-        int(cfg.get(property[0], property[1]).isdigit())
+        int(cfg.get(property[0], property[1]))
         return True
     except ValueError:
         print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] should be number.'
