@@ -58,6 +58,6 @@ class Base_Auth():
         while not self.server.clientConnected:
             time.sleep(0.5)
             self.timeoutCount = self.timeoutCount + 0.5
-            if self.timeoutCount == 10:
+            if self.timeoutCount == int(self.cfg.get('honeypot', 'connection_timeout')):
                 break
         return self.server.clientConnected
