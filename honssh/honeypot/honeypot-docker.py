@@ -59,8 +59,16 @@ class Plugin():
         launch_cmd = self.cfg.get('honeypot-docker', 'launch_cmd')
         hostname = self.cfg.get('honeypot-docker', 'hostname')
         honey_port = int(self.cfg.get('honeypot-docker', 'honey_port'))
+        pids_limit =  get_int(self.cfg, 'honeypot-docker', 'pids_limit')
+        mem_limit = self.cfg.get('honeypot-docker', 'mem_limit')
+        memswap_limit = self.cfg.get('honeypot-docker', 'memswap_limit')
+        shm_size = self.cfg.get('honeypot-docker', 'shm_size')
+        cpu_period = get_int(self.cfg, 'honeypot-docker', 'cpu_period')
+        cpu_shares = get_int(self.cfg, 'honeypot-docker', 'cpu_shares')
+        cpuset_cpus = self.cfg.get('honeypot-docker', 'cpuset_cpus')
 
-        self.docker_drive = docker_driver(socket, image, launch_cmd, hostname)
+        self.docker_drive = docker_driver(socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, 
+                                                cpu_period, cpu_shares, cpuset_cpus)
         self.container = self.docker_drive.launch_container()
 
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Launched container (%s, %s)' % (self.container['ip'], self.container['id']))
@@ -84,22 +92,41 @@ class Plugin():
             if not config.checkExist(self.cfg,prop):
                 return False  
 
-        return True    
-    
+        return True
+def get_int(cfg, path0, path1):
+    if cfg.has_option(path0, path1):
+        if(config.checkValidNumber(cfg, [path0, path1])):
+            return int(cfg.get(path0, path1))
+        else:
+            return None
+    else:
+        return None
     
 class docker_driver():
-    def __init__(self, socket, image, launch_cmd, hostname):
+    def __init__(self, socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, cpu_period, 
+                        cpu_shares, cpuset_cpus):
         self.socket = socket
         self.image = image
         self.hostname = hostname
         self.launch_cmd = launch_cmd
+        self.pids_limit = pids_limit
+        self.mem_limit = mem_limit
+        self.memswap_limit = memswap_limit
+        self.shm_size = shm_size
+        self.cpu_period = cpu_period
+        self.cpu_shares = cpu_shares
+        self.cpuset_cpus = cpuset_cpus
         self.make_connection()
     
     def make_connection(self):
         self.connection = Client(self.socket)
         
     def launch_container(self):
-        self.container_id = self.connection.create_container(image=self.image, tty=True, hostname=self.hostname)['Id']
+        host_config = self.connection.create_host_config(pids_limit=self.pids_limit, mem_limit=self.mem_limit, 
+                                                                memswap_limit=self.memswap_limit, shm_size=self.shm_size, 
+                                                                cpu_period=self.cpu_period, cpu_shares=self.cpu_shares,
+                                                                cpuset_cpus=self.cpuset_cpus)
+        self.container_id = self.connection.create_container(image=self.image, tty=True, hostname=self.hostname, host_config=host_config)['Id']
         self.connection.start(self.container_id)
         exec_id = self.connection.exec_create(self.container_id, self.launch_cmd)['Id']
         self.connection.exec_start(exec_id, tty=True)

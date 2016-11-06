@@ -143,6 +143,49 @@ launch_cmd = service ssh start
 # default: 22
 honey_port = 
 
+# Pid limit of the honeypot (-1 for ilimited)
+# 
+# input: Number
+# required: NO
+# default: -1
+pids_limit =
+
+# Memory limit of the honeypot
+# Example: 1G
+# 
+# required: NO
+mem_limit =
+
+# Swap limit of the honeypot
+# Exemple: 1G
+# 
+# required: NO
+memswap_limit =
+
+# Shm size limit of the honeypot
+# Exemple: 1G
+# 
+# required: NO
+shm_size =
+
+# Microseconds of CPU time that the container can get in a CPU period of the honeypot
+# 
+# input: Number
+# required: NO
+cpu_period =
+
+# CPU shares (relative weight) of the honeypot
+# Example: Percentage * value of cat /sys/fs/cgroup/cpu/docker/cpu.shares
+#
+# required: NO
+cpu_shares  =
+
+# CPUs in which to allow execution of the honeypot
+# Example: 0-3, 0,1
+# 
+# required: NO
+cpuset_cpus = 
+
 #-----------------------#
 # HONEYPOT RESTRICTIONS #
 #-----------------------#
