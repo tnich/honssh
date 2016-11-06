@@ -15,7 +15,7 @@ CREATE TABLE `clients` (
 CREATE TABLE `sensors` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `ip` VARCHAR(15) NOT NULL,
-  `name` VARCHAR(45) NOT NULL,
+  `name` VARCHAR(100) NOT NULL,
   `port` INT(6) NOT NULL,
   PRIMARY KEY (`id`)
 ) ;
