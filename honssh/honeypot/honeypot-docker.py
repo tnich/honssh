@@ -72,7 +72,8 @@ class Plugin():
         self.container = self.docker_drive.launch_container()
 
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Launched container (%s, %s)' % (self.container['ip'], self.container['id']))
-        sensor_name = self.container['id']
+        #sensor_name = self.container['id']
+        sensor_name = hostname
         honey_ip = self.container['ip']
         
         return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port}
