@@ -46,7 +46,7 @@ class Post_Auth(base_auth_handler.Base_Auth):
         self.auth_packet_number = 0
         
     def start(self, username, password):
-        self.conn_details = {'peer_ip':self.server.peer_ip, 'peer_port':self.server.peer_port, 'local_ip':self.server.local_ip, 'local_port':self.server.local_port, 'username':username, 'password':password}
+        self.conn_details = {'peer_ip':self.server.peer_ip, 'peer_port':self.server.peer_port, 'local_ip':self.server.local_ip, 'local_port':self.server.local_port, 'username':username, 'password':password, 'honey_ip':self.server.honey_ip, 'honey_port':self.server.honey_port, 'sensor_name':self.server.sensor_name}
 
         conn_details_defer = threads.deferToThread(self.get_conn_details)
         conn_details_defer.addCallback(self.connect_to_pot)
@@ -62,7 +62,7 @@ class Post_Auth(base_auth_handler.Base_Auth):
                 self.connection_timeout = returned_conn_details['connection_timeout']
 
                 self.auth_packets = [[5, self.to_string('ssh-userauth')], [50, self.to_string(self.username) + self.to_string('ssh-connection') + self.to_string('none')]]
-                
+
                 if self.sensor_name == self.server.sensor_name and self.honey_ip == self.server.honey_ip and self.honey_port == self.server.honey_port:
                     log.msg(log.LGREEN, '[POST_AUTH]', 'Details the same as pre-auth, not re-directing')
                     self.dont_post_auth()

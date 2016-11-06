@@ -48,7 +48,11 @@ class Plugin():
         success, username, password = spoof.get_connection_details(self.cfg, conn_details)
 
         if success:
-            details = self.get_connection_details()
+            if self.cfg.get('honeypot-docker', 'pre-auth') == 'true':
+                details = conn_details
+                details['success'] = True
+            else:
+                details = self.get_connection_details()
             details['username'] = username
             details['password'] = password
             details['connection_timeout'] = self.connection_timeout
