@@ -88,7 +88,7 @@ class Plugin():
             if not config.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg, prop):
                 return False
             
-        props = [['honeypot-docker','image'], ['honeypot-docker','uri'], ['honeypot-docker','hostname'], ['honeypot-docker','launch_cmd'], ['honeypot-docker','honey_port'], ['honeypot-docker','pids_limit'], ['honeypot-docker','mem_limit'], ['honeypot-docker','memswap_limit'], ['honeypot-docker','shm_size'], ['honeypot-docker','cpu_period'], ['honeypot-docker','cpu_shares'], ['honeypot-docker','cpuset_cpus']]
+        props = [['honeypot-docker','image'], ['honeypot-docker','uri'], ['honeypot-docker','hostname'], ['honeypot-docker','launch_cmd'], ['honeypot-docker','honey_port']]
         for prop in props:
             if not config.checkExist(self.cfg,prop):
                 return False 
