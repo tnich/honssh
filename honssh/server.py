@@ -159,4 +159,5 @@ class HonsshServerFactory(factory.SSHFactory):
         t.supportedCiphers = ['aes128-ctr', 'aes192-ctr', 'aes256-ctr', 'aes128-cbc', '3des-cbc', 'blowfish-cbc', 'cast128-cbc', 'aes192-cbc', 'aes256-cbc' ]
         t.supportedPublicKeys = ['ssh-rsa', 'ssh-dss']
         t.supportedMACs = [ 'hmac-md5', 'hmac-sha1']
+        t.supportedCompressions = ['zlib@openssh.com', 'zlib', 'none']
         return t
