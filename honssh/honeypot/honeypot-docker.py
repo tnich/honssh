@@ -39,16 +39,19 @@ class Plugin():
     
     def __init__(self, cfg):
         self.cfg = cfg
-        
+        self.connection_timeout = int(self.cfg.get('honeypot','connection_timeout'))
+
     def get_pre_auth_details(self, conn_details):
         return self.get_connection_details()
 
     def get_post_auth_details(self, conn_details):
         success, username, password = spoof.get_connection_details(self.cfg, conn_details)
+
         if success:
             details = self.get_connection_details()
             details['username'] = username
             details['password'] = password
+            details['connection_timeout'] = self.connection_timeout
         else:
             details = {'success':False}
         return details
@@ -75,8 +78,8 @@ class Plugin():
         #sensor_name = self.container['id']
         sensor_name = hostname
         honey_ip = self.container['ip']
-        
-        return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port}
+
+        return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port, 'connection_timeout':self.connection_timeout}
     
     def connection_lost(self, conn_details):
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Stopping container (%s, %s)' % (self.container['ip'], self.container['id']))

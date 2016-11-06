@@ -41,7 +41,8 @@ class Post_Auth(base_auth_handler.Base_Auth):
         self.send_auth = False
         self.username = False
         self.password = False
-        
+        self.connection_timeout = 10
+
         self.auth_packet_number = 0
         
     def start(self, username, password):
@@ -58,6 +59,7 @@ class Post_Auth(base_auth_handler.Base_Auth):
                 self.honey_port = returned_conn_details['honey_port']
                 self.username = returned_conn_details['username']
                 self.password = returned_conn_details['password']
+                self.connection_timeout = returned_conn_details['connection_timeout']
 
                 self.auth_packets = [[5, self.to_string('ssh-userauth')], [50, self.to_string(self.username) + self.to_string('ssh-connection') + self.to_string('none')]]
                 
@@ -73,7 +75,7 @@ class Post_Auth(base_auth_handler.Base_Auth):
                         client_factory.server = self.server
                         self.bind_ip = self.server.net.setupNetworking(self.server.peer_ip, self.honey_ip, self.honey_port)
                         self.networkingSetup = True
-                        reactor.connectTCP(self.honey_ip, self.honey_port, client_factory, bindAddress=(self.bind_ip, self.server.peer_port+1), timeout=10)
+                        reactor.connectTCP(self.honey_ip, self.honey_port, client_factory, bindAddress=(self.bind_ip, self.server.peer_port+1), timeout=self.connection_timeout)
                         pot_connect_defer = threads.deferToThread(self.is_pot_connected)
                         pot_connect_defer.addCallback(self.pot_connected)
             else:
@@ -90,7 +92,7 @@ class Post_Auth(base_auth_handler.Base_Auth):
             else:
                 self.server.client.loseConnection()
         else:
-            log.msg(log.LRED, '[POST_AUTH][ERROR]', 'COULD NOT CONNECT TO HONEYPOT AFTER 10 SECONDS - DISCONNECTING CLIENT')
+            log.msg(log.LRED, '[POST_AUTH][ERROR]', 'COULD NOT CONNECT TO HONEYPOT AFTER %s SECONDS - DISCONNECTING CLIENT' % (self.connection_timeout))
             self.server.loseConnection()
             
     def send_next(self):

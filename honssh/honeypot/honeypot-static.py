@@ -35,7 +35,8 @@ class Plugin():
     
     def __init__(self, cfg):
         self.cfg = cfg
-        
+        self.connection_timeout = int(self.cfg.get('honeypot','connection_timeout'))
+
     def get_pre_auth_details(self, conn_details):
         return self.get_connection_details()
         
@@ -45,6 +46,7 @@ class Plugin():
             details = self.get_connection_details()
             details['username'] = username
             details['password'] = password
+            details['connection_timeout'] = self.connection_timeout
         else:
             details = {'success':False}
         return details
@@ -53,8 +55,8 @@ class Plugin():
         sensor_name = self.cfg.get('honeypot-static', 'sensor_name')
         honey_ip = self.cfg.get('honeypot-static', 'honey_ip')
         honey_port = int(self.cfg.get('honeypot-static', 'honey_port'))
-        
-        return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port}
+
+        return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port, 'connection_timeout':self.connection_timeout}
 
     def validate_config(self):
         props = [['honeypot-static','enabled'], ['honeypot-static','pre-auth'], ['honeypot-static','post-auth']]

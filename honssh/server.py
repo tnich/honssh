@@ -123,11 +123,14 @@ class HonsshServerFactory(factory.SSHFactory):
     def __init__(self):
         self.ourVersionString = self.cfg.get('honeypot', 'ssh_banner')
         if self.ourVersionString == '':
-            log.msg(log.LPURPLE, '[SERVER]', 'Acquiring SSH Version String from honey_ip:honey_port')
-            clientFactory = client.HonsshSlimClientFactory()
-            clientFactory.server = self
-            
-            reactor.connectTCP(self.cfg.get('honeypot-static', 'honey_ip'), int(self.cfg.get('honeypot-static', 'honey_port')), clientFactory)
+            if self.cfg.get('honeypot-static', 'enabled') == 'true':
+                log.msg(log.LPURPLE, '[SERVER]', 'Acquiring SSH Version String from honey_ip:honey_port')
+                clientFactory = client.HonsshSlimClientFactory()
+                clientFactory.server = self
+
+                reactor.connectTCP(self.cfg.get('honeypot-static', 'honey_ip'), int(self.cfg.get('honeypot-static', 'honey_port')), clientFactory)
+            elif self.cfg.get('honeypot-docker', 'enabled') == 'true':
+                log.msg(log.LRED, '[SERVER][ERR]', 'You need to configure the ssh_banner for docker manually!')
         else:
             log.msg(log.LPURPLE, '[SERVER]', 'Using ssh_banner for SSH Version String: ' + self.ourVersionString)
         
