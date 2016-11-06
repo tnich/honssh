@@ -36,13 +36,11 @@ from honssh import log
 class Pre_Auth(base_auth_handler.Base_Auth):
     
     def __init__(self, server):
-        self.name = 'PRE_AUTH'
-        base_auth_handler.Base_Auth.__init__(self, server)
+        base_auth_handler.Base_Auth.__init__(self, server, 'PRE_AUTH')
 
-        self.sensor_name = ''
-        self.honey_ip = ''
-        self.honey_port = ''
-        self.connection_timeout = 10
+        self.sensor_name = None
+        self.honey_ip = None
+        self.honey_port = None
 
         self.conn_details = {'peer_ip':self.server.peer_ip, 'peer_port':self.server.peer_port, 'local_ip':self.server.local_ip, 'local_port':self.server.local_port}
         
@@ -61,9 +59,9 @@ class Pre_Auth(base_auth_handler.Base_Auth):
                     log.msg(log.LGREEN, '[PRE_AUTH]', 'Connecting to Honeypot: %s (%s:%s)' % (self.sensor_name, self.honey_ip, self.honey_port))
                     client_factory = client.HonsshClientFactory()
                     client_factory.server = self.server
-                    self.bind_ip = self.server.net.setupNetworking(self.server.peer_ip, self.honey_ip, self.honey_port)
+                    bind_ip = self.server.net.setupNetworking(self.server.peer_ip, self.honey_ip, self.honey_port)
                     self.networkingSetup = True
-                    reactor.connectTCP(self.honey_ip, self.honey_port, client_factory, bindAddress=(self.bind_ip, self.server.peer_port+2), timeout=self.connection_timeout)
+                    reactor.connectTCP(self.honey_ip, self.honey_port, client_factory, bindAddress=(bind_ip, self.server.peer_port+2), timeout=self.connection_timeout)
 
                     pot_connect_defer = threads.deferToThread(self.is_pot_connected)
                     pot_connect_defer.addCallback(self.pot_connected)
@@ -95,9 +93,9 @@ class Pre_Auth(base_auth_handler.Base_Auth):
             if self.networkingSetup:
                 self.server.net.removeNetworking(self.server.factory.connections.connections)
         
-            if self.auth_plugin:
+            if self.auth_plugin is not None:
                 if self.server.clientConnected:
                     plugins.run_plugins_function(self.auth_plugin, 'connection_lost', True, self.conn_details)
         else:
-            if self.auth_plugin:
+            if self.auth_plugin is not None:
                 plugins.run_plugins_function(self.auth_plugin, 'connection_lost', True, self.conn_details)
