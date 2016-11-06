@@ -143,12 +143,12 @@ launch_cmd = service ssh start
 # default: 22
 honey_port = 
 
-# Pid limit of the honeypot (-1 for ilimited)
+# Pid limit of the honeypot (-1 for unlimited)
 # 
 # input: Number
 # required: NO
 # default: -1
-pids_limit =
+pids_limit = 
 
 # Memory limit of the honeypot
 # Example: 1G
@@ -157,13 +157,13 @@ pids_limit =
 mem_limit =
 
 # Swap limit of the honeypot
-# Exemple: 1G
+# Example: 1G
 # 
 # required: NO
 memswap_limit =
 
 # Shm size limit of the honeypot
-# Exemple: 1G
+# Example: 1G
 # 
 # required: NO
 shm_size =
