@@ -1,0 +1,9 @@
+sessions/
+logs/
+users.cfg
+honssh.cfg
+id_rsa
+id_rsa.pub
+id_dsa
+id_dsa.pub
+honssh.pid
