@@ -610,6 +610,13 @@ download_started =
 # required: NO
 download_finished = 
 
+# Calls the script when a ttylog file is closed with the following arguments
+# ./script TTYLOG_CLOSED SENSOR_NAME TTYLOG_FILE
+#
+# input: path of script to run
+# required: NO
+ttylog_closed = 
+
 #-----------------------#
 #     PACKET LOGGING    #
 #-----------------------#

@@ -73,11 +73,16 @@ class Plugin():
                 self.runCommand(command)
     
     def channel_closed(self, sensor):
+        channel = sensor['session']['channel']
         if self.cfg.has_option('output-app_hooks', 'channel_closed'):
             if self.cfg.get('output-app_hooks', 'channel_closed') != '':
-                channel = sensor['session']['channel']
                 command = '%s CHANNEL_CLOSED %s %s %s' % (self.cfg.get('output-app_hooks', 'channel_closed'), channel['end_time'], channel['name'], channel['channel_id'])
                 self.runCommand(command)
+        if 'ttylog_file' in channel:
+            if self.cfg.has_option('output-app_hooks', 'ttylog_closed'):
+                if self.cfg.get('output-app_hooks', 'ttylog_closed') != '':
+                    command = '%s TTYLOG_CLOSED %s %s' % (self.cfg.get('output-app_hooks', 'ttylog_closed'), sensor['sensor_name'], channel['ttylog_file'])
+                    self.runCommand(command)
     
     def command_entered(self, sensor):
         if self.cfg.has_option('output-app_hooks', 'command_entered'):

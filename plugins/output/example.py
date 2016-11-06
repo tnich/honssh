@@ -41,31 +41,31 @@ class Plugin():
 
     def set_server(self, server):
         log.msg(log.PLAIN, '[PLUGIN][EXAMPLE]', 'SET SERVER')
-    
+
     def connection_made(self, sensor):
         log.msg(log.PLAIN, '[PLUGIN][EXAMPLE]', sensor)
-    
+
     def connection_lost(self, sensor):
         log.msg(log.PLAIN, '[PLUGIN][EXAMPLE]', sensor)
-    
+
     def set_client(self, sensor):
         log.msg(log.PLAIN, '[PLUGIN][EXAMPLE]', sensor)
-    
+
     def login_successful(self, sensor):
         log.msg(log.PLAIN, '[PLUGIN][EXAMPLE]', sensor)
-    
+
     def login_failed(self, sensor):
         log.msg(log.PLAIN, '[PLUGIN][EXAMPLE]', sensor)
-    
+
     def channel_opened(self, sensor):
         log.msg(log.PLAIN, '[PLUGIN][EXAMPLE]', sensor)
-    
+
     def channel_closed(self, sensor):
         log.msg(log.PLAIN, '[PLUGIN][EXAMPLE]', sensor)
-    
+
     def command_entered(self, sensor):
         log.msg(log.PLAIN, '[PLUGIN][EXAMPLE]', sensor)
-    
+
     def download_started(self, sensor):
         log.msg(log.PLAIN, '[PLUGIN][EXAMPLE]', sensor)
 
@@ -74,7 +74,7 @@ class Plugin():
 
     def packet_logged(self, sensor):
         log.msg(log.PLAIN, '[PLUGIN][EXAMPLE]', sensor)
-    
+
     def validate_config(self):
         props = [['example','enabled']]
         for prop in props:
