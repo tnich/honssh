@@ -37,6 +37,7 @@ class Plugin():
     
     def __init__(self, cfg):
         self.cfg = cfg
+        self.connection_timeout = int(self.cfg.get('honeypot','connection_timeout'))
 
     def get_pre_auth_details(self, conn_details):
         command = '%s %s %s %s %s' % (self.cfg.get('honeypot-script', 'pre-auth-script'), conn_details['peer_ip'], conn_details['local_ip'], conn_details['peer_port'], conn_details['local_port'])
@@ -47,7 +48,8 @@ class Plugin():
             sensor_name = binder[0].lstrip().strip()
             honey_ip = binder[1].lstrip().strip()
             honey_port = int(binder[2].lstrip().strip())
-            return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port}
+
+            return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port, 'connection_timeout':self.connection_timeout}
         else:
             return {'success':False}
                 
@@ -62,7 +64,7 @@ class Plugin():
             honey_port = int(binder[2].lstrip().strip())
             username = binder[3].lstrip().strip()
             password = binder[4].lstrip().strip()
-            return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port, 'username':username, 'password':password}
+            return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port, 'username':username, 'password':password, 'connection_timeout':self.connection_timeout}
         else:
             return {'success':False}
 
