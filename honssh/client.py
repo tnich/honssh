@@ -49,8 +49,13 @@ class HonsshClientTransport(transport.SSHClientTransport):
         
     def connectionLost(self, reason):
         transport.SSHClientTransport.connectionLost(self, reason)
-        log.msg(log.LBLUE, '[CLIENT]', 'Lost connection with the Honeypot: ' + self.factory.server.sensor_name + ' (' + self.factory.server.honey_ip + ':' + str(self.factory.server.honey_port) + ')')
-        if self.factory.server.post_auth_started or self.factory.server.post_auth.auth_plugin == None:
+
+        if self.factory.server.wasConnected:
+            log.msg(log.LBLUE, '[CLIENT]', 'Lost connection with the Honeypot: ' + self.factory.server.sensor_name + ' (' + self.factory.server.honey_ip + ':' + str(self.factory.server.honey_port) + ')')
+        else:
+            log.msg(log.LBLUE, '[CLIENT]', 'Lost connection with the Honeypot (Server<->Honeypot not connected)')
+
+        if self.factory.server.post_auth_started or self.factory.server.post_auth.auth_plugin is None:
             self.factory.server.pre_auth.connection_lost()
         else:
             self.factory.server.post_auth.connection_lost()
