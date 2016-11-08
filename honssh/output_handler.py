@@ -61,9 +61,9 @@ class Output():
         self.honey_port = str(honey_port)
         self.end_ip = end_ip
         self.end_port = str(end_port)
-        self.session_id = uuid.uuid4().hex        
-        self.logLocation = self.cfg.get('folders', 'session_path') + "/" + self.sensor_name + "/"+ end_ip + "/"
-        
+        self.session_id = uuid.uuid4().hex
+        self.logLocation = self.cfg.get('folders', 'session_path') + "/" + self.sensor_name + "/" + end_ip + "/"
+
         self.downloadFolder = self.logLocation + 'downloads/'
 
         for plugin in self.loaded_plugins:
@@ -201,12 +201,17 @@ class Output():
         
     def openTTY(self, ttylog_file):
         ttylog.ttylog_open(ttylog_file, time.time())
+
     def inputTTY(self, ttylog_file, data):
+
         ttylog.ttylog_write(ttylog_file, len(data), ttylog.TYPE_INPUT, time.time(), data)
+
     def outputTTY(self, ttylog_file, data):
         ttylog.ttylog_write(ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
+
     def interactTTY(self, ttylog_file, data):
         ttylog.ttylog_write(ttylog_file, len(data), ttylog.TYPE_INTERACT, time.time(), data)
+
     def closeTTY(self, ttylog_file):
         ttylog.ttylog_close(ttylog_file, time.time())
         

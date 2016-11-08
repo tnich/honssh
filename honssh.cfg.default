@@ -151,6 +151,10 @@ honey_port =
 # overlay_folder: Save changes made to the docker container filesystem into given folder
 # nothing is saved if left empty
 #
+# Warning:
+# - This delays the connection until all watches are added
+# - This may have a performance impact (depends on the amount of running containers)
+#
 # required: NO
 overlay_folder = overlay
 

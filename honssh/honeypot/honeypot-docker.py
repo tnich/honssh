@@ -45,10 +45,12 @@ class Plugin():
     
     def __init__(self, cfg):
         self.cfg = cfg
-        self.connection_timeout = int(self.cfg.get('honeypot','connection_timeout'))
+        self.connection_timeout = int(self.cfg.get('honeypot', 'connection_timeout'))
+        self.docker_drive = None
+        self.container = None
 
     def get_pre_auth_details(self, conn_details):
-        return self.get_connection_details()
+        return self.get_connection_details(conn_details)
 
     def get_post_auth_details(self, conn_details):
         success, username, password = spoof.get_connection_details(self.cfg, conn_details)
@@ -58,7 +60,7 @@ class Plugin():
                 details = conn_details
                 details['success'] = True
             else:
-                details = self.get_connection_details()
+                details = self.get_connection_details(conn_details)
             details['username'] = username
             details['password'] = password
             details['connection_timeout'] = self.connection_timeout
@@ -66,7 +68,7 @@ class Plugin():
             details = {'success':False}
         return details
         
-    def get_connection_details(self):
+    def get_connection_details(self, conn_details):
         socket = self.cfg.get('honeypot-docker', 'uri')
         image = self.cfg.get('honeypot-docker', 'image')
         launch_cmd = self.cfg.get('honeypot-docker', 'launch_cmd')
@@ -81,13 +83,19 @@ class Plugin():
         cpuset_cpus = self.cfg.get('honeypot-docker', 'cpuset_cpus')
         overlay_folder = self.cfg.get('honeypot-docker', 'overlay_folder')
 
-        self.docker_drive = docker_driver(socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, 
-                                                cpu_period, cpu_shares, cpuset_cpus, overlay_folder)
+        self.docker_drive = docker_driver(socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit,
+                                          shm_size, cpu_period, cpu_shares, cpuset_cpus)
         self.container = self.docker_drive.launch_container()
 
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Launched container (%s, %s)' % (self.container['ip'], self.container['id']))
         sensor_name = hostname
         honey_ip = self.container['ip']
+
+        '''
+        FIXME: Currently output_handler and this plugin do both construct the session folder path. This should be encapsulated.
+        '''
+        overlay_folder = '%s/%s/%s/%s' % (self.cfg.get('folders', 'session_path'), sensor_name , conn_details['peer_ip'], overlay_folder)
+        self.docker_drive.start_watcher(overlay_folder)
 
         return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port, 'connection_timeout':self.connection_timeout}
     
@@ -119,7 +127,7 @@ def get_int(cfg, path0, path1):
     
 class docker_driver():
     def __init__(self, socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, cpu_period, 
-                        cpu_shares, cpuset_cpus, overlay_folder):
+                        cpu_shares, cpuset_cpus):
         self.container_id = 0
         self.connection = None
         self.socket = socket
@@ -136,7 +144,7 @@ class docker_driver():
         self.make_connection()
 
         self.watcher = None
-        self.overlay_folder = overlay_folder
+        self.overlay_folder = None
         self.mount_dir = None
 
     def make_connection(self):
@@ -153,35 +161,36 @@ class docker_driver():
         self.connection.exec_start(exec_id, tty=True)
         container_data = self.connection.inspect_container(self.container_id)
 
-        '''
-        FIXME: overlay_folder should end up in the corresponding session folder
-        '''
-        if len(self.overlay_folder) > 0:
-            if not os.path.exists(self.overlay_folder):
-                os.makedirs(self.overlay_folder)
-                os.chmod(self.overlay_folder, 0755)
-
-            threads.deferToThread(self.start_inotify)
-
         return {"id": self.container_id,
                 "ip": container_data['NetworkSettings']['Networks']['bridge']['IPAddress']}
               
     def teardown_container(self):
         self.connection.stop(self.container_id)
 
-    def file_get_contents(self, filename):
+    def _file_get_contents(self, filename):
         with open(filename) as f:
             return f.read()
 
-    def start_inotify(self):
+    def start_watcher(self, dest_path):
+        self.overlay_folder = dest_path
+
+        if len(self.overlay_folder) > 0:
+            if not os.path.exists(self.overlay_folder):
+                os.makedirs(self.overlay_folder)
+                os.chmod(self.overlay_folder, 0755)
+
+            # threads.deferToThread(self.start_inotify)
+            self._start_inotify()
+
+    def _start_inotify(self):
         docker_info = self.connection.info()
         docker_root = docker_info['DockerRootDir']
         storage_driver = docker_info['Driver']
 
         if storage_driver == 'aufs' or storage_driver == 'btrfs':
-            mount_id = self.file_get_contents(('%s/image/%s/layerdb/mounts/%s/mount-id' % (docker_root, storage_driver, self.container_id)))
+            mount_id = self._file_get_contents(('%s/image/%s/layerdb/mounts/%s/mount-id' % (docker_root, storage_driver, self.container_id)))
             '''
-            FIXME: This path depends on the used storage driver?!?
+            TODO: Check if this path is valid for aufs and btrfs. If not the storage specific path needs to be added!
             '''
             self.mount_dir = '%s/%s/mnt/%s' % (docker_root, storage_driver, mount_id)
 
@@ -202,7 +211,7 @@ class docker_driver():
                 if file.exists() and file.getsize() > 0:
                     # Construct src and dest path as string
                     src_path = '%s/%s' % (file.dirname(), file.basename())
-                    dest_path = '%s%s' % (self.overlay_folder, src_path.replace(self.mount_dir, ''))
+                    dest_path = '%s/%s' % (self.overlay_folder, src_path.replace(self.mount_dir, ''))
                     # log.msg(log.LBLUE, '[COPY]', '%s / %s' % (src_path, dest_path))
 
                     try:
