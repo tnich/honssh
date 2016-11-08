@@ -37,7 +37,8 @@ from docker import Client
 
 from honssh import log
 
-from twisted.internet import threads, inotify
+from twisted.internet import threads
+from twisted_fix.internet import inotify
 from twisted.python import filepath
 
 class Plugin():
@@ -85,7 +86,6 @@ class Plugin():
         self.container = self.docker_drive.launch_container()
 
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Launched container (%s, %s)' % (self.container['ip'], self.container['id']))
-        #sensor_name = self.container['id']
         sensor_name = hostname
         honey_ip = self.container['ip']
 
@@ -177,15 +177,13 @@ class docker_driver():
         if storage_driver == 'aufs' or storage_driver == 'btrfs':
             mount_id = self.file_get_contents(('%s/image/%s/layerdb/mounts/%s/mount-id' % (docker_root, storage_driver, self.container_id)))
             '''
-            FIXME: This path depends on the used storage driver.
+            FIXME: This path depends on the used storage driver?!?
             '''
-            self.mount_dir = '%s/%s/diff/%s' % (docker_root, storage_driver, mount_id)
+            self.mount_dir = '%s/%s/mnt/%s' % (docker_root, storage_driver, mount_id)
 
-            log.msg(log.LBLUE, '[PLUGIN][DOCKER]', 'Starting filesystem watcher at %s' % self.mount_dir)
+            log.msg(log.LGREEN, '[PLUGIN][DOCKER]', 'Starting filesystem watcher at %s' % self.mount_dir)
 
-            '''
-            FIXME: inotify just dies if it could not add a watch during autoAdd because the file got removed
-            '''
+            # Create watcher and start watching
             self.watcher = inotify.INotify()
             self.watcher.startReading()
             self.watcher.watch(filepath.FilePath(self.mount_dir), mask=(inotify.IN_CREATE | inotify.IN_MODIFY),
@@ -193,7 +191,7 @@ class docker_driver():
 
             log.msg(log.LGREEN, '[PLUGIN][DOCKER]', 'Filesystem watcher started')
         else:
-            log.msg(log.LBLUE, '[PLUGIN][DOCKER]', 'Filesystem watcher not supported for storage driver "%s"' % storage_driver)
+            log.msg(log.LRED, '[PLUGIN][DOCKER]', 'Filesystem watcher not supported for storage driver "%s"' % storage_driver)
 
     def file_get_contents(self, filename):
         with open(filename) as f:
@@ -201,13 +199,22 @@ class docker_driver():
 
     def notify(self, ignored, file, mask):
         if mask & inotify.IN_CREATE or mask & inotify.IN_MODIFY:
-                log.msg(log.RED, '[CHANGE]', '%s / %s' % (inotify.humanReadableMask(mask), file))
+                if file.exists() and file.getsize() > 0:
+                    # Construct src and dest path as string
+                    src_path = '%s/%s' % (file.dirname(), file.basename())
+                    dest_path = '%s%s' % (self.overlay_folder, src_path.replace(self.mount_dir, ''))
+                    # log.msg(log.LBLUE, '[COPY]', '%s / %s' % (src_path, dest_path))
 
-                src_path = '%s/%s' % (file.dirname(), file.basename())
-                dest_path = '%s%s' % (self.overlay_folder, src_path.replace(self.mount_dir, ''))
-                log.msg(log.RED, '[COPY]', '%s / %s' % (src_path, dest_path))
+                    try:
+                        # Create directory tree
+                        os.makedirs('%s%s' % (self.overlay_folder, file.dirname().replace(self.mount_dir, '')))
+                    except:
+                        # Ignore exception
+                        pass
 
-                try:
-                    shutil.copy(src_path, dest_path)
-                except IOError:
-                    pass
+                    try:
+                        # Create dest file object and do actual copy
+                        d = filepath.FilePath(dest_path)
+                        file.copyTo(d)
+                    except Exception as exc:
+                        log.msg(log.LRED, '[PLUGIN][DOCKER][FS_WATCH]', 'FAILED TO COPY "%s" - %s' % (src_path, str(exc)))
