@@ -27,6 +27,9 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
+import os
+import shutil
+
 from honssh import config
 from honssh import spoof
 
@@ -75,9 +78,10 @@ class Plugin():
         cpu_period = get_int(self.cfg, 'honeypot-docker', 'cpu_period')
         cpu_shares = get_int(self.cfg, 'honeypot-docker', 'cpu_shares')
         cpuset_cpus = self.cfg.get('honeypot-docker', 'cpuset_cpus')
+        overlay_folder = self.cfg.get('honeypot-docker', 'overlay_folder')
 
         self.docker_drive = docker_driver(socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, 
-                                                cpu_period, cpu_shares, cpuset_cpus)
+                                                cpu_period, cpu_shares, cpuset_cpus, overlay_folder)
         self.container = self.docker_drive.launch_container()
 
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Launched container (%s, %s)' % (self.container['ip'], self.container['id']))
@@ -115,7 +119,7 @@ def get_int(cfg, path0, path1):
     
 class docker_driver():
     def __init__(self, socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, cpu_period, 
-                        cpu_shares, cpuset_cpus):
+                        cpu_shares, cpuset_cpus, overlay_folder):
         self.container_id = 0
         self.connection = None
         self.socket = socket
@@ -130,7 +134,10 @@ class docker_driver():
         self.cpu_shares = cpu_shares
         self.cpuset_cpus = cpuset_cpus
         self.make_connection()
+
         self.watcher = None
+        self.overlay_folder = overlay_folder
+        self.mount_dir = None
 
     def make_connection(self):
         self.connection = Client(self.socket)
@@ -146,7 +153,15 @@ class docker_driver():
         self.connection.exec_start(exec_id, tty=True)
         container_data = self.connection.inspect_container(self.container_id)
 
-        self.start_inotify()
+        '''
+        FIXME: overlay_folder should end up in the corresponding session folder
+        '''
+        if len(self.overlay_folder) > 0:
+            if not os.path.exists(self.overlay_folder):
+                os.makedirs(self.overlay_folder)
+                os.chmod(self.overlay_folder, 0755)
+
+            threads.deferToThread(self.start_inotify)
 
         return {"id": self.container_id,
                 "ip": container_data['NetworkSettings']['Networks']['bridge']['IPAddress']}
@@ -161,13 +176,20 @@ class docker_driver():
 
         if storage_driver == 'aufs' or storage_driver == 'btrfs':
             mount_id = self.file_get_contents(('%s/image/%s/layerdb/mounts/%s/mount-id' % (docker_root, storage_driver, self.container_id)))
-            mount_dir = '%s/%s/mnt/%s/root/' % (docker_root, storage_driver, mount_id)
+            '''
+            FIXME: This path depends on the used storage driver.
+            '''
+            self.mount_dir = '%s/%s/diff/%s' % (docker_root, storage_driver, mount_id)
 
-            log.msg(log.LBLUE, '[PLUGIN][DOCKER]', 'Starting filesystem watcher at %s' % mount_dir)
+            log.msg(log.LBLUE, '[PLUGIN][DOCKER]', 'Starting filesystem watcher at %s' % self.mount_dir)
 
+            '''
+            FIXME: inotify just dies if it could not add a watch during autoAdd because the file got removed
+            '''
             self.watcher = inotify.INotify()
             self.watcher.startReading()
-            self.watcher.watch(filepath.FilePath(mount_dir), callbacks=[self.notify])
+            self.watcher.watch(filepath.FilePath(self.mount_dir), mask=(inotify.IN_CREATE | inotify.IN_MODIFY),
+                               autoAdd=True, callbacks=[self.notify], recursive=True)
 
             log.msg(log.LGREEN, '[PLUGIN][DOCKER]', 'Filesystem watcher started')
         else:
@@ -177,10 +199,15 @@ class docker_driver():
         with open(filename) as f:
             return f.read()
 
-    def notify(self, ignored, path, mask):
-        if inotify.constants.MASK_LOOKUP[inotify.constants.IN_CREATE] in mask \
-                or inotify.constants.MASK_LOOKUP[inotify.constants.IN_MODIFY] in mask:
-                log.msg(log.RED, '[CHANGE]', '%s / /%s' % (inotify.humanReadableMask(mask), path))
-                '''
-                TODO: Save the created/modified file away!
-                '''
+    def notify(self, ignored, file, mask):
+        if mask & inotify.IN_CREATE or mask & inotify.IN_MODIFY:
+                log.msg(log.RED, '[CHANGE]', '%s / %s' % (inotify.humanReadableMask(mask), file))
+
+                src_path = '%s/%s' % (file.dirname(), file.basename())
+                dest_path = '%s%s' % (self.overlay_folder, src_path.replace(self.mount_dir, ''))
+                log.msg(log.RED, '[COPY]', '%s / %s' % (src_path, dest_path))
+
+                try:
+                    shutil.copy(src_path, dest_path)
+                except IOError:
+                    pass
