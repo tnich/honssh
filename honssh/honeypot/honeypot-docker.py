@@ -28,7 +28,6 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 import os
-import shutil
 
 from honssh import config
 from honssh import spoof
@@ -37,7 +36,6 @@ from docker import Client
 
 from honssh import log
 
-from twisted.internet import threads
 from twisted_fix.internet import inotify
 from twisted.python import filepath
 
@@ -72,7 +70,7 @@ class Plugin():
         socket = self.cfg.get('honeypot-docker', 'uri')
         image = self.cfg.get('honeypot-docker', 'image')
         launch_cmd = self.cfg.get('honeypot-docker', 'launch_cmd')
-        hostname = self.cfg.get('honeypot-docker', 'hostname')
+        sensor_name = self.cfg.get('honeypot-docker', 'hostname')
         honey_port = int(self.cfg.get('honeypot-docker', 'honey_port'))
         pids_limit =  get_int(self.cfg, 'honeypot-docker', 'pids_limit')
         mem_limit = self.cfg.get('honeypot-docker', 'mem_limit')
@@ -83,18 +81,26 @@ class Plugin():
         cpuset_cpus = self.cfg.get('honeypot-docker', 'cpuset_cpus')
         overlay_folder = self.cfg.get('honeypot-docker', 'overlay_folder')
 
-        self.docker_drive = docker_driver(socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit,
+        self.docker_drive = docker_driver(socket, image, launch_cmd, sensor_name, pids_limit, mem_limit, memswap_limit,
                                           shm_size, cpu_period, cpu_shares, cpuset_cpus)
         self.container = self.docker_drive.launch_container()
 
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Launched container (%s, %s)' % (self.container['ip'], self.container['id']))
-        sensor_name = hostname
         honey_ip = self.container['ip']
 
         '''
         FIXME: Currently output_handler and this plugin do both construct the session folder path. This should be encapsulated.
         '''
         overlay_folder = '%s/%s/%s/%s' % (self.cfg.get('folders', 'session_path'), sensor_name , conn_details['peer_ip'], overlay_folder)
+
+        '''
+        FIXME:
+        At some point this should be moved to post_auth as there is no need to add the watcher before a successful
+        login.
+
+        But currently post_auth has no information about the running container as the plugin instances are not shared
+        between pre_auth and post_auth.
+        '''
         self.docker_drive.start_watcher(overlay_folder)
 
         return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port, 'connection_timeout':self.connection_timeout}
@@ -179,7 +185,6 @@ class docker_driver():
                 os.makedirs(self.overlay_folder)
                 os.chmod(self.overlay_folder, 0755)
 
-            # threads.deferToThread(self.start_inotify)
             self._start_inotify()
 
     def _start_inotify(self):
@@ -190,7 +195,7 @@ class docker_driver():
         if storage_driver == 'aufs' or storage_driver == 'btrfs':
             mount_id = self._file_get_contents(('%s/image/%s/layerdb/mounts/%s/mount-id' % (docker_root, storage_driver, self.container_id)))
             '''
-            TODO: Check if this path is valid for aufs and btrfs. If not the storage specific path needs to be added!
+            TODO: Check if this path is valid for aufs and btrfs. If not the storage specific diff path needs to be added!
             '''
             self.mount_dir = '%s/%s/mnt/%s' % (docker_root, storage_driver, mount_id)
 
