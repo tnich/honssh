@@ -27,13 +27,15 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
-
 from honssh import config
 from honssh import spoof
 
 from docker import Client
 
 from honssh import log
+
+from twisted.internet import threads, inotify
+from twisted.python import filepath
 
 class Plugin():
     
@@ -128,7 +130,8 @@ class docker_driver():
         self.cpu_shares = cpu_shares
         self.cpuset_cpus = cpuset_cpus
         self.make_connection()
-    
+        self.watcher = None
+
     def make_connection(self):
         self.connection = Client(self.socket)
         
@@ -142,8 +145,42 @@ class docker_driver():
         exec_id = self.connection.exec_create(self.container_id, self.launch_cmd)['Id']
         self.connection.exec_start(exec_id, tty=True)
         container_data = self.connection.inspect_container(self.container_id)
+
+        self.start_inotify()
+
         return {"id": self.container_id,
                 "ip": container_data['NetworkSettings']['Networks']['bridge']['IPAddress']}
               
     def teardown_container(self):
         self.connection.stop(self.container_id)
+
+    def start_inotify(self):
+        docker_info = self.connection.info()
+        docker_root = docker_info['DockerRootDir']
+        storage_driver = docker_info['Driver']
+
+        if storage_driver == 'aufs' or storage_driver == 'btrfs':
+            mount_id = self.file_get_contents(('%s/image/%s/layerdb/mounts/%s/mount-id' % (docker_root, storage_driver, self.container_id)))
+            mount_dir = '%s/%s/mnt/%s/root/' % (docker_root, storage_driver, mount_id)
+
+            log.msg(log.LBLUE, '[PLUGIN][DOCKER]', 'Starting filesystem watcher at %s' % mount_dir)
+
+            self.watcher = inotify.INotify()
+            self.watcher.startReading()
+            self.watcher.watch(filepath.FilePath(mount_dir), callbacks=[self.notify])
+
+            log.msg(log.LGREEN, '[PLUGIN][DOCKER]', 'Filesystem watcher started')
+        else:
+            log.msg(log.LBLUE, '[PLUGIN][DOCKER]', 'Filesystem watcher not supported for storage driver "%s"' % storage_driver)
+
+    def file_get_contents(self, filename):
+        with open(filename) as f:
+            return f.read()
+
+    def notify(self, ignored, path, mask):
+        if inotify.constants.MASK_LOOKUP[inotify.constants.IN_CREATE] in mask \
+                or inotify.constants.MASK_LOOKUP[inotify.constants.IN_MODIFY] in mask:
+                log.msg(log.RED, '[CHANGE]', '%s / /%s' % (inotify.humanReadableMask(mask), path))
+                '''
+                TODO: Save the created/modified file away!
+                '''
