@@ -169,6 +169,10 @@ class docker_driver():
     def teardown_container(self):
         self.connection.stop(self.container_id)
 
+    def file_get_contents(self, filename):
+        with open(filename) as f:
+            return f.read()
+
     def start_inotify(self):
         docker_info = self.connection.info()
         docker_root = docker_info['DockerRootDir']
@@ -192,10 +196,6 @@ class docker_driver():
             log.msg(log.LGREEN, '[PLUGIN][DOCKER]', 'Filesystem watcher started')
         else:
             log.msg(log.LRED, '[PLUGIN][DOCKER]', 'Filesystem watcher not supported for storage driver "%s"' % storage_driver)
-
-    def file_get_contents(self, filename):
-        with open(filename) as f:
-            return f.read()
 
     def notify(self, ignored, file, mask):
         if mask & inotify.IN_CREATE or mask & inotify.IN_MODIFY:
