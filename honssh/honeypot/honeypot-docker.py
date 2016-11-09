@@ -58,22 +58,29 @@ class Plugin():
         if success:
             if self.container is None:
                 details = self.get_connection_details(conn_details)
-                details['username'] = username
-                details['password'] = password
-                details['connection_timeout'] = self.connection_timeout
             else:
                 details = conn_details
                 details['success'] = True
+
+            details['username'] = username
+            details['password'] = password
+            details['connection_timeout'] = self.connection_timeout
         else:
             details = {'success': False}
 
         '''
         FIXME: Currently output_handler and this plugin do both construct the session folder path. This should be encapsulated.
         '''
-        overlay_folder = '%s/%s/%s/%s' % (
-            self.cfg.get('folders', 'session_path'), conn_details['sensor_name'], conn_details['peer_ip'], overlay_folder)
+        overlay_folder = self.cfg.get('honeypot-docker', 'overlay_folder')
 
-        self.docker_drive.start_watcher(overlay_folder)
+        if len(overlay_folder) > 0:
+            overlay_folder = '%s/%s/%s/%s' % \
+                             (self.cfg.get('folders', 'session_path'),
+                              conn_details['sensor_name'],
+                              conn_details['peer_ip'],
+                              overlay_folder)
+
+            self.docker_drive.start_watcher(overlay_folder)
 
         return details
 
@@ -90,7 +97,6 @@ class Plugin():
         cpu_period = get_int(self.cfg, 'honeypot-docker', 'cpu_period')
         cpu_shares = get_int(self.cfg, 'honeypot-docker', 'cpu_shares')
         cpuset_cpus = self.cfg.get('honeypot-docker', 'cpuset_cpus')
-        overlay_folder = self.cfg.get('honeypot-docker', 'overlay_folder')
 
         self.docker_drive = docker_driver(socket, image, launch_cmd, sensor_name, pids_limit, mem_limit, memswap_limit,
                                           shm_size, cpu_period, cpu_shares, cpuset_cpus)
@@ -183,14 +189,15 @@ class docker_driver():
             return f.read()
 
     def start_watcher(self, dest_path):
-        self.overlay_folder = dest_path
+        if self.watcher is None:
+            self.overlay_folder = dest_path
 
-        if len(self.overlay_folder) > 0:
-            if not os.path.exists(self.overlay_folder):
-                os.makedirs(self.overlay_folder)
-                os.chmod(self.overlay_folder, 0755)
+            if len(self.overlay_folder) > 0:
+                if not os.path.exists(self.overlay_folder):
+                    os.makedirs(self.overlay_folder)
+                    os.chmod(self.overlay_folder, 0755)
 
-            self._start_inotify()
+                self._start_inotify()
 
     def _start_inotify(self):
         docker_info = self.connection.info()

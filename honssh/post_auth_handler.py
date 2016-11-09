@@ -114,13 +114,13 @@ class Post_Auth(base_auth_handler.Base_Auth):
         return self.server.sshParse.stringToHex(message)
 
     def send_login(self):
-
         if self.username:
             if self.conn_details['username'] != self.username:
                 log.msg(log.LPURPLE, '[POST_AUTH]', 'Spoofing Username')
                 self.server.spoofed = True
         else:
             self.username = self.conn_details['username']
+
         if self.password:
             if self.conn_details['password'] != self.password:
                 log.msg(log.LPURPLE, '[POST_AUTH]', 'Spoofing Password')
@@ -149,5 +149,4 @@ class Post_Auth(base_auth_handler.Base_Auth):
 
     def dont_post_auth(self):
         self.server.post_auth_started = False
-        self.auth_plugin = None
         self.send_login()
