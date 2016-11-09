@@ -92,14 +92,14 @@ class Output():
         session = self.connections.set_client(self.session_id, version)
         plugins.run_plugins_function(self.loaded_plugins, 'set_client', True, session)
      
-    def loginSuccessful(self, username, password, spoofed):
+    def login_successful(self, username, password, spoofed):
         dt = self.getDateTime()
         self.makeSessionFolder()
         
         auth = self.connections.add_auth(self.session_id, dt, username, password, True, spoofed)
         plugins.run_plugins_function(self.loaded_plugins, 'login_successful', True, auth)
         
-    def loginFailed(self, username, password):
+    def login_failed(self, username, password):
         dt = self.getDateTime()
 
         auth = self.connections.add_auth(self.session_id, dt, username, password, False, False)        
@@ -231,9 +231,6 @@ class Output():
             pass
         #TODO: LOG SOMEWHERE
         log.msg(log.LPURPLE, '[OUTPUT]', channelName + ' Destination: ' + connDetails['dstIP'] + ':' + str(connDetails['dstPort']) + theDNS)
-
-
-
 
     def makeSessionFolder(self):
         if not os.path.exists(self.logLocation):

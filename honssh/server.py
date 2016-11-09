@@ -140,6 +140,11 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         self.post_auth_started = True
         self.post_auth.start(username, password)
 
+    def login_successful(self, username, password):
+        self.post_auth.login_successful()
+
+    def login_failed(self, username, password):
+        self.post_auth.login_failed()
 
 class HonsshServerFactory(factory.SSHFactory):
     cfg = config()

@@ -46,6 +46,8 @@ class Plugin():
         self.connection_timeout = int(self.cfg.get('honeypot', 'connection_timeout'))
         self.docker_drive = None
         self.container = None
+        self.sensor_name = None
+        self.peer_ip = None
 
     def get_pre_auth_details(self, conn_details):
         return self.get_connection_details(conn_details)
@@ -66,31 +68,15 @@ class Plugin():
         else:
             details = {'success': False}
 
-        '''
-        FIXME: Currently output_handler and this plugin do both construct the session folder path. This should be encapsulated.
-        '''
-        overlay_folder = self.cfg.get('honeypot-docker', 'overlay_folder')
-
-        '''
-        FIXME: Unfortunately the auth plugin (!) has no knowledge about a failed/successful authentication.
-        Therefore the watcher needs to be started now.
-        '''
-        if len(overlay_folder) > 0:
-            overlay_folder = '%s/%s/%s/%s' % \
-                             (self.cfg.get('folders', 'session_path'),
-                              conn_details['sensor_name'],
-                              conn_details['peer_ip'],
-                              overlay_folder)
-
-            self.docker_drive.start_watcher(overlay_folder)
-
         return details
 
     def get_connection_details(self, conn_details):
+        self.peer_ip = conn_details['peer_ip']
+
         socket = self.cfg.get('honeypot-docker', 'uri')
         image = self.cfg.get('honeypot-docker', 'image')
         launch_cmd = self.cfg.get('honeypot-docker', 'launch_cmd')
-        sensor_name = self.cfg.get('honeypot-docker', 'hostname')
+        self.sensor_name = self.cfg.get('honeypot-docker', 'hostname')
         honey_port = int(self.cfg.get('honeypot-docker', 'honey_port'))
         pids_limit = get_int(self.cfg, 'honeypot-docker', 'pids_limit')
         mem_limit = self.cfg.get('honeypot-docker', 'mem_limit')
@@ -100,7 +86,7 @@ class Plugin():
         cpu_shares = get_int(self.cfg, 'honeypot-docker', 'cpu_shares')
         cpuset_cpus = self.cfg.get('honeypot-docker', 'cpuset_cpus')
 
-        self.docker_drive = docker_driver(socket, image, launch_cmd, sensor_name, pids_limit, mem_limit, memswap_limit,
+        self.docker_drive = docker_driver(socket, image, launch_cmd, self.sensor_name, pids_limit, mem_limit, memswap_limit,
                                           shm_size, cpu_period, cpu_shares, cpuset_cpus)
         self.container = self.docker_drive.launch_container()
 
@@ -108,8 +94,23 @@ class Plugin():
                 'Launched container (%s, %s)' % (self.container['ip'], self.container['id']))
         honey_ip = self.container['ip']
 
-        return {'success': True, 'sensor_name': sensor_name, 'honey_ip': honey_ip, 'honey_port': honey_port,
+        return {'success': True, 'sensor_name': self.sensor_name, 'honey_ip': honey_ip, 'honey_port': honey_port,
                 'connection_timeout': self.connection_timeout}
+
+    def login_successful(self):
+        '''
+        FIXME: Currently output_handler and this plugin do both construct the session folder path. This should be encapsulated.
+        '''
+        overlay_folder = self.cfg.get('honeypot-docker', 'overlay_folder')
+
+        if self.docker_drive.watcher is None and len(overlay_folder) > 0:
+            overlay_folder = '%s/%s/%s/%s' % \
+                             (self.cfg.get('folders', 'session_path'),
+                              self.sensor_name,
+                              self.peer_ip,
+                              overlay_folder)
+
+            self.docker_drive.start_watcher(overlay_folder)
 
     def connection_lost(self, conn_details):
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]',
@@ -173,8 +174,7 @@ class docker_driver():
                                                          cpuset_cpus=self.cpuset_cpus)
         self.container_id = \
             self.connection.create_container(image=self.image, tty=True, hostname=self.hostname,
-                                             host_config=host_config)[
-                'Id']
+                                             host_config=host_config)['Id']
         self.connection.start(self.container_id)
         exec_id = self.connection.exec_create(self.container_id, self.launch_cmd)['Id']
         self.connection.exec_start(exec_id, tty=True)
@@ -185,6 +185,7 @@ class docker_driver():
 
     def teardown_container(self):
         self.connection.stop(self.container_id)
+        self.connection.remove_container(self.container_id, force=True)
 
     def _file_get_contents(self, filename):
         with open(filename) as f:
@@ -194,7 +195,9 @@ class docker_driver():
         if self.watcher is None:
             self.overlay_folder = dest_path
 
+            # Check if watching should be started
             if len(self.overlay_folder) > 0:
+                # Create overlay folder if needed
                 if not os.path.exists(self.overlay_folder):
                     os.makedirs(self.overlay_folder)
                     os.chmod(self.overlay_folder, 0755)

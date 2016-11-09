@@ -138,6 +138,14 @@ class Post_Auth(base_auth_handler.Base_Auth):
             for packet in self.delayedPackets:
                 self.server.sshParse.parsePacket("[SERVER]", packet[0], packet[1])
 
+    def login_successful(self):
+        if hasattr(self.auth_plugin, 'login_successful'):
+            self.auth_plugin.login_successful()
+
+    def login_failed(self):
+        # Currently not used
+        pass
+
     def connection_lost(self):
         self.server.disconnected = True
         if self.networkingSetup:
