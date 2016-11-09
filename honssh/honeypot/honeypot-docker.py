@@ -67,6 +67,14 @@ class Plugin():
         else:
             details = {'success': False}
 
+        '''
+        FIXME: Currently output_handler and this plugin do both construct the session folder path. This should be encapsulated.
+        '''
+        overlay_folder = '%s/%s/%s/%s' % (
+            self.cfg.get('folders', 'session_path'), conn_details['sensor_name'], conn_details['peer_ip'], overlay_folder)
+
+        self.docker_drive.start_watcher(overlay_folder)
+
         return details
 
     def get_connection_details(self, conn_details):
@@ -91,14 +99,6 @@ class Plugin():
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]',
                 'Launched container (%s, %s)' % (self.container['ip'], self.container['id']))
         honey_ip = self.container['ip']
-
-        '''
-        FIXME: Currently output_handler and this plugin do both construct the session folder path. This should be encapsulated.
-        '''
-        overlay_folder = '%s/%s/%s/%s' % (
-            self.cfg.get('folders', 'session_path'), sensor_name, conn_details['peer_ip'], overlay_folder)
-
-        self.docker_drive.start_watcher(overlay_folder)
 
         return {'success': True, 'sensor_name': sensor_name, 'honey_ip': honey_ip, 'honey_port': honey_port,
                 'connection_timeout': self.connection_timeout}
