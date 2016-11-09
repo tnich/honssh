@@ -39,8 +39,6 @@ from honssh import log
 from twisted_fix.internet import inotify
 from twisted.python import filepath
 
-import traceback
-
 
 class Plugin():
     def __init__(self, cfg):
@@ -73,6 +71,10 @@ class Plugin():
         '''
         overlay_folder = self.cfg.get('honeypot-docker', 'overlay_folder')
 
+        '''
+        FIXME: Unfortunately the auth plugin (!) has no knowledge about a failed/successful authentication.
+        Therefore the watcher needs to be started now.
+        '''
         if len(overlay_folder) > 0:
             overlay_folder = '%s/%s/%s/%s' % \
                              (self.cfg.get('folders', 'session_path'),
@@ -131,7 +133,7 @@ class Plugin():
 
 def get_int(cfg, path0, path1):
     if cfg.has_option(path0, path1):
-        if (config.checkValidNumber(cfg, [path0, path1])):
+        if config.checkValidNumber(cfg, [path0, path1]):
             return int(cfg.get(path0, path1))
         else:
             return None
