@@ -148,10 +148,16 @@ launch_cmd = service ssh start
 # default: 22
 honey_port =
 
-# overlay_folder: Save changes made to the docker container filesystem into given folder
-# nothing is saved if left empty
+# overlay_folder: Save changes made to the docker container filesystem into given session
+# subdirectory. Nothing is saved if left empty.
 #
-# Warning:
+# Supported storage drivers:
+# - aufs
+# - btrfs
+# - overlay
+# - overlay2
+#
+# Warning (applies to aufs and btrfs):
 # - This delays the connection until all watches are added
 # - This may have a performance impact (depends on the amount of running containers)
 #

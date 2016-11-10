@@ -210,17 +210,17 @@ class docker_driver():
         storage_driver = docker_info['Driver']
 
         supported_storage = {
-            'aufs': 'mnt',
-            'btrfs': 'subvolumes'
-            #'overlay': 'merged' -> /var/lib/docker/overlay/<mount-id>/[merged? | upper?]
-            #'overlay2': 'merged' -> /var/lib/docker/overlay2/<mount-id>/[merged? | diff?]
+            'aufs': '%s/%s/mnt/%s',  # -> /var/lib/docker/aufs/mnt/mount-id
+            'btrfs': '%s/%s/subvolumes/%s',  # -> /var/lib/docker/btrfs/subvolumes/mount-id
+            'overlay': '%s/%s/%s/upper',  # -> /var/lib/docker/overlay/<mount-id>/upper
+            'overlay2': '%s/%s/%s/diff'  # -> /var/lib/docker/overlay2/<mount-id>/diff
         }
 
         if storage_driver in supported_storage:
             # Get container mount id
             mount_id = self._file_get_contents(('%s/image/%s/layerdb/mounts/%s/mount-id' % (docker_root, storage_driver, self.container_id)))
             # construct mount path
-            self.mount_dir = '%s/%s/%s/%s' % (docker_root, storage_driver, supported_storage[storage_driver], mount_id)
+            self.mount_dir = supported_storage[storage_driver] % (docker_root, storage_driver, mount_id)
 
             log.msg(log.LGREEN, '[PLUGIN][DOCKER]', 'Starting filesystem watcher at %s' % self.mount_dir)
 
