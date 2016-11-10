@@ -167,6 +167,12 @@ honey_port =
 # required: NO
 overlay_folder =
 
+# reuse_container: If activated containers will be linked to the attackers IP address
+# and restarted on subsequent connects from the same IP address.
+#
+# required: YES
+reuse_container = false
+
 # Pid limit of the honeypot (-1 for unlimited)
 # 
 # input: Number
