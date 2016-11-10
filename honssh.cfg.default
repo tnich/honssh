@@ -148,8 +148,11 @@ launch_cmd = service ssh start
 # default: 22
 honey_port =
 
-# overlay_folder: Save changes made to the docker container filesystem into given session
-# subdirectory. Nothing is saved if left empty.
+# overlay_folder: Save all changes made to the docker container filesystem into given session
+# subdirectory. This includes changes made by the attacker and by the system itself!
+# Make sure to apply quotas
+#
+# Nothing is saved if left empty.
 #
 # Supported storage drivers:
 # - aufs
@@ -162,7 +165,7 @@ honey_port =
 # - This may have a performance impact (depends on the amount of running containers)
 #
 # required: NO
-overlay_folder = overlay
+overlay_folder =
 
 # Pid limit of the honeypot (-1 for unlimited)
 # 
