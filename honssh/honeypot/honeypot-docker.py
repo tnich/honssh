@@ -211,18 +211,15 @@ class docker_driver():
 
         supported_storage = {
             'aufs': 'mnt',
-            'vfs': 'dir',
-            'btrfs': 'mnt'
+            'btrfs': 'subvolumes'
+            #'overlay': 'merged' -> /var/lib/docker/overlay/<mount-id>/[merged? | upper?]
+            #'overlay2': 'merged' -> /var/lib/docker/overlay2/<mount-id>/[merged? | diff?]
         }
 
         if storage_driver in supported_storage:
+            # Get container mount id
             mount_id = self._file_get_contents(('%s/image/%s/layerdb/mounts/%s/mount-id' % (docker_root, storage_driver, self.container_id)))
-
-            '''
-            TODO: Check if this path is valid for aufs and btrfs. If not the storage specific diff path needs to be added!
-            aufs    = '%s/%s/mnt/%s'
-            vfs     = '%s/%s/dir/%s'
-            '''
+            # construct mount path
             self.mount_dir = '%s/%s/%s/%s' % (docker_root, storage_driver, supported_storage[storage_driver], mount_id)
 
             log.msg(log.LGREEN, '[PLUGIN][DOCKER]', 'Starting filesystem watcher at %s' % self.mount_dir)
