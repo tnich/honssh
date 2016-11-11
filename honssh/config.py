@@ -136,4 +136,14 @@ def checkValidChance(cfg, property):
             return True
         else:
             print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] should be greater than 0'
-            return False 
+            return False
+
+
+def get_int(cfg, path0, path1):
+    if cfg.has_option(path0, path1):
+        if checkValidNumber(cfg, [path0, path1]):
+            return int(cfg.get(path0, path1))
+        else:
+            return None
+    else:
+        return None
