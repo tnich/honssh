@@ -34,16 +34,18 @@ from honssh import client
 from honssh import log
 
 class Post_Auth(base_auth_handler.Base_Auth):
-    
-    def __init__(self, server):   
-        self.name = 'POST_AUTH'     
-        base_auth_handler.Base_Auth.__init__(self, server)
-        self.send_auth = False
+
+    def __init__(self, server):
+        base_auth_handler.Base_Auth.__init__(self, server, 'POST_AUTH')
+
+        self.auth_packets = None
+        self.auth_packet_number = 0
+
         self.username = False
         self.password = False
-        self.connection_timeout = 10
-
-        self.auth_packet_number = 0
+        self.sensor_name = None
+        self.honey_ip = None
+        self.honey_port = None
         
     def start(self, username, password):
         self.conn_details = {'peer_ip':self.server.peer_ip, 'peer_port':self.server.peer_port, 'local_ip':self.server.local_ip, 'local_port':self.server.local_port, 'username':username, 'password':password, 'honey_ip':self.server.honey_ip, 'honey_port':self.server.honey_port, 'sensor_name':self.server.sensor_name}
@@ -73,9 +75,9 @@ class Post_Auth(base_auth_handler.Base_Auth):
                         log.msg(log.LGREEN, '[POST_AUTH]', 'Connecting to Honeypot: %s (%s:%s)' % (self.sensor_name, self.honey_ip, self.honey_port))
                         client_factory = client.HonsshClientFactory()
                         client_factory.server = self.server
-                        self.bind_ip = self.server.net.setupNetworking(self.server.peer_ip, self.honey_ip, self.honey_port)
+                        bind_ip = self.server.net.setupNetworking(self.server.peer_ip, self.honey_ip, self.honey_port)
                         self.networkingSetup = True
-                        reactor.connectTCP(self.honey_ip, self.honey_port, client_factory, bindAddress=(self.bind_ip, self.server.peer_port+1), timeout=self.connection_timeout)
+                        reactor.connectTCP(self.honey_ip, self.honey_port, client_factory, bindAddress=(bind_ip, self.server.peer_port+1), timeout=self.connection_timeout)
                         pot_connect_defer = threads.deferToThread(self.is_pot_connected)
                         pot_connect_defer.addCallback(self.pot_connected)
             else:
@@ -104,7 +106,7 @@ class Post_Auth(base_auth_handler.Base_Auth):
             packet = self.auth_packets[self.auth_packet_number]
             self.server.sshParse.parsePacket('[SERVER]', packet[0], packet[1])
         
-        self.auth_packet_number = self.auth_packet_number + 1
+        self.auth_packet_number += 1
             
     def to_string(self, message):
         return self.server.sshParse.stringToHex(message)
@@ -139,7 +141,7 @@ class Post_Auth(base_auth_handler.Base_Auth):
         if self.networkingSetup:
             self.server.net.removeNetworking(self.server.factory.connections.connections)
         
-        if self.auth_plugin:
+        if self.auth_plugin is not None:
             if self.server.clientConnected:
                 plugins.run_plugins_function(self.auth_plugin, 'connection_lost', True, self.conn_details)
                 

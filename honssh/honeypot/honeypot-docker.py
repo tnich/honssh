@@ -65,13 +65,13 @@ class Plugin():
         image = self.cfg.get('honeypot-docker', 'image')
         launch_cmd = self.cfg.get('honeypot-docker', 'launch_cmd')
         hostname = self.cfg.get('honeypot-docker', 'hostname')
-        honey_port = int(self.cfg.get('honeypot-docker', 'honey_port'))
-        pids_limit =  get_int(self.cfg, 'honeypot-docker', 'pids_limit')
+        honey_port = config.get_int(self.cfg, 'honeypot-docker', 'honey_port')
+        pids_limit = config.get_int(self.cfg, 'honeypot-docker', 'pids_limit')
         mem_limit = self.cfg.get('honeypot-docker', 'mem_limit')
         memswap_limit = self.cfg.get('honeypot-docker', 'memswap_limit')
         shm_size = self.cfg.get('honeypot-docker', 'shm_size')
-        cpu_period = get_int(self.cfg, 'honeypot-docker', 'cpu_period')
-        cpu_shares = get_int(self.cfg, 'honeypot-docker', 'cpu_shares')
+        cpu_period = config.get_int(self.cfg, 'honeypot-docker', 'cpu_period')
+        cpu_shares = config.get_int(self.cfg, 'honeypot-docker', 'cpu_shares')
         cpuset_cpus = self.cfg.get('honeypot-docker', 'cpuset_cpus')
 
         self.docker_drive = docker_driver(socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, 
@@ -79,7 +79,6 @@ class Plugin():
         self.container = self.docker_drive.launch_container()
 
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Launched container (%s, %s)' % (self.container['ip'], self.container['id']))
-        #sensor_name = self.container['id']
         sensor_name = hostname
         honey_ip = self.container['ip']
 
@@ -101,19 +100,13 @@ class Plugin():
                 return False 
 
         return True
-    
-def get_int(cfg, path0, path1):
-    if cfg.has_option(path0, path1):
-        if(config.checkValidNumber(cfg, [path0, path1])):
-            return int(cfg.get(path0, path1))
-        else:
-            return None
-    else:
-        return None
-    
+
+
 class docker_driver():
     def __init__(self, socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, cpu_period, 
                         cpu_shares, cpuset_cpus):
+        self.container_id = 0
+        self.connection = None
         self.socket = socket
         self.image = image
         self.hostname = hostname
@@ -131,17 +124,17 @@ class docker_driver():
         self.connection = Client(self.socket)
         
     def launch_container(self):
-        host_config = self.connection.create_host_config(pids_limit=self.pids_limit, mem_limit=self.mem_limit, 
-                                                                memswap_limit=self.memswap_limit, shm_size=self.shm_size, 
+        host_config = self.connection.create_host_config(pids_limit=self.pids_limit, mem_limit=self.mem_limit,
+                                                                memswap_limit=self.memswap_limit, shm_size=self.shm_size,
                                                                 cpu_period=self.cpu_period, cpu_shares=self.cpu_shares,
                                                                 cpuset_cpus=self.cpuset_cpus)
         self.container_id = self.connection.create_container(image=self.image, tty=True, hostname=self.hostname, host_config=host_config)['Id']
         self.connection.start(self.container_id)
         exec_id = self.connection.exec_create(self.container_id, self.launch_cmd)['Id']
         self.connection.exec_start(exec_id, tty=True)
-        self.container_data = self.connection.inspect_container(self.container_id)
+        container_data = self.connection.inspect_container(self.container_id)
         return {"id": self.container_id,
-                "ip": self.container_data['NetworkSettings']['Networks']['bridge']['IPAddress']}
+                "ip": container_data['NetworkSettings']['Networks']['bridge']['IPAddress']}
               
     def teardown_container(self):
         self.connection.stop(self.container_id)
