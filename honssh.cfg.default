@@ -160,7 +160,7 @@ honey_port =
 # - overlay
 # - overlay2
 #
-# Warning (applies to aufs and btrfs):
+# Warning:
 # - This delays the connection until all watches are added
 # - This may have a performance impact (depends on the amount of running containers)
 #

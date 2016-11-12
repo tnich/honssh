@@ -29,15 +29,12 @@
 # SUCH DAMAGE.
 import os
 
-from honssh import config
-from honssh import spoof
-
 from docker import Client
+from honssh import config, log, spoof
 
-from honssh import log
-
-from twisted_fix.internet import inotify
 from twisted.python import filepath
+from twisted.internet import inotify
+from library_fixes.twisted import inotifyFix
 
 
 class Plugin():
@@ -202,8 +199,8 @@ class docker_driver():
         supported_storage = {
             'aufs': '%s/%s/mnt/%s',  # -> /var/lib/docker/aufs/mnt/mount-id
             'btrfs': '%s/%s/subvolumes/%s',  # -> /var/lib/docker/btrfs/subvolumes/mount-id
-            'overlay': '%s/%s/%s/upper',  # -> /var/lib/docker/overlay/<mount-id>/upper
-            'overlay2': '%s/%s/%s/diff'  # -> /var/lib/docker/overlay2/<mount-id>/diff
+            'overlay': '%s/%s/%s/merged',  # -> /var/lib/docker/overlay/<mount-id>/merged
+            'overlay2': '%s/%s/%s/merged'  # -> /var/lib/docker/overlay2/<mount-id>/merged
         }
 
         if storage_driver in supported_storage:
@@ -216,7 +213,7 @@ class docker_driver():
 
             try:
                 # Create watcher and start watching
-                self.watcher = inotify.INotify()
+                self.watcher = inotifyFix.INotifyRFix()
                 self.watcher.startReading()
                 self.watcher.watch(filepath.FilePath(self.mount_dir), mask=(inotify.IN_CREATE | inotify.IN_MODIFY),
                                    autoAdd=True, callbacks=[self.notify], recursive=True)
@@ -229,12 +226,13 @@ class docker_driver():
                     'Filesystem watcher not supported for storage driver "%s"' % storage_driver)
 
     def notify(self, ignored, file, mask):
+        log.msg(log.LYELLOW, '[notify]', '%s' % str(file))
         if mask & inotify.IN_CREATE or mask & inotify.IN_MODIFY:
             if file.exists() and file.getsize() > 0:
                 # Construct src and dest path as string
                 src_path = '%s/%s' % (file.dirname(), file.basename())
                 dest_path = '%s/%s' % (self.overlay_folder, src_path.replace(self.mount_dir, ''))
-                # log.msg(log.LBLUE, '[COPY]', '%s / %s' % (src_path, dest_path))
+                log.msg(log.LBLUE, '[COPY]', '%s / %s' % (src_path, dest_path))
 
                 try:
                     # Create directory tree
