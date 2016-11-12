@@ -28,7 +28,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh import config
+from honssh.config import Config
 
 from honssh import log
 
@@ -42,8 +42,8 @@ from email import Encoders
 
 class Plugin():
 
-    def __init__(self, cfg):
-        self.cfg = cfg
+    def __init__(self):
+        self.cfg = Config.getInstance()
         
     def connection_made(self, sensor):
         self.login_success = False

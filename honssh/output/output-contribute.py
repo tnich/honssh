@@ -28,7 +28,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh import config
+from honssh.config import Config
 
 from honssh import log
 
@@ -37,8 +37,8 @@ import urllib2
 
 class Plugin():
 
-    def __init__(self, cfg):
-        self.cfg = cfg
+    def __init__(self):
+        self.cfg = Config.getInstance()
         
     def connection_lost(self, sensor):
         sensor['session'].pop('log_location')
@@ -71,7 +71,7 @@ class Plugin():
     def validate_config(self):
         props = [['output-contribute','enabled']]
         for prop in props:
-            if not config.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg, prop):
+            if not self.cfg.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg, prop):
                 return False
         return True
     

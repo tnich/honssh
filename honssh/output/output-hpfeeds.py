@@ -28,15 +28,15 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh import config
+from honssh.config import Config
 from hpfeeds_server import hpfeeds_server
 
 from honssh import log
 
 class Plugin():
 
-    def __init__(self, cfg):
-        self.cfg = cfg
+    def __init__(self):
+        self.cfg = Config.getInstance()
 
     def start_server(self):
         log.msg(log.LCYAN, '[PLUGIN][HPFEEDS]', 'hpfeeds HPLogger start')

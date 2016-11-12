@@ -27,123 +27,129 @@
 # SUCH DAMAGE.
 
 import ConfigParser
-import re
+import inspect
+
 from honssh import plugins
+from honssh.utils import validation
 
-def config():
-    plugin_list = plugins.get_plugin_list()
-    cfg_files = plugins.get_plugin_cfg_files(plugin_list)
-    cfg = ConfigParser.ConfigParser()
-    cfg_files.append('honssh.cfg')
-    cfg.read(cfg_files)
-    return cfg
 
-def validateConfig(cfg):
-    validConfig = True
-    
-    plugin_list = plugins.get_plugin_list()
-    loaded_plugins = plugins.import_plugins(plugin_list, cfg)
-    #TODO: Is this right?
-    validConfig = plugins.run_plugins_function(loaded_plugins, 'validate_config', False)
-    
-    #Check prop exists and is an IP address
-    props = [['honeypot','ssh_addr'], ['honeypot','client_addr']]
-    for prop in props:
-        if not checkExist(cfg,prop) or not checkValidIP(cfg,prop):
-            validConfig = False
-        
-    #Check prop exists and is a port number
-    props = [['honeypot','ssh_port']]
-    for prop in props:
-        if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
-            validConfig = False
-        
-    #Check prop exists
-    props = [['honeypot','public_key'], ['honeypot','private_key'], ['honeypot','public_key_dsa'], ['honeypot','private_key_dsa'], ['folders','log_path'], ['folders','session_path']]
-    for prop in props:
-        if not checkExist(cfg,prop):
-            validConfig = False
-            
-    #Check prop exists and is true/false
-    props = [['advNet','enabled'], ['interact','enabled'], ['spoof','enabled'], ['download','passive'], ['download','active'], ['hp-restrict', 'disable_publicKey'], ['hp-restrict', 'disable_x11'], ['hp-restrict', 'disable_sftp'], ['hp-restrict', 'disable_exec'], ['hp-restrict', 'disable_port_forwarding'], ['packet_logging', 'enabled']]
-    for prop in props:
-        if not checkExist(cfg,prop) or not checkValidBool(cfg, prop):
-            validConfig = False
-    
-    #If interact is enabled check it's config
-    if cfg.get('interact','enabled') == 'true':
-        prop = ['interact','interface']
-        if not checkExist(cfg,prop) or not checkValidIP(cfg,prop):
-            validConfig = False            
-        prop = ['interact','port']
-        if not checkExist(cfg,prop) or not checkValidPort(cfg,prop):
-            validConfig = False    
-    
-    #If spoof is enabled check it's config
-    if cfg.get('spoof','enabled') == 'true':
-        prop = ['spoof','users_conf']
-        if not checkExist(cfg,prop):
-            validConfig = False
+class Config(ConfigParser.ConfigParser):
+    _instance = None
 
-    return validConfig
-    
-def checkExist(cfg, property): 
-    if cfg.has_option(property[0], property[1]):   
-        if not cfg.get(property[0], property[1]) == '':
-            return True
+    @classmethod
+    def getInstance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+
+        return  cls._instance
+
+    def __init__(self):
+        stack = inspect.stack()
+
+        if 'cls' in stack[1][0].f_locals and stack[1][0].f_locals['cls'] is self.__class__:
+            ConfigParser.ConfigParser.__init__(self)
+
+            plugin_list = plugins.get_plugin_list()
+            cfg_files = plugins.get_plugin_cfg_files(plugin_list)
+            cfg_files.append('honssh.cfg')
+            self.read(cfg_files)
         else:
-            print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] must not be blank.'
-            return False
-    else:
-        print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] must exist.'
-        return False
-    
-def checkValidIP(cfg, property):
-    match = re.match('^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$', cfg.get(property[0], property[1]))
-    if match:
-        return True
-    else:
-        print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] should be a valid IP address'
-        return False
-    
-def checkValidPort(cfg, property):
-    if checkValidNumber(cfg, property):
-        if 1 <= int(cfg.get(property[0], property[1])) <= 65535:
-            return True
+            raise Exception('This class cannot be instantiated from outside. Please use \'getInstance()\'')
+
+    def validateConfig(self):
+        plugin_list = plugins.get_plugin_list()
+        loaded_plugins = plugins.import_plugins(plugin_list)
+        # TODO: Is this right?
+        valid = plugins.run_plugins_function(loaded_plugins, 'validate_config', False)
+
+        # Check prop exists and is an IP address
+        props = [['honeypot', 'ssh_addr'], ['honeypot', 'client_addr']]
+        for prop in props:
+            if not self.checkExist(prop) and validation.checkValidIP(prop, self.get(prop[0], prop[1])):
+                valid = False
+
+        # Check prop exists and is a port number
+        props = [['honeypot', 'ssh_port']]
+        for prop in props:
+            if not self.checkExist(prop) or not validation.checkValidPort(prop, self.get(prop[0], prop[1])):
+                valid = False
+
+        # Check prop exists
+        props = [['honeypot', 'public_key'], ['honeypot', 'private_key'], ['honeypot', 'public_key_dsa'],
+                 ['honeypot', 'private_key_dsa'], ['folders', 'log_path'], ['folders', 'session_path']]
+        for prop in props:
+            if not self.checkExist(prop):
+                valid = False
+
+        # Check prop exists and is true/false
+        props = [['advNet', 'enabled'], ['interact', 'enabled'], ['spoof', 'enabled'], ['download', 'passive'],
+                 ['download', 'active'], ['hp-restrict', 'disable_publicKey'], ['hp-restrict', 'disable_x11'],
+                 ['hp-restrict', 'disable_sftp'], ['hp-restrict', 'disable_exec'],
+                 ['hp-restrict', 'disable_port_forwarding'],
+                 ['packet_logging', 'enabled']]
+        for prop in props:
+            if not self.checkExist(prop) or not validation.checkValidBool(prop, self.get(prop[0], prop[1])):
+                valid = False
+
+        # If interact is enabled check it's config
+        if self.get('interact', 'enabled') == 'true':
+            prop = ['interact', 'interface']
+            if not self.checkExist(prop) or not validation.checkValidIP(prop, self.get(prop[0], prop[1])):
+                valid = False
+
+            prop = ['interact', 'port']
+            if not self.checkExist(prop) or not validation.checkValidPort(prop, self.get(prop[0], prop[1])):
+                valid = False
+
+        # If spoof is enabled check it's config
+        if self.get('spoof', 'enabled') == 'true':
+            prop = ['spoof', 'users_conf']
+            if not self.checkExist(prop):
+                valid = False
+
+        return valid
+
+    def checkExist(self, prop):
+        if self.has_option(prop[0], prop[1]):
+            if not self.get(prop[0], prop[1]) == '':
+                return True
+            else:
+                print '[VALIDATION] - [' + prop[0] + '][' + prop[1] + '] must not be blank.'
+                return False
         else:
-            print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] should be between 1 and 65535'
-            return False 
-        
-def checkValidBool(cfg, property):
-    if cfg.get(property[0], property[1]) in ['true', 'false']:
-        return True
-    else:
-        print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] must be either true or false (case sensitive)'
-        return False
-    
-def checkValidNumber(cfg, property):
-    try:
-        int(cfg.get(property[0], property[1]))
-        return True
-    except ValueError:
-        print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] should be number.'
-        return False
-    
-    
-def checkValidChance(cfg, property):
-    if checkValidNumber(cfg, property):
-        if 1 <= int(cfg.get(property[0], property[1])):
-            return True
-        else:
-            print '[VALIDATION] - [' + property[0] + '][' + property[1] + '] should be greater than 0'
+            print '[VALIDATION] - [' + prop[0] + '][' + prop[1] + '] must exist.'
             return False
 
+    def get(self, section, option, raw=False, vars=None, default=None):
+        ret = ConfigParser.ConfigParser.get(self, section, option, raw, vars)
 
-def get_int(cfg, path0, path1):
-    if cfg.has_option(path0, path1):
-        if checkValidNumber(cfg, [path0, path1]):
-            return int(cfg.get(path0, path1))
-        else:
-            return None
-    else:
-        return None
+        if len(ret) == 0 and default is not None:
+            ret = default
+
+        return ret
+
+    def _getconv(self, section, option, conv, checkfunction, default=None):
+        ret = self.get(section, option, default=default)
+
+        if len(ret) == 0 and default is not None:
+            ret = default
+        elif len(ret) > 0:
+            if checkfunction([section, option], ret):
+                ret = conv(ret)
+
+        return ret
+
+    def getport(self, section, option, default=None):
+        return self._getconv(section, option, int, validation.checkValidNumber, default)
+
+    def getip(self, section, option, default=None):
+        return self._getconv(section, option, int, validation.checkValidNumber, default)
+
+    def getint(self, section, option, default=None):
+        return self._getconv(section, option, int, validation.checkValidNumber, default)
+
+    def getfloat(self, section, option, default=None):
+        return self._getconv(section, option, float, validation.checkValidNumber, default)
+
+    def getboolean(self, section, option, default=None):
+        return self._getconv(section, option, bool, validation.checkValidBool(), default)

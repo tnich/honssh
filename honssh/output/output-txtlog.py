@@ -28,14 +28,14 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh import config
-
+from honssh.config import Config
+from honssh.utils import validation
 import os
 
 class Plugin():
 
-    def __init__(self, cfg):
-        self.cfg = cfg
+    def __init__(self):
+        self.cfg = Config.getInstance()
 
     def connection_made(self, sensor):
         self.auth_attempts = []
@@ -106,7 +106,7 @@ class Plugin():
     def validate_config(self):
         props = [['output-txtlog','enabled']]
         for prop in props:
-            if not config.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg, prop):
+            if not self.cfg.checkExist(prop) or not validation.checkValidBool(prop, self.cfg.get(prop[0], prop[1])):
                 return False
         return True
 

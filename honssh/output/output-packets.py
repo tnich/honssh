@@ -28,14 +28,14 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh import config
+from honssh.config import Config
 
 import os
 
 class Plugin():
 
-    def __init__(self, cfg):
-        self.cfg = cfg
+    def __init__(self):
+        self.cfg = Config.getInstance()
     
     def packet_logged(self, sensor):
         session = sensor['session']

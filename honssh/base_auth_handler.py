@@ -32,14 +32,14 @@ import time
 
 from honssh import log
 from honssh import plugins
-
+from honssh.config import Config
 
 class Base_Auth():
     def __init__(self, server, name):
         self.server = server
         self.name = name
         self.auth_plugin = None
-        self.cfg = self.server.cfg
+        self.cfg = Config.getInstance()
 
         self.connection_timeout = 10
         self.conn_details = None

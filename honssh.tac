@@ -34,6 +34,8 @@ from twisted.python import log
 from twisted.application import internet, service
 import sys, os
 from honssh import server, interact
+from honssh.config import Config
+from honssh import log as hlog
 from honssh import config
 from honssh.config import validateConfig
 
@@ -41,13 +43,13 @@ if not os.path.exists('honssh.cfg'):
     print '[ERR][FATAL] honssh.cfg is missing!'
     sys.exit(1)
 
-cfg = config.config()
+cfg = Config.getInstance()
 
 if cfg.has_option('devmode', 'enabled'):   
     if cfg.get('devmode', 'enabled') == 'true':
         log.startLogging(sys.stdout, setStdout=0)
 
-if not validateConfig(cfg):
+if not cfg.validateConfig():
     sys.exit(1)
 
 ssh_addr = cfg.get('honeypot', 'ssh_addr')

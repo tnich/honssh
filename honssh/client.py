@@ -27,8 +27,10 @@
 # SUCH DAMAGE.
 
 from twisted.conch.ssh import transport
-from honssh import log
 from twisted.internet import reactor, protocol, defer
+from honssh import log
+from honssh.config import Config
+
 
 class HonsshClientTransport(transport.SSHClientTransport):
     
@@ -37,7 +39,7 @@ class HonsshClientTransport(transport.SSHClientTransport):
         self.factory.server.client = self
         self.factory.server.sshParse.setClient(self)
         transport.SSHClientTransport.connectionMade(self)
-        self.cfg = self.factory.server.cfg
+        self.cfg = Config.getInstance()
         self.out = self.factory.server.out
         
     def verifyHostKey(self, pubKey, fingerprint):

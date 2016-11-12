@@ -29,8 +29,12 @@
 # SUCH DAMAGE.
 import os
 
+from honssh.config import Config
+from honssh.utils import validation
+
+from honssh import spoof, log
+
 from docker import Client
-from honssh import config, log, spoof
 
 from honssh.honeypot.docker_utils import docker_cleanup
 from twisted.python import filepath
@@ -39,8 +43,8 @@ from library_fixes.twisted import inotifyFix
 
 
 class Plugin():
-    def __init__(self, cfg):
-        self.cfg = cfg
+    def __init__(self):
+        self.cfg = Config.getInstance()
         self.connection_timeout = int(self.cfg.get('honeypot', 'connection_timeout'))
         self.docker_drive = None
         self.container = None
@@ -75,13 +79,13 @@ class Plugin():
         image = self.cfg.get('honeypot-docker', 'image')
         launch_cmd = self.cfg.get('honeypot-docker', 'launch_cmd')
         self.sensor_name = self.cfg.get('honeypot-docker', 'hostname')
-        honey_port = config.get_int(self.cfg, 'honeypot-docker', 'honey_port')
-        pids_limit = config.get_int(self.cfg, 'honeypot-docker', 'pids_limit')
+        honey_port = self.cfg.getint('honeypot-docker', 'honey_port')
+        pids_limit = self.cfg.getint('honeypot-docker', 'pids_limit')
         mem_limit = self.cfg.get('honeypot-docker', 'mem_limit')
         memswap_limit = self.cfg.get('honeypot-docker', 'memswap_limit')
         shm_size = self.cfg.get('honeypot-docker', 'shm_size')
-        cpu_period = config.get_int(self.cfg, 'honeypot-docker', 'cpu_period')
-        cpu_shares = config.get_int(self.cfg, 'honeypot-docker', 'cpu_shares')
+        cpu_period = self.cfg.getint('honeypot-docker', 'cpu_period')
+        cpu_shares = self.cfg.getint('honeypot-docker', 'cpu_shares')
         cpuset_cpus = self.cfg.get('honeypot-docker', 'cpuset_cpus')
         reuse_container = self.cfg.get('honeypot-docker', 'reuse_container')
 
@@ -146,13 +150,13 @@ class Plugin():
         props = [['honeypot-docker', 'enabled'], ['honeypot-docker', 'pre-auth'], ['honeypot-docker', 'post-auth'],
                  ['honeypot-docker', 'reuse_container']]
         for prop in props:
-            if not config.checkExist(self.cfg, prop) or not config.checkValidBool(self.cfg, prop):
+            if not self.cfg.checkExist(prop) or not validation.checkValidBool(prop, self.cfg.get(prop[0], prop[1])):
                 return False
 
         props = [['honeypot-docker', 'image'], ['honeypot-docker', 'uri'], ['honeypot-docker', 'hostname'],
                  ['honeypot-docker', 'launch_cmd'], ['honeypot-docker', 'honey_port']]
         for prop in props:
-            if not config.checkExist(self.cfg, prop):
+            if not self.cfg.checkExist(prop):
                 return False
 
         return True
@@ -288,7 +292,7 @@ class docker_driver():
                 # Construct src and dest path as string
                 src_path = '%s/%s' % (file.dirname(), file.basename())
                 dest_path = '%s/%s' % (self.overlay_folder, src_path.replace(self.mount_dir, ''))
-                log.msg(log.LBLUE, '[COPY]', '%s / %s' % (src_path, dest_path))
+                # log.msg(log.LBLUE, '[COPY]', '%s / %s' % (src_path, dest_path))
 
                 try:
                     # Create directory tree

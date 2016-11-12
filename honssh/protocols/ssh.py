@@ -28,7 +28,7 @@
 
 from honssh.protocols import baseProtocol, sftp, term, execTerm, portForward
 from honssh import log
-from honssh.config import config
+from honssh.config import Config
 import struct, uuid
 
 class SSH(baseProtocol.BaseProtocol):
@@ -37,7 +37,7 @@ class SSH(baseProtocol.BaseProtocol):
     username = ''
     password = ''
 
-    cfg = config()
+    cfg = Config.getInstance()
 
     packetLayout = {
                 1 : 'SSH_MSG_DISCONNECT',                   #['uint32', 'reason_code'], ['string', 'reason'], ['string', 'language_tag']

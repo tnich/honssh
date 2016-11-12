@@ -28,13 +28,13 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh import config
+from honssh.config import Config
 from honssh import spoof
 
 class Plugin():
     
-    def __init__(self, cfg):
-        self.cfg = cfg
+    def __init__(self):
+        self.cfg = Config.getInstance()
         self.connection_timeout = int(self.cfg.get('honeypot','connection_timeout'))
 
     def get_pre_auth_details(self, conn_details):

@@ -67,27 +67,30 @@ def get_plugin_cfg_files(plugin_files):
     return cfg_files
 
 
-def import_plugin(plugin, cfg):
+def import_plugin(plugin):
     plugin = plugin.replace('/', '.')
     import_plugin = importlib.import_module(plugin)
-    return import_plugin.Plugin(cfg)
+    return import_plugin.Plugin()
 
 
-def import_plugins(plugins, cfg, search=None):
+def import_plugins(plugins, search=None):
+    from honssh.config import Config
+    cfg = Config.getInstance()
+
     plugin_list = []
     for plugin in plugins:
         cfg_section = plugin.split('/')[-1]
         if cfg.get(cfg_section, 'enabled') == 'true':
             if search:
                 if cfg.get(cfg_section, search) == 'true':
-                    plugin_list.append(import_plugin(plugin, cfg))
+                    plugin_list.append(import_plugin(plugin))
             else:
-                plugin_list.append(import_plugin(plugin, cfg))
+                plugin_list.append(import_plugin(plugin))
     return plugin_list
 
 
-def import_auth_plugin(type, plugins, cfg):
-    imported_plugins = import_plugins(plugins, cfg, type.lower().replace('_', '-'))
+def import_auth_plugin(type, plugins):
+    imported_plugins = import_plugins(plugins, type.lower().replace('_', '-'))
     if len(imported_plugins) > 0:
         return imported_plugins[0]
     return None

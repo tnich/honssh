@@ -27,11 +27,11 @@
 # SUCH DAMAGE.
 
 from honssh import log
-from honssh.config import config
+from honssh.config import Config
 import subprocess
 
 class Networking():
-    cfg = config()
+    cfg = Config.getInstance()
     peer_ip = None
     fake_ip = None
     

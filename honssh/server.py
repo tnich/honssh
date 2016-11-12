@@ -34,12 +34,12 @@ from honssh import log
 from honssh import output_handler
 from honssh import post_auth_handler
 from honssh import pre_auth_handler
-from honssh.config import config
+from honssh.config import Config
 from honssh.protocols import ssh
 
 
 class HonsshServerTransport(honsshServer.HonsshServer):
-    cfg = config()
+    cfg = Config.getInstance()
 
     def connectionMade(self):
         self.timeoutCount = 0
@@ -66,8 +66,8 @@ class HonsshServerTransport(honsshServer.HonsshServer):
 
         # Get auth plugins
         plugin_list = plugins.get_plugin_list(type='honeypot')
-        pre_auth_plugin = plugins.import_auth_plugin(self.pre_auth.name, plugin_list, self.cfg)
-        post_auth_plugin = plugins.import_auth_plugin(self.post_auth.name, plugin_list, self.cfg)
+        pre_auth_plugin = plugins.import_auth_plugin(self.pre_auth.name, plugin_list)
+        post_auth_plugin = plugins.import_auth_plugin(self.post_auth.name, plugin_list)
 
         # Check pre auth plugin is set
         if pre_auth_plugin is None:
@@ -147,7 +147,7 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         self.post_auth.login_failed()
 
 class HonsshServerFactory(factory.SSHFactory):
-    cfg = config()
+    cfg = Config.getInstance()
     otherVersionString = ''
     connections = connections.Connections()
     plugin_servers = []
@@ -168,7 +168,7 @@ class HonsshServerFactory(factory.SSHFactory):
             log.msg(log.LPURPLE, '[SERVER]', 'Using ssh_banner for SSH Version String: ' + self.ourVersionString)
 
         plugin_list = plugins.get_plugin_list()
-        loaded_plugins = plugins.import_plugins(plugin_list, self.cfg)
+        loaded_plugins = plugins.import_plugins(plugin_list)
         for plugin in loaded_plugins:
             plugin_server = plugins.run_plugins_function([plugin], 'start_server', False)
             plugin_name = plugins.get_plugin_name(plugin)

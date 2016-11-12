@@ -28,7 +28,7 @@
 
 from honssh import log
 from twisted.internet import threads
-from honssh.config import config
+from honssh.config import Config
 from honssh import plugins
 from kippo.core import ttylog
 
@@ -45,7 +45,7 @@ import base64
 import GeoIP
 
 class Output():
-    cfg = config()
+    cfg = Config.getInstance()
 
     def __init__(self, factory):
         self.connections = factory.connections
@@ -53,7 +53,7 @@ class Output():
     
     def connectionMade(self, end_ip, end_port, honey_ip, honey_port, sensor_name):
         plugin_list = plugins.get_plugin_list(type='output')
-        self.loaded_plugins = plugins.import_plugins(plugin_list, self.cfg)
+        self.loaded_plugins = plugins.import_plugins(plugin_list)
         
         dt = self.getDateTime()
         self.sensor_name = sensor_name
