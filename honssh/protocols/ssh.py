@@ -83,8 +83,7 @@ class SSH(baseProtocol.BaseProtocol):
         self.sendOn = True
 
         packet = self.packetLayout[messageNum]
-        
-        
+
         if not self.server.post_auth_started:
             if parent == '[SERVER]':
                 direction = 'CLIENT -> SERVER'
@@ -107,11 +106,12 @@ class SSH(baseProtocol.BaseProtocol):
             self.username = self.extractString()
             service = self.extractString()
             authType = self.extractString()
+
             if authType == 'password':
                 self.extractBool()
                 self.password = self.extractString()
+
                 if self.password != "":
-                    
                     if not self.server.post_auth_started:
                         self.server.start_post_auth(self.username, self.password)
                         self.sendOn = False
@@ -128,13 +128,15 @@ class SSH(baseProtocol.BaseProtocol):
                     log.msg(log.LPURPLE, '[SSH]','Detected Public Key Auth - Disabling!')
                     payload = self.stringToHex('password') + chr(0)
             if not self.server.post_auth_started:
-                if self.username != ''  and self.password != '':
-                    self.out.loginFailed(self.username, self.password)
+                if self.username != '' and self.password != '':
+                    self.out.login_failed(self.username, self.password)
+                    self.server.login_failed(self.username, self.password)
                     
         elif packet == 'SSH_MSG_USERAUTH_SUCCESS':
             if self.username != ''  and self.password != '':
-                self.out.loginSuccessful(self.username, self.password, self.server.spoofed)
-                
+                self.out.login_successful(self.username, self.password, self.server.spoofed)
+                self.server.login_successful(self.username, self.password)
+
         # - End UserAuth
         # - Channels
         elif packet == 'SSH_MSG_CHANNEL_OPEN':

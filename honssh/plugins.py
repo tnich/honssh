@@ -26,15 +26,18 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-import os
+import copy
 import importlib
 import inspect
-import copy
-from honssh import log
+import os
+
 from twisted.internet import threads
+
+from honssh import log
 
 output_plugin_folders = ['honssh/output', 'plugins/output']
 honeypot_plugin_folders = ['honssh/honeypot', 'plugins/honeypot']
+
 
 def get_plugin_list(type='all'):
     if type == 'all':
@@ -43,7 +46,7 @@ def get_plugin_list(type='all'):
         plugin_folders = output_plugin_folders
     elif type == 'honeypot':
         plugin_folders = honeypot_plugin_folders
-    
+
     plugins = []
     for folder in plugin_folders:
         files = os.listdir(folder)
@@ -54,6 +57,7 @@ def get_plugin_list(type='all'):
                     plugins.append('%s/%s' % (folder, file))
     return plugins
 
+
 def get_plugin_cfg_files(plugin_files):
     cfg_files = []
     for plugin_file in plugin_files:
@@ -62,10 +66,12 @@ def get_plugin_cfg_files(plugin_files):
             cfg_files.append(cfg_file)
     return cfg_files
 
+
 def import_plugin(plugin, cfg):
     plugin = plugin.replace('/', '.')
     import_plugin = importlib.import_module(plugin)
     return import_plugin.Plugin(cfg)
+
 
 def import_plugins(plugins, cfg, search=None):
     plugin_list = []
@@ -79,11 +85,13 @@ def import_plugins(plugins, cfg, search=None):
                 plugin_list.append(import_plugin(plugin, cfg))
     return plugin_list
 
-def import_auth_plugins(type, plugins, cfg):
-    imported_plugins = import_plugins(plugins, cfg, type.lower().replace('_','-'))
+
+def import_auth_plugin(type, plugins, cfg):
+    imported_plugins = import_plugins(plugins, cfg, type.lower().replace('_', '-'))
     if len(imported_plugins) > 0:
-        return [imported_plugins[0]]
+        return imported_plugins[0]
     return None
+
 
 def run_plugins_function(plugins, function, thread, *args, **kwargs):
     for plugin in plugins:
@@ -92,7 +100,7 @@ def run_plugins_function(plugins, function, thread, *args, **kwargs):
         try:
             func = getattr(plugin, function)
             if function != 'packet_logged':
-                log.msg(log.LCYAN, '[PLUGIN][' + class_name +  ']', function.upper())
+                log.msg(log.LCYAN, '[PLUGIN][' + class_name + ']', function.upper())
             if thread:
                 threads.deferToThread(func, *copy.deepcopy(args), **copy.deepcopy(kwargs))
             else:
@@ -102,10 +110,10 @@ def run_plugins_function(plugins, function, thread, *args, **kwargs):
         except AttributeError:
             pass
         except Exception, ex:
-            log.msg(log.LRED, '[PLUGIN][' + class_name +  '][ERR]', str(ex))
-            
+            log.msg(log.LRED, '[PLUGIN][' + class_name + '][ERR]', str(ex))
+
     return return_value
+
 
 def get_plugin_name(plugin):
     return inspect.getfile(plugin.__class__).split('/')[-1].split('.')[0]
-    

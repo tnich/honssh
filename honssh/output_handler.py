@@ -61,9 +61,9 @@ class Output():
         self.honey_port = str(honey_port)
         self.end_ip = end_ip
         self.end_port = str(end_port)
-        self.session_id = uuid.uuid4().hex        
-        self.logLocation = self.cfg.get('folders', 'session_path') + "/" + self.sensor_name + "/"+ end_ip + "/"
-        
+        self.session_id = uuid.uuid4().hex
+        self.logLocation = self.cfg.get('folders', 'session_path') + "/" + self.sensor_name + "/" + end_ip + "/"
+
         self.downloadFolder = self.logLocation + 'downloads/'
 
         for plugin in self.loaded_plugins:
@@ -92,14 +92,14 @@ class Output():
         session = self.connections.set_client(self.session_id, version)
         plugins.run_plugins_function(self.loaded_plugins, 'set_client', True, session)
      
-    def loginSuccessful(self, username, password, spoofed):
+    def login_successful(self, username, password, spoofed):
         dt = self.getDateTime()
         self.makeSessionFolder()
         
         auth = self.connections.add_auth(self.session_id, dt, username, password, True, spoofed)
         plugins.run_plugins_function(self.loaded_plugins, 'login_successful', True, auth)
         
-    def loginFailed(self, username, password):
+    def login_failed(self, username, password):
         dt = self.getDateTime()
 
         auth = self.connections.add_auth(self.session_id, dt, username, password, False, False)        
@@ -201,12 +201,17 @@ class Output():
         
     def openTTY(self, ttylog_file):
         ttylog.ttylog_open(ttylog_file, time.time())
+
     def inputTTY(self, ttylog_file, data):
+
         ttylog.ttylog_write(ttylog_file, len(data), ttylog.TYPE_INPUT, time.time(), data)
+
     def outputTTY(self, ttylog_file, data):
         ttylog.ttylog_write(ttylog_file, len(data), ttylog.TYPE_OUTPUT, time.time(), data)
+
     def interactTTY(self, ttylog_file, data):
         ttylog.ttylog_write(ttylog_file, len(data), ttylog.TYPE_INTERACT, time.time(), data)
+
     def closeTTY(self, ttylog_file):
         ttylog.ttylog_close(ttylog_file, time.time())
         
@@ -226,9 +231,6 @@ class Output():
             pass
         #TODO: LOG SOMEWHERE
         log.msg(log.LPURPLE, '[OUTPUT]', channelName + ' Destination: ' + connDetails['dstIP'] + ':' + str(connDetails['dstPort']) + theDNS)
-
-
-
 
     def makeSessionFolder(self):
         if not os.path.exists(self.logLocation):

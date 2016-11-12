@@ -26,15 +26,16 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh import base_auth_handler
-from twisted.internet import threads
 from twisted.internet import reactor
-from honssh import plugins
+from twisted.internet import threads
+
+from honssh import base_auth_handler
 from honssh import client
 from honssh import log
+from honssh import plugins
+
 
 class Pre_Auth(base_auth_handler.Base_Auth):
-    
     def __init__(self, server):
         base_auth_handler.Base_Auth.__init__(self, server, 'PRE_AUTH')
 
@@ -42,8 +43,10 @@ class Pre_Auth(base_auth_handler.Base_Auth):
         self.honey_ip = None
         self.honey_port = None
 
-        self.conn_details = {'peer_ip':self.server.peer_ip, 'peer_port':self.server.peer_port, 'local_ip':self.server.local_ip, 'local_port':self.server.local_port}
-        
+    def start(self):
+        self.conn_details = {'peer_ip': self.server.peer_ip, 'peer_port': self.server.peer_port,
+                             'local_ip': self.server.local_ip, 'local_port': self.server.local_port}
+
         conn_details_defer = threads.deferToThread(self.get_conn_details)
         conn_details_defer.addCallback(self.connect_to_pot)
 
@@ -56,12 +59,15 @@ class Pre_Auth(base_auth_handler.Base_Auth):
                 self.connection_timeout = returned_conn_details['connection_timeout']
 
                 if not self.server.disconnected:
-                    log.msg(log.LGREEN, '[PRE_AUTH]', 'Connecting to Honeypot: %s (%s:%s)' % (self.sensor_name, self.honey_ip, self.honey_port))
+                    log.msg(log.LGREEN, '[PRE_AUTH]',
+                            'Connecting to Honeypot: %s (%s:%s)' % (self.sensor_name, self.honey_ip, self.honey_port))
                     client_factory = client.HonsshClientFactory()
                     client_factory.server = self.server
                     bind_ip = self.server.net.setupNetworking(self.server.peer_ip, self.honey_ip, self.honey_port)
                     self.networkingSetup = True
-                    reactor.connectTCP(self.honey_ip, self.honey_port, client_factory, bindAddress=(bind_ip, self.server.peer_port+2), timeout=self.connection_timeout)
+                    reactor.connectTCP(self.honey_ip, self.honey_port, client_factory,
+                                       bindAddress=(bind_ip, self.server.peer_port + 2),
+                                       timeout=self.connection_timeout)
 
                     pot_connect_defer = threads.deferToThread(self.is_pot_connected)
                     pot_connect_defer.addCallback(self.pot_connected)
@@ -69,9 +75,9 @@ class Pre_Auth(base_auth_handler.Base_Auth):
                 log.msg(log.LRED, '[PRE_AUTH][ERROR]', 'PLUGIN ERROR - DISCONNECTING ATTACKER')
                 self.server.loseConnection()
         else:
-                log.msg(log.LRED, '[PRE_AUTH][ERROR]', 'PLUGIN ERROR - DISCONNECTING ATTACKER')
-                self.server.loseConnection()
-        
+            log.msg(log.LRED, '[PRE_AUTH][ERROR]', 'PLUGIN ERROR - DISCONNECTING ATTACKER')
+            self.server.loseConnection()
+
     def pot_connected(self, success):
         if success:
             if not self.server.disconnected:
@@ -84,18 +90,19 @@ class Pre_Auth(base_auth_handler.Base_Auth):
             else:
                 self.server.client.loseConnection()
         else:
-            log.msg(log.LRED, '[PRE_AUTH][ERROR]', 'COULD NOT CONNECT TO HONEYPOT AFTER %s SECONDS - DISCONNECTING CLIENT' % (self.connection_timeout))
+            log.msg(log.LRED, '[PRE_AUTH][ERROR]',
+                    'COULD NOT CONNECT TO HONEYPOT AFTER %s SECONDS - DISCONNECTING CLIENT' % (self.connection_timeout))
             self.server.loseConnection()
-        
+
     def connection_lost(self):
         if not self.server.post_auth_started:
             self.server.disconnected = True
             if self.networkingSetup:
                 self.server.net.removeNetworking(self.server.factory.connections.connections)
-        
+
             if self.auth_plugin is not None:
                 if self.server.clientConnected:
-                    plugins.run_plugins_function(self.auth_plugin, 'connection_lost', True, self.conn_details)
+                    plugins.run_plugins_function([self.auth_plugin], 'connection_lost', True, self.conn_details)
         else:
             if self.auth_plugin is not None:
-                plugins.run_plugins_function(self.auth_plugin, 'connection_lost', True, self.conn_details)
+                plugins.run_plugins_function([self.auth_plugin], 'connection_lost', True, self.conn_details)

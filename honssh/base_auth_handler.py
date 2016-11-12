@@ -28,13 +28,13 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
+import time
+
 from honssh import log
 from honssh import plugins
 
-import time
 
 class Base_Auth():
-    
     def __init__(self, server, name):
         self.server = server
         self.name = name
@@ -47,16 +47,15 @@ class Base_Auth():
         self.finishedSending = False
         self.delayedPackets = []
         self.networkingSetup = False
-        
+
     def get_conn_details(self):
-        plugin_list = plugins.get_plugin_list(type='honeypot')
-        self.auth_plugin = plugins.import_auth_plugins(self.name, plugin_list, self.cfg)
         if self.auth_plugin is None:
-            log.msg(log.LRED, '[' + self.name + ']', 'NO PLUGIN ENABLED FOR ' + self.name)
-            return {'success':False}
+            log.msg(log.LRED, '[' + self.name + ']', 'NO AUTH PLUGIN SET FOR ' + self.name)
+            return {'success': False}
         else:
-            return plugins.run_plugins_function(self.auth_plugin, 'get_' + self.name.lower() + '_details', False, self.conn_details)
-        
+            return plugins.run_plugins_function([self.auth_plugin], 'get_' + self.name.lower() + '_details', False,
+                                                self.conn_details)
+
     def is_pot_connected(self):
         timeoutCount = 0
         while not self.server.clientConnected:
