@@ -1,7 +1,7 @@
 import re
 
 
-def checkValidIP(prop, value):
+def check_valid_ip(prop, value):
     match = re.match('^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$',
                      value)
     if match:
@@ -10,8 +10,9 @@ def checkValidIP(prop, value):
         print '[VALIDATION] - [' + prop[0] + '][' + prop[1] + '] should be a valid IP address'
         return False
 
-def checkValidPort(prop, value):
-    if checkValidNumber(prop, value):
+
+def check_valid_port(prop, value):
+    if check_valid_number(prop, value):
         if 1 <= int(value) <= 65535:
             return True
         else:
@@ -19,7 +20,7 @@ def checkValidPort(prop, value):
             return False
 
 
-def checkValidBool(prop, value):
+def check_valid_boolean(prop, value):
     if value in ['true', 'false']:
         return True
     else:
@@ -27,7 +28,7 @@ def checkValidBool(prop, value):
         return False
 
 
-def checkValidNumber(prop, value):
+def check_valid_number(prop, value):
     try:
         int(value)
         return True
@@ -36,8 +37,8 @@ def checkValidNumber(prop, value):
         return False
 
 
-def checkValidChance(prop, value):
-    if checkValidNumber(prop, value):
+def check_valid_chance(prop, value):
+    if check_valid_number(prop, value):
         if 1 <= int(value):
             return True
         else:

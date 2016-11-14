@@ -26,59 +26,70 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh.protocols import baseProtocol 
-import re, datetime
+from honssh.config import Config
+from honssh.protocols import baseProtocol
+import re
+import datetime
 
-class ExecTerm(baseProtocol.BaseProtocol):  
+
+class ExecTerm(baseProtocol.BaseProtocol):
     size = -1
     fileName = ''
-    theFile = ''
+    file = ''
     scp = False
-   
-    def __init__(self, out, uuid, chanName, command, ssh, blocked):
-        self.name = chanName
+
+    def __init__(self, out, uuid, chan_name, command, ssh, blocked):
+        super(ExecTerm, self).__init__(uuid, chan_name, ssh)
+
+        self.cfg = Config.getInstance()
         self.out = out
-        self.ssh = ssh
-        self.uuid = uuid
-        self.out.registerSelf(self)
-                
+        self.out.register_self(self)
+
         if command.startswith('scp'):
             self.scp = True
+            self.fileName = ''
+            self.file = ''
+            self.size = -1
         else:
-            self.ttylog_file = self.out.logLocation + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") + '_' + self.name[1:-1] + '.tty'
-            self.out.openTTY(self.ttylog_file)
-            self.out.inputTTY(self.ttylog_file, 'INPUT: ' + command + '\n\n')
-        self.out.commandEntered(self.uuid, command, blocked=blocked)
-                        
-    def channelClosed(self):
+            self.scp = False
+            self.ttylog_file = self.out.logLocation + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") \
+                               + '_' + self.name[1:-1] + '.tty'
+            self.out.open_tty(self.ttylog_file)
+            self.out.input_tty(self.ttylog_file, 'INPUT: ' + command + '\n\n')
+
+        self.out.command_entered(self.uuid, command, blocked=blocked)
+
+    def channel_closed(self):
         if not self.scp:
-            self.out.closeTTY(self.ttylog_file)
-    
-    def parsePacket(self, parent, payload): 
-        self.data = payload   
-        
+            self.out.close_tty(self.ttylog_file)
+
+    def parse_packet(self, parent, payload):
+        self.data = payload
+
         if self.scp:
             if parent == '[SERVER]':
                 if self.size == -1:
                     match = re.match('C\d{4} (\d*) (.*)', self.data)
                     if match:
                         self.size = int(match.group(1))
-                        self.fileName = str(match.group(2))      
-                        self.out.downloadStarted(self.uuid, self.fileName)
+                        self.fileName = str(match.group(2))
+                        self.out.download_started(self.uuid, self.fileName)
                 else:
-                    self.theFile = self.theFile + self.data[:self.size]
-                    self.size = self.size - len(self.data[:self.size])
+                    self.file = self.file + self.data[:self.size]
+                    self.size -= len(self.data[:self.size])
+
                     if self.size == 0:
-                        if self.out.cfg.get('download','passive') == 'true':
-                            self.out.makeDownloadsFolder()
-                            outfile = self.out.downloadFolder + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") + "-" + self.fileName
+                        if self.cfg.getboolean(['download', 'passive']):
+                            self.out.make_downloads_folder()
+                            outfile = self.out.downloadFolder + datetime.datetime.now().strftime(
+                                "%Y%m%d_%H%M%S_%f") + "-" + self.fileName
                             f = open(outfile, 'wb')
-                            f.write(self.theFile)
+                            f.write(self.file)
                             f.close()
-                            self.out.fileDownloaded((self.uuid, True, self.fileName, outfile, None))
-                        
+                            self.out.file_downloaded((self.uuid, True, self.fileName, outfile, None))
+
                         self.fileName = ''
-                        self.theFile = ''
-                        self.size = -1                        
+                        self.file = ''
+                        self.size = -1
         else:
-            self.out.inputTTY(self.ttylog_file, payload)   
+            self.out.input_tty(self.ttylog_file, payload)

@@ -26,7 +26,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-import ConfigParser
+from honssh.config import Config
 from twisted.python import log
 
 PLAIN = '\033[0m'
@@ -43,16 +43,14 @@ LPURPLE = '\033[1;35m'
 CYAN = '\033[0;36m'
 LCYAN = '\033[1;36m'
 
-cfg = ConfigParser.ConfigParser()
-cfg.read('honssh.cfg')
+cfg = Config.getInstance()
+
 
 def msg(color, identifier, message):
-    
     if not isinstance(message, basestring):
         message = repr(message)
 
-    if cfg.has_option('devmode', 'enabled'):   
-        if cfg.get('devmode', 'enabled') == 'true':
+    if cfg.has_option('devmode', 'enabled') and cfg.getboolean(['devmode', 'enabled']):
             log.msg(color + identifier +  ' - ' + message + '\033[0m')
     else:
         log.msg(identifier +  ' - ' + message)

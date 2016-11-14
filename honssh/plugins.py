@@ -33,35 +33,35 @@ import os
 
 from twisted.internet import threads
 
-from honssh import log
+#from honssh import log
 
 output_plugin_folders = ['honssh/output', 'plugins/output']
 honeypot_plugin_folders = ['honssh/honeypot', 'plugins/honeypot']
 
 
-def get_plugin_list(type='all'):
-    if type == 'all':
+def get_plugin_list(plugin_type='all'):
+    if plugin_type == 'all':
         plugin_folders = output_plugin_folders + honeypot_plugin_folders
-    elif type == 'output':
+    elif plugin_type == 'output':
         plugin_folders = output_plugin_folders
-    elif type == 'honeypot':
+    elif plugin_type == 'honeypot':
         plugin_folders = honeypot_plugin_folders
 
     plugins = []
     for folder in plugin_folders:
         files = os.listdir(folder)
-        for file in files:
-            if file.endswith('.py'):
-                if file != '__init__.py':
-                    file = file.replace('.py', '')
-                    plugins.append('%s/%s' % (folder, file))
+        for plugin_file in files:
+            if plugin_file.endswith('.py'):
+                if plugin_file != '__init__.py':
+                    plugin_file = plugin_file.replace('.py', '')
+                    plugins.append('%s/%s' % (folder, plugin_file))
     return plugins
 
 
 def get_plugin_cfg_files(plugin_files):
     cfg_files = []
     for plugin_file in plugin_files:
-        cfg_file = '%s.cfg' % (plugin_file)
+        cfg_file = '%s.cfg' % plugin_file
         if os.path.exists(cfg_file):
             cfg_files.append(cfg_file)
     return cfg_files
@@ -69,8 +69,8 @@ def get_plugin_cfg_files(plugin_files):
 
 def import_plugin(plugin):
     plugin = plugin.replace('/', '.')
-    import_plugin = importlib.import_module(plugin)
-    return import_plugin.Plugin()
+    imported_plugin = importlib.import_module(plugin)
+    return imported_plugin.Plugin()
 
 
 def import_plugins(plugins, search=None):
@@ -80,30 +80,33 @@ def import_plugins(plugins, search=None):
     plugin_list = []
     for plugin in plugins:
         cfg_section = plugin.split('/')[-1]
-        if cfg.get(cfg_section, 'enabled') == 'true':
+        if cfg.getboolean([cfg_section, 'enabled']):
             if search:
-                if cfg.get(cfg_section, search) == 'true':
+                if cfg.getboolean([cfg_section, search]):
                     plugin_list.append(import_plugin(plugin))
             else:
                 plugin_list.append(import_plugin(plugin))
     return plugin_list
 
 
-def import_auth_plugin(type, plugins):
-    imported_plugins = import_plugins(plugins, type.lower().replace('_', '-'))
+def import_auth_plugin(plugin_type, plugins):
+    imported_plugins = import_plugins(plugins, plugin_type.lower().replace('_', '-'))
     if len(imported_plugins) > 0:
         return imported_plugins[0]
     return None
 
 
 def run_plugins_function(plugins, function, thread, *args, **kwargs):
+    return_value = False
+
     for plugin in plugins:
-        return_value = False
         class_name = get_plugin_name(plugin).upper()
         try:
             func = getattr(plugin, function)
             if function != 'packet_logged':
-                log.msg(log.LCYAN, '[PLUGIN][' + class_name + ']', function.upper())
+                pass
+                #log.msg(log.LCYAN, '[PLUGIN][' + class_name + ']', function.upper())
+
             if thread:
                 threads.deferToThread(func, *copy.deepcopy(args), **copy.deepcopy(kwargs))
             else:
@@ -113,7 +116,8 @@ def run_plugins_function(plugins, function, thread, *args, **kwargs):
         except AttributeError:
             pass
         except Exception, ex:
-            log.msg(log.LRED, '[PLUGIN][' + class_name + '][ERR]', str(ex))
+            pass
+            #log.msg(log.LRED, '[PLUGIN][' + class_name + '][ERR]', str(ex))
 
     return return_value
 

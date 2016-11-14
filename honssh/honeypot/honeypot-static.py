@@ -29,54 +29,56 @@
 # SUCH DAMAGE.
 
 from honssh.config import Config
+from honssh.utils import validation
 from honssh import spoof
 
-class Plugin():
-    
+
+class Plugin(object):
     def __init__(self):
         self.cfg = Config.getInstance()
-        self.connection_timeout = int(self.cfg.get('honeypot','connection_timeout'))
+        self.connection_timeout = self.cfg.getint(['honeypot', 'connection_timeout'])
 
     def get_pre_auth_details(self, conn_details):
         return self.get_connection_details()
-        
+
     def get_post_auth_details(self, conn_details):
-        success, username, password = spoof.get_connection_details(self.cfg, conn_details)
+        success, username, password = spoof.get_connection_details(conn_details)
         if success:
             details = self.get_connection_details()
             details['username'] = username
             details['password'] = password
             details['connection_timeout'] = self.connection_timeout
         else:
-            details = {'success':False}
+            details = {'success': False}
         return details
 
     def get_connection_details(self):
-        sensor_name = self.cfg.get('honeypot-static', 'sensor_name')
-        honey_ip = self.cfg.get('honeypot-static', 'honey_ip')
-        honey_port = int(self.cfg.get('honeypot-static', 'honey_port'))
+        sensor_name = self.cfg.get(['honeypot-static', 'sensor_name'])
+        honey_ip = self.cfg.get(['honeypot-static', 'honey_ip'])
+        honey_port = self.cfg.getint(['honeypot-static', 'honey_port'])
 
-        return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port, 'connection_timeout':self.connection_timeout}
+        return {'success': True, 'sensor_name': sensor_name, 'honey_ip': honey_ip, 'honey_port': honey_port,
+                'connection_timeout': self.connection_timeout}
 
     def validate_config(self):
-        props = [['honeypot-static','enabled'], ['honeypot-static','pre-auth'], ['honeypot-static','post-auth']]
+        props = [['honeypot-static', 'enabled'], ['honeypot-static', 'pre-auth'], ['honeypot-static', 'post-auth']]
         for prop in props:
-            if not config.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg, prop):
+            if not self.cfg.check_exist(prop, validation.check_valid_boolean):
                 return False
-            
-        props = [['honeypot-static','honey_ip']]
-        for prop in props:
-            if not config.checkExist(self.cfg,prop) or not config.checkValidIP(self.cfg,prop):
-                return False
-            
-        props = [['honeypot-static','honey_port']]
-        for prop in props:
-            if not config.checkExist(self.cfg,prop) or not config.checkValidPort(self.cfg,prop):
-                return False 
-            
-        props = [['honeypot-static','sensor_name']]
-        for prop in props:
-            if not config.checkExist(self.cfg,prop):
-                return False           
 
-        return True    
+        props = [['honeypot-static', 'honey_ip']]
+        for prop in props:
+            if not self.cfg.check_exist(prop, validation.check_valid_ip):
+                return False
+
+        props = [['honeypot-static', 'honey_port']]
+        for prop in props:
+            if not self.cfg.check_exist(prop, validation.check_valid_port):
+                return False
+
+        props = [['honeypot-static', 'sensor_name']]
+        for prop in props:
+            if not self.cfg.check_exist(prop):
+                return False
+
+        return True

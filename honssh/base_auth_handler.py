@@ -34,7 +34,8 @@ from honssh import log
 from honssh import plugins
 from honssh.config import Config
 
-class Base_Auth():
+
+class BaseAuth(object):
     def __init__(self, server, name):
         self.server = server
         self.name = name
@@ -57,10 +58,11 @@ class Base_Auth():
                                                 self.conn_details)
 
     def is_pot_connected(self):
-        timeoutCount = 0
+        timeout_count = 0
+
         while not self.server.clientConnected:
             time.sleep(0.5)
-            timeoutCount += 0.5
-            if timeoutCount == self.connection_timeout:
+            timeout_count += 0.5
+            if timeout_count == self.connection_timeout:
                 break
         return self.server.clientConnected

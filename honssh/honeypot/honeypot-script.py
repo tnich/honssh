@@ -28,19 +28,22 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh.config import Config
-
 import subprocess
 
+from honssh.config import Config
+from honssh.utils import validation
 
-class Plugin():
-    
+
+class Plugin(object):
     def __init__(self):
         self.cfg = Config.getInstance()
-        self.connection_timeout = int(self.cfg.get('honeypot','connection_timeout'))
+        self.connection_timeout = self.cfg.getint(['honeypot', 'connection_timeout'])
 
     def get_pre_auth_details(self, conn_details):
-        command = '%s %s %s %s %s' % (self.cfg.get('honeypot-script', 'pre-auth-script'), conn_details['peer_ip'], conn_details['local_ip'], conn_details['peer_port'], conn_details['local_port'])
+        command = '%s %s %s %s %s' % (
+            self.cfg.get(['honeypot-script', 'pre-auth-script']), conn_details['peer_ip'], conn_details['local_ip'],
+            conn_details['peer_port'], conn_details['local_port'])
+
         sp = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         result = sp.communicate()
         if sp.returncode == 0:
@@ -49,12 +52,16 @@ class Plugin():
             honey_ip = binder[1].lstrip().strip()
             honey_port = int(binder[2].lstrip().strip())
 
-            return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port, 'connection_timeout':self.connection_timeout}
+            return {'success': True, 'sensor_name': sensor_name, 'honey_ip': honey_ip, 'honey_port': honey_port,
+                    'connection_timeout': self.connection_timeout}
         else:
-            return {'success':False}
-                
+            return {'success': False}
+
     def get_post_auth_details(self, conn_details):
-        command = '%s %s %s %s %s %s %s' % (self.cfg.get('honeypot-script', 'post-auth-script'), conn_details['peer_ip'], conn_details['local_ip'], conn_details['peer_port'], conn_details['local_port'], conn_details['username'], conn_details['password'])
+        command = '%s %s %s %s %s %s %s' % (
+            self.cfg.get(['honeypot-script', 'post-auth-script']), conn_details['peer_ip'], conn_details['local_ip'],
+            conn_details['peer_port'], conn_details['local_port'], conn_details['username'], conn_details['password'])
+
         sp = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         result = sp.communicate()
         if sp.returncode == 0:
@@ -64,24 +71,27 @@ class Plugin():
             honey_port = int(binder[2].lstrip().strip())
             username = binder[3].lstrip().strip()
             password = binder[4].lstrip().strip()
-            return {'success':True, 'sensor_name':sensor_name, 'honey_ip':honey_ip, 'honey_port':honey_port, 'username':username, 'password':password, 'connection_timeout':self.connection_timeout}
+            return {'success': True, 'sensor_name': sensor_name, 'honey_ip': honey_ip, 'honey_port': honey_port,
+                    'username': username, 'password': password, 'connection_timeout': self.connection_timeout}
         else:
-            return {'success':False}
+            return {'success': False}
 
     def validate_config(self):
-        props = [['honeypot-script','enabled'], ['honeypot-script','pre-auth'], ['honeypot-script','post-auth']]
+        props = [['honeypot-script', 'enabled'], ['honeypot-script', 'pre-auth'], ['honeypot-script', 'post-auth']]
         for prop in props:
-            if not config.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg, prop):
+            if not self.cfg.check_exist(prop, validation.check_valid_boolean):
                 return False
-        if self.cfg.get('honeypot-script','pre-auth') == 'true':
-            props = [['honeypot-script','pre-auth-script']]
-            for prop in props:
-                if not config.checkExist(self.cfg,prop):
-                    return False  
-        if self.cfg.get('honeypot-script','post-auth') == 'true':
-            props = [['honeypot-script','post-auth-script']]
-            for prop in props:
-                if not config.checkExist(self.cfg,prop):
-                    return False 
 
-        return True    
+        if self.cfg.getboolean(['honeypot-script', 'pre-auth']):
+            props = [['honeypot-script', 'pre-auth-script']]
+            for prop in props:
+                if not self.cfg.check_exist(prop):
+                    return False
+
+        if self.cfg.getboolean(['honeypot-script', 'post-auth']):
+            props = [['honeypot-script', 'post-auth-script']]
+            for prop in props:
+                if not self.cfg.check_exist(prop):
+                    return False
+
+        return True

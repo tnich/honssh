@@ -13,22 +13,15 @@ COLOR_INTERACT = '\033[36m'
 COLOR_INPUT = '\033[33m'
 COLOR_RESET = '\033[0m'
 
-def playlog(fd, settings):
 
-    thelog = {}
-    thelog['version'] = 1
-    thelog['width'] = 80
-    thelog['height'] = 24
-    thelog['duration'] = 0.0
-    thelog['command'] = "/bin/bash"
-    thelog['title'] = "HonSSH Recording"
-    theenv = {}
-    theenv['TERM'] = "xterm256-color"   
-    theenv['SHELL'] = "/bin/bash"
-    thelog["env"] = theenv
+def playlog(fd, settings):
+    thelog = {'version': 1, 'width': 80, 'height': 24, 'duration': 0.0, 'command': "/bin/bash",
+              'title': "HonSSH Recording"}
+    theenv = {'TERM': "xterm256-color", 'SHELL': "/bin/bash"}
+
     stdout = []
-    thelog["stdout"] = stdout
- 
+    thelog = {'env': theenv, 'stdout': stdout}
+
     ssize = struct.calcsize('<iLiiLL')
 
     currtty, prevtime, prefdir = 0, 0, 0
@@ -44,21 +37,27 @@ def playlog(fd, settings):
         except struct.error:
             break
 
-        if currtty == 0: currtty = tty
+        if currtty == 0:
+            currtty = tty
 
         if str(tty) == str(currtty) and op == OP_WRITE:
             # the first stream seen is considered 'output'
             if prefdir == 0:
                 prefdir = dir
+
             if dir == TYPE_INTERACT:
                 color = COLOR_INTERACT
             elif dir == TYPE_INPUT:
                 color = COLOR_INPUT
+
             if dir == prefdir:
                 curtime = float(sec) + float(usec) / 1000000
+
                 if prevtime != 0:
                     sleeptime = curtime - prevtime
+
                 prevtime = curtime
+
                 if settings['colorify'] and color:
                     sys.stdout.write(color)
 
@@ -88,9 +87,8 @@ def playlog(fd, settings):
 
 
 def help(verbose=False):
-
-    print(( 'usage: %s [-c] [-o output] <tty-log-file> <tty-log-file>...' % \
-        os.path.basename(sys.argv[0])))
+    print(('usage: %s [-c] [-o output] <tty-log-file> <tty-log-file>...' % \
+           os.path.basename(sys.argv[0])))
 
     if verbose:
         print('  -c             colorify the output based on what streams are being received')
@@ -101,23 +99,28 @@ def help(verbose=False):
 if __name__ == '__main__':
 
     settings = {
-        'colorify':     0,
+        'colorify': 0,
         'output': ""
-        }
+    }
 
     try:
-        optlist, args = getopt.getopt(sys.argv[1:], 'hco:' )
+        optlist, args = getopt.getopt(sys.argv[1:], 'hco:')
     except getopt.GetoptError as error:
-        sys.stderr.write( '{}: {}\n'.format(sys.argv[0], error))
+        sys.stderr.write('{}: {}\n'.format(sys.argv[0], error))
         help()
         sys.exit(1)
 
     for o, a in optlist:
-        if o == '-h': help()
-        if o == '-c': settings['colorify'] = True
-        if o == '-o': settings['output'] = a
+        if o == '-h':
+            help()
 
-    if len(args)<1:
+        if o == '-c':
+            settings['colorify'] = True
+
+        if o == '-o':
+            settings['output'] = a
+
+    if len(args) < 1:
         help()
         sys.exit(2)
 
@@ -126,4 +129,4 @@ if __name__ == '__main__':
             logfd = open(logfile, 'rb')
             playlog(logfd, settings)
         except IOError as e:
-            sys.stderr.write( "{}: {}\n".format(sys.argv[0], e))
+            sys.stderr.write("{}: {}\n".format(sys.argv[0], e))

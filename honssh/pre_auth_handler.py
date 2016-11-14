@@ -35,9 +35,10 @@ from honssh import log
 from honssh import plugins
 
 
-class Pre_Auth(base_auth_handler.Base_Auth):
+class PreAuth(base_auth_handler.BaseAuth):
     def __init__(self, server):
-        base_auth_handler.Base_Auth.__init__(self, server, 'PRE_AUTH')
+        #base_auth_handler.BaseAuth.__init__(self, server, 'PRE_AUTH')
+        super(PreAuth, self).__init__(server, 'PRE_AUTH')
 
         self.sensor_name = None
         self.honey_ip = None
@@ -63,7 +64,7 @@ class Pre_Auth(base_auth_handler.Base_Auth):
                             'Connecting to Honeypot: %s (%s:%s)' % (self.sensor_name, self.honey_ip, self.honey_port))
                     client_factory = client.HonsshClientFactory()
                     client_factory.server = self.server
-                    bind_ip = self.server.net.setupNetworking(self.server.peer_ip, self.honey_ip, self.honey_port)
+                    bind_ip = self.server.net.setup_networking(self.server.peer_ip, self.honey_ip, self.honey_port)
                     self.networkingSetup = True
                     reactor.connectTCP(self.honey_ip, self.honey_port, client_factory,
                                        bindAddress=(bind_ip, self.server.peer_port + 2),
@@ -85,7 +86,7 @@ class Pre_Auth(base_auth_handler.Base_Auth):
                 self.server.connection_setup()
                 log.msg(log.LGREEN, '[PRE_AUTH]', 'CLIENT CONNECTED, REPLAYING BUFFERED PACKETS')
                 for packet in self.delayedPackets:
-                    self.server.sshParse.parsePacket("[SERVER]", packet[0], packet[1])
+                    self.server.sshParse.parse_packet("[SERVER]", packet[0], packet[1])
                 self.finishedSending = True
             else:
                 self.server.client.loseConnection()
@@ -98,7 +99,7 @@ class Pre_Auth(base_auth_handler.Base_Auth):
         if not self.server.post_auth_started:
             self.server.disconnected = True
             if self.networkingSetup:
-                self.server.net.removeNetworking(self.server.factory.connections.connections)
+                self.server.net.remove_networking(self.server.factory.connections.connections)
 
             if self.auth_plugin is not None:
                 if self.server.clientConnected:

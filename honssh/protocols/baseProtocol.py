@@ -26,58 +26,59 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-class BaseProtocol():
-    
+
+class BaseProtocol(object):
     data = ''
     packetSize = 0
     name = ''
     uuid = ''
     ttylog_file = None
-    
+
     def __init__(self, uuid=None, name=None, ssh=None):
-        if uuid != None:
+        if uuid is not None:
             self.uuid = uuid
-        if name != None:
+
+        if name is not None:
             self.name = name
-        if ssh != None:
+
+        if ssh is not None:
             self.ssh = ssh
-                
-                   
-    def parsePacket(self, parent, theData):
-        #log.msg(parent + ' ' + repr(theData))
-        #log.msg(parent + ' ' + '\'\\x' + "\\x".join("{:02x}".format(ord(c)) for c in self.data) + '\'')
+
+    def parse_packet(self, parent, data):
+        # log.msg(parent + ' ' + repr(data))
+        # log.msg(parent + ' ' + '\'\\x' + "\\x".join("{:02x}".format(ord(c)) for c in self.data) + '\'')
         pass
-    
-    def injectDisconnect(self):
-        self.ssh.injectDisconnect()
-    
-    def channelClosed(self):
+
+    def inject_disconnect(self):
+        self.ssh.inject_disconnect()
+
+    def channel_closed(self):
         pass
-        
-    def extractInt(self, len):
-        value = int(self.data[:len].encode('hex'), 16)
-        self.packetSize = self.packetSize - len
-        self.data = self.data[len:]
+
+    def extract_int(self, length):
+        value = int(self.data[:length].encode('hex'), 16)
+        self.packetSize = self.packetSize - length
+        self.data = self.data[length:]
         return value
-    
-    def extractString(self):
-        len = self.extractInt(4)
-        value = str(self.data[:len])
-        self.packetSize = self.packetSize - len
-        self.data = self.data[len:]
+
+    def extract_string(self):
+        length = self.extract_int(4)
+        value = str(self.data[:length])
+        self.packetSize -= length
+        self.data = self.data[length:]
         return value
-    
-    def extractBool(self):
-        value = self.extractInt(1)
+
+    def extract_bool(self):
+        value = self.extract_int(1)
         return bool(value)
-        
-    def extractData(self):
-        length = self.extractInt(4)
+
+    def extract_data(self):
+        length = self.extract_int(4)
         self.packetSize = length
         value = self.data
-        self.packetSize = self.packetSize - len(value)
+        self.packetSize -= len(value)
         self.data = ''
         return value
-    
+
     def __deepcopy__(self, memo):
         return None

@@ -29,8 +29,8 @@
 import ConfigParser
 import inspect
 
-from honssh import plugins
 from honssh.utils import validation
+from honssh import plugins
 
 
 class Config(ConfigParser.ConfigParser):
@@ -56,7 +56,7 @@ class Config(ConfigParser.ConfigParser):
         else:
             raise Exception('This class cannot be instantiated from outside. Please use \'getInstance()\'')
 
-    def validateConfig(self):
+    def validate_config(self):
         plugin_list = plugins.get_plugin_list()
         loaded_plugins = plugins.import_plugins(plugin_list)
         # TODO: Is this right?
@@ -65,20 +65,20 @@ class Config(ConfigParser.ConfigParser):
         # Check prop exists and is an IP address
         props = [['honeypot', 'ssh_addr'], ['honeypot', 'client_addr']]
         for prop in props:
-            if not self.checkExist(prop) and validation.checkValidIP(prop, self.get(prop[0], prop[1])):
+            if not self.check_exist(prop, validation.check_valid_ip):
                 valid = False
 
         # Check prop exists and is a port number
         props = [['honeypot', 'ssh_port']]
         for prop in props:
-            if not self.checkExist(prop) or not validation.checkValidPort(prop, self.get(prop[0], prop[1])):
+            if not self.check_exist(prop, validation.check_valid_port):
                 valid = False
 
         # Check prop exists
         props = [['honeypot', 'public_key'], ['honeypot', 'private_key'], ['honeypot', 'public_key_dsa'],
                  ['honeypot', 'private_key_dsa'], ['folders', 'log_path'], ['folders', 'session_path']]
         for prop in props:
-            if not self.checkExist(prop):
+            if not self.check_exist(prop):
                 valid = False
 
         # Check prop exists and is true/false
@@ -88,31 +88,39 @@ class Config(ConfigParser.ConfigParser):
                  ['hp-restrict', 'disable_port_forwarding'],
                  ['packet_logging', 'enabled']]
         for prop in props:
-            if not self.checkExist(prop) or not validation.checkValidBool(prop, self.get(prop[0], prop[1])):
+            if not self.check_exist(prop, validation.check_valid_boolean):
                 valid = False
 
         # If interact is enabled check it's config
-        if self.get('interact', 'enabled') == 'true':
+        if self.getboolean(['interact', 'enabled']):
             prop = ['interact', 'interface']
-            if not self.checkExist(prop) or not validation.checkValidIP(prop, self.get(prop[0], prop[1])):
+            if not self.check_exist(prop, validation.check_valid_ip):
                 valid = False
 
             prop = ['interact', 'port']
-            if not self.checkExist(prop) or not validation.checkValidPort(prop, self.get(prop[0], prop[1])):
+            if not self.check_exist(prop, validation.check_valid_port):
                 valid = False
 
         # If spoof is enabled check it's config
-        if self.get('spoof', 'enabled') == 'true':
+        if self.getboolean(['spoof', 'enabled']):
             prop = ['spoof', 'users_conf']
-            if not self.checkExist(prop):
+            if not self.check_exist(prop):
                 valid = False
 
         return valid
 
-    def checkExist(self, prop):
+    def check_exist(self, prop, validation_function=None):
         if self.has_option(prop[0], prop[1]):
-            if not self.get(prop[0], prop[1]) == '':
-                return True
+            val = ConfigParser.ConfigParser.get(self, prop[0], prop[1])
+
+            if len(val) > 0:
+                if validation_function is None:
+                    return True
+                else:
+                    if validation_function(prop, val):
+                        return True
+                    else:
+                        return False
             else:
                 print '[VALIDATION] - [' + prop[0] + '][' + prop[1] + '] must not be blank.'
                 return False
@@ -120,36 +128,43 @@ class Config(ConfigParser.ConfigParser):
             print '[VALIDATION] - [' + prop[0] + '][' + prop[1] + '] must exist.'
             return False
 
-    def get(self, section, option, raw=False, vars=None, default=None):
-        ret = ConfigParser.ConfigParser.get(self, section, option, raw, vars)
+    def get(self, prop, raw=False, vars=None, default=None):
+        ret = ConfigParser.ConfigParser.get(self, prop[0], prop[1], raw, vars)
 
         if len(ret) == 0 and default is not None:
             ret = default
 
         return ret
 
-    def _getconv(self, section, option, conv, checkfunction, default=None):
-        ret = self.get(section, option, default=default)
+    def _getconv(self, prop, conv=None, default=None):
+        ret = ConfigParser.ConfigParser.get(self, prop[0], prop[1], False, None)
 
         if len(ret) == 0 and default is not None:
             ret = default
-        elif len(ret) > 0:
-            if checkfunction([section, option], ret):
+        elif len(ret) > 0 and conv is not None:
+            try:
                 ret = conv(ret)
+            except:
+                pass
 
         return ret
 
-    def getport(self, section, option, default=None):
-        return self._getconv(section, option, int, validation.checkValidNumber, default)
+    def getport(self, prop, default=None):
+        return self._getconv(prop, int, default)
 
-    def getip(self, section, option, default=None):
-        return self._getconv(section, option, int, validation.checkValidNumber, default)
+    def getip(self, prop, default=None):
+        return self._getconv(prop, None, default)
 
-    def getint(self, section, option, default=None):
-        return self._getconv(section, option, int, validation.checkValidNumber, default)
+    def getint(self, prop, default=None):
+        return self._getconv(prop, int, default)
 
-    def getfloat(self, section, option, default=None):
-        return self._getconv(section, option, float, validation.checkValidNumber, default)
+    def getfloat(self, prop, default=None):
+        return self._getconv(prop, float, default)
 
-    def getboolean(self, section, option, default=None):
-        return self._getconv(section, option, bool, validation.checkValidBool(), default)
+    def getboolean(self, prop, default=False):
+        val = self._getconv(prop, None, default)
+
+        if val == 'true':
+            return True
+        else:
+            return False

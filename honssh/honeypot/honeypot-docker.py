@@ -31,7 +31,6 @@ import os
 
 from honssh.config import Config
 from honssh.utils import validation
-
 from honssh import spoof, log
 
 from docker import Client
@@ -42,10 +41,10 @@ from twisted.internet import inotify
 from library_fixes.twisted import inotifyFix
 
 
-class Plugin():
+class Plugin(object):
     def __init__(self):
         self.cfg = Config.getInstance()
-        self.connection_timeout = int(self.cfg.get('honeypot', 'connection_timeout'))
+        self.connection_timeout = self.cfg.getint(['honeypot', 'connection_timeout'])
         self.docker_drive = None
         self.container = None
         self.sensor_name = None
@@ -55,8 +54,9 @@ class Plugin():
         return self.get_connection_details(conn_details)
 
     def get_post_auth_details(self, conn_details):
-        success, username, password = spoof.get_connection_details(self.cfg, conn_details)
-
+        print '1'
+        success, username, password = spoof.get_connection_details(conn_details)
+        print '2'
         if success:
             if self.container is None:
                 details = self.get_connection_details(conn_details)
@@ -75,22 +75,22 @@ class Plugin():
     def get_connection_details(self, conn_details):
         self.peer_ip = conn_details['peer_ip']
 
-        socket = self.cfg.get('honeypot-docker', 'uri')
-        image = self.cfg.get('honeypot-docker', 'image')
-        launch_cmd = self.cfg.get('honeypot-docker', 'launch_cmd')
-        self.sensor_name = self.cfg.get('honeypot-docker', 'hostname')
-        honey_port = self.cfg.getint('honeypot-docker', 'honey_port')
-        pids_limit = self.cfg.getint('honeypot-docker', 'pids_limit')
-        mem_limit = self.cfg.get('honeypot-docker', 'mem_limit')
-        memswap_limit = self.cfg.get('honeypot-docker', 'memswap_limit')
-        shm_size = self.cfg.get('honeypot-docker', 'shm_size')
-        cpu_period = self.cfg.getint('honeypot-docker', 'cpu_period')
-        cpu_shares = self.cfg.getint('honeypot-docker', 'cpu_shares')
-        cpuset_cpus = self.cfg.get('honeypot-docker', 'cpuset_cpus')
-        reuse_container = self.cfg.get('honeypot-docker', 'reuse_container')
+        socket = self.cfg.get(['honeypot-docker', 'uri'])
+        image = self.cfg.get(['honeypot-docker', 'image'])
+        launch_cmd = self.cfg.get(['honeypot-docker', 'launch_cmd'])
+        self.sensor_name = self.cfg.get(['honeypot-docker', 'hostname'])
+        honey_port = self.cfg.getint(['honeypot-docker', 'honey_port'])
+        pids_limit = self.cfg.getint(['honeypot-docker', 'pids_limit'])
+        mem_limit = self.cfg.get(['honeypot-docker', 'mem_limit'])
+        memswap_limit = self.cfg.get(['honeypot-docker', 'memswap_limit'])
+        shm_size = self.cfg.get(['honeypot-docker', 'shm_size'])
+        cpu_period = self.cfg.getint(['honeypot-docker', 'cpu_period'])
+        cpu_shares = self.cfg.getint(['honeypot-docker', 'cpu_shares'])
+        cpuset_cpus = self.cfg.get(['honeypot-docker', 'cpuset_cpus'])
+        reuse_container = self.cfg.get(['honeypot-docker', 'reuse_container'])
 
-        self.docker_drive = docker_driver(socket, image, launch_cmd, self.sensor_name, pids_limit, mem_limit, memswap_limit,
-                                          shm_size, cpu_period, cpu_shares, cpuset_cpus, self.peer_ip, reuse_container)
+        self.docker_drive = DockerDriver(socket, image, launch_cmd, self.sensor_name, pids_limit, mem_limit, memswap_limit,
+                                         shm_size, cpu_period, cpu_shares, cpuset_cpus, self.peer_ip, reuse_container)
         self.container = self.docker_drive.launch_container()
 
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]',
@@ -104,11 +104,11 @@ class Plugin():
         '''
         FIXME: Currently output_handler and this plugin do both construct the session folder path. This should be encapsulated.
         '''
-        overlay_folder = self.cfg.get('honeypot-docker', 'overlay_folder')
+        overlay_folder = self.cfg.get(['honeypot-docker', 'overlay_folder'])
 
         if self.docker_drive.watcher is None and len(overlay_folder) > 0:
             overlay_folder = '%s/%s/%s/%s' % \
-                             (self.cfg.get('folders', 'session_path'),
+                             (self.cfg.get(['folders', 'session_path']),
                               self.sensor_name,
                               self.peer_ip,
                               overlay_folder)
@@ -150,19 +150,19 @@ class Plugin():
         props = [['honeypot-docker', 'enabled'], ['honeypot-docker', 'pre-auth'], ['honeypot-docker', 'post-auth'],
                  ['honeypot-docker', 'reuse_container']]
         for prop in props:
-            if not self.cfg.checkExist(prop) or not validation.checkValidBool(prop, self.cfg.get(prop[0], prop[1])):
+            if not self.cfg.check_exist(prop, validation.check_valid_boolean):
                 return False
 
         props = [['honeypot-docker', 'image'], ['honeypot-docker', 'uri'], ['honeypot-docker', 'hostname'],
                  ['honeypot-docker', 'launch_cmd'], ['honeypot-docker', 'honey_port']]
         for prop in props:
-            if not self.cfg.checkExist(prop):
+            if not self.cfg.check_exist(prop):
                 return False
 
         return True
 
 
-class docker_driver():
+class DockerDriver():
 
     def __init__(self, socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, cpu_period,
                  cpu_shares, cpuset_cpus, peer_ip, reuse_container):

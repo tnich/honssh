@@ -28,6 +28,7 @@
 
 from twisted.internet import inotify
 
+
 class INotifyRFix(inotify.INotify, object):
     def __init__(self):
         inotify.INotify.__init__(self)
@@ -43,7 +44,6 @@ class INotifyRFix(inotify.INotify, object):
 
         return None
 
-
     def _doRead(self, in_):
         """
         Change to catch and ignore the exception during the watch resolution.
@@ -52,7 +52,6 @@ class INotifyRFix(inotify.INotify, object):
             inotify.INotify._doRead(self, in_)
         except KeyError:
             return
-
 
     def _addChildren(self, iwp):
         """

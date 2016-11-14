@@ -29,7 +29,7 @@
 # SUCH DAMAGE.
 
 from honssh.config import Config
-
+from honssh.utils import validation
 from honssh import log
 
 import smtplib
@@ -40,103 +40,137 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email import Encoders
 
-class Plugin():
 
+class Plugin(object):
     def __init__(self):
         self.cfg = Config.getInstance()
-        
-    def connection_made(self, sensor):
         self.login_success = False
         self.ttyFiles = []
-        
+        self.log_file = None
+
+    def connection_made(self, sensor):
+        pass
+
     def login_successful(self, sensor):
         self.login_success = True
         session = sensor['session']
+
         self.log_file = session['log_location'] + session['start_time'] + '.log'
-        if self.cfg.get('output-email', 'login') == 'true':
+
+        if self.cfg.getboolean(['output-email', 'login']):
             self.email(sensor['sensor_name'] + ' - Login Successful', self.log_file)
 
     def connection_lost(self, sensor):
         if self.login_success:
-            if self.cfg.get('output-email', 'attack') == 'true':
+            if self.cfg.getboolean(['output-email', 'attack']):
                 self.ttyFiles = []
                 session = sensor['session']
+
                 for channel in session['channels']:
                     if 'ttylog_file' in channel:
                         self.ttyFiles.append(channel['ttylog_file'])
+
                 self.email(sensor['sensor_name'] + ' - Attack logged', self.log_file)
 
     def email(self, subject, body):
         try:
-            #Start send mail code - provided by flofrihandy, modified by peg
+            # Start send mail code - provided by flofrihandy, modified by peg
             msg = MIMEMultipart()
             msg['Subject'] = subject
-            msg['From'] = self.cfg.get('output-email', 'from')
-            msg['To'] = self.cfg.get('output-email', 'to')
+            msg['From'] = self.cfg.get(['output-email', 'from'])
+            msg['To'] = self.cfg.get(['output-email', 'to'])
             file_found = False
             timeout = 0
+
             while not file_found:
                 if not os.path.isfile(body):
-                    timeout = timeout + 1
+                    timeout += 1
                     time.sleep(1)
                 else:
                     file_found = True
+
                 if timeout == 30:
                     break
+
             if file_found:
                 time.sleep(2)
+
                 fp = open(body, 'rb')
                 msg_text = MIMEText(fp.read())
                 fp.close()
+
                 msg.attach(msg_text)
+
                 for tty in self.ttyFiles:
                     fp = open(tty, 'rb')
                     logdata = MIMEBase('application', "octet-stream")
                     logdata.set_payload(fp.read())
                     fp.close()
+
                     Encoders.encode_base64(logdata)
                     logdata.add_header('Content-Disposition', 'attachment', filename=os.path.basename(tty))
                     msg.attach(logdata)
-                s = smtplib.SMTP(self.cfg.get('output-email', 'host'), int(self.cfg.get('output-email', 'port')))
-                if self.cfg.get('output-email', 'username') != '' and self.cfg.get('output-email', 'password') != '':
+
+                s = smtplib.SMTP(self.cfg.get(['output-email', 'host']), self.cfg.getint(['output-email', 'port']))
+
+                username = self.cfg.get(['output-email', 'username'])
+                password = self.cfg.get(['output-email', 'password'])
+
+                if len(username) > 0 and len(password) > 0:
                     s.ehlo()
-                    if self.cfg.get('output-email', 'use_tls') == 'true':
+
+                    if self.cfg.getboolean(['output-email', 'use_tls']):
                         s.starttls()
-                    if self.cfg.get('output-email', 'use_smtpauth') == 'true':
-                        s.login(self.cfg.get('output-email', 'username'), self.cfg.get('output-email', 'password'))
+
+                    if self.cfg.getboolean(['output-email', 'use_smtpauth']):
+                        s.login(username, password)
+
                 s.sendmail(msg['From'], msg['To'].split(','), msg.as_string())
-                s.quit() #End send mail code
+                s.quit()
+                # End send mail code
         except Exception, ex:
             log.msg(log.LRED, '[PLUGIN][EMAIL][ERR]', str(ex))
 
-        
     def validate_config(self):
-        props = [['output-email','enabled'], ['output-email','login'], ['output-email','attack']]
+        props = [['output-email', 'enabled']]
+
         for prop in props:
-            if not config.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg, prop):
+            if self.cfg.check_exist(prop, validation.check_valid_boolean):
+                print '1'
+                if not self.cfg.getboolean(prop):
+                    print '2'
+                    return False
+
+        props = [['output-email', 'login'], ['output-email', 'attack']]
+
+        for prop in props:
+            if not self.cfg.getboolean(prop):
                 return False
 
-        #If email is enabled check it's config
-        if self.cfg.get('output-email','login') == 'true' or self.cfg.get('output-email','login') == 'attack':
-            if self.cfg.get('output-txtlog','enabled') == 'true':
-                prop = ['output-email','port']
-                if not config.checkExist(self.cfg,prop) or not config.checkValidPort(self.cfg,prop):
+        # If email is enabled check it's config
+        if self.cfg.getboolean(['output-email', 'login']) or self.cfg.getboolean(['output-email', 'attack']):
+            if self.cfg.getboolean(['output-txtlog', 'enabled']):
+                prop = ['output-email', 'port']
+                if not self.cfg.check_exist(prop, validation.check_valid_port):
                     return False
-                props = [['output-email','use_tls'], ['output-email','use_smtpauth']]
+
+                props = [['output-email', 'use_tls'], ['output-email', 'use_smtpauth']]
                 for prop in props:
-                    if not config.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg,prop):
+                    if not self.cfg.check_exist(prop, validation.check_valid_boolean):
                         return False
-                if self.cfg.get('output-email','use_smtpauth') == 'true':
-                    props = [['output-email','username'], ['output-email','password']]
+
+                if self.cfg.getboolean(['output-email', 'use_smtpauth']):
+                    props = [['output-email', 'username'], ['output-email', 'password']]
                     for prop in props:
-                        if not config.checkExist(self.cfg,prop):
+                        if not self.cfg.check_exist(prop):
                             return False
-                props = [['output-email','host'], ['output-email','from'], ['output-email','to']]
+
+                props = [['output-email', 'host'], ['output-email', 'from'], ['output-email', 'to']]
                 for prop in props:
-                    if not config.checkExist(self.cfg,prop):
+                    if not self.cfg.check_exist(prop):
                         return False
             else:
                 print '[output-txtlog][enabled] must be set to true for email support to work'
                 return False
-        
+
         return True
