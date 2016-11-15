@@ -88,9 +88,7 @@ class Plugin(object):
         props = [['output-hpfeeds', 'enabled']]
         for prop in props:
             if self.cfg.check_exist(prop, validation.check_valid_boolean):
-                print '1'
                 if not self.cfg.getboolean(prop):
-                    print '2'
                     return False
 
         # If hpfeeds is enabled check it's config

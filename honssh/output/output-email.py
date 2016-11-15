@@ -136,9 +136,7 @@ class Plugin(object):
 
         for prop in props:
             if self.cfg.check_exist(prop, validation.check_valid_boolean):
-                print '1'
                 if not self.cfg.getboolean(prop):
-                    print '2'
                     return False
 
         props = [['output-email', 'login'], ['output-email', 'attack']]
