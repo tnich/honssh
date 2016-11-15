@@ -47,11 +47,11 @@ def start_cleanup_loop(ttl=1440, interval=30):
 
 def cleanup(ttl):
     # Get config
-    from honssh.config import config
-    cfg = config()
+    from honssh.config import Config
+    cfg = Config.getInstance()
 
     # Create client
-    socket = cfg.get('honeypot-docker', 'uri')
+    socket = cfg.get(['honeypot-docker', 'uri'])
     client = Client(socket)
 
     # Get all stopped containers

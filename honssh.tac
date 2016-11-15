@@ -50,7 +50,7 @@ Check to activate dev mode
 '''
 devmode_prop = ['devmode', 'enabled']
 if cfg.has_option(devmode_prop[0], devmode_prop[1]) and cfg.getboolean(devmode_prop):
-        log.startLogging(sys.stdout, setStdout=0)
+    log.startLogging(sys.stdout, setStdout=0)
 
 '''
 Validate configuration
@@ -99,6 +99,9 @@ serverFactory = server.HonsshServerFactory()
 serverFactory.privateKeys = {'ssh-rsa': privateKey, 'ssh-dsa': privateKeyDSA}
 serverFactory.publicKeys = {'ssh-rsa': publicKey, 'ssh-dsa': publicKeyDSA}
 
+'''
+Start up server
+'''
 ssh_port_prop = ['honeypot', 'ssh_port']
 if cfg.has_option(devmode_prop[0], devmode_prop[1]) and cfg.getboolean(devmode_prop):
     reactor.listenTCP(cfg.getint(ssh_port_prop), serverFactory, interface=ssh_addr)
@@ -107,6 +110,9 @@ else:
     service = internet.TCPServer(cfg.getint(ssh_port_prop), serverFactory, interface=ssh_addr)
     service.setServiceParent(application)
 
+'''
+Start interaction server if enabled
+'''
 if cfg.getboolean(['interact', 'enabled']):
     interact_interface_prop = ['interact', 'interface']
     iport = cfg.getint(['interact', 'port'])
