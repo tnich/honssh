@@ -116,7 +116,8 @@ class Plugin():
         self.docker_drive.teardown_container()
 
     def validate_config(self):
-        props = [['honeypot-docker', 'enabled'], ['honeypot-docker', 'pre-auth'], ['honeypot-docker', 'post-auth']]
+        props = [['honeypot-docker', 'enabled'], ['honeypot-docker', 'pre-auth'], ['honeypot-docker', 'post-auth'],
+                 ['honeypot-docker', 'reuse_container']]
         for prop in props:
             if not config.checkExist(self.cfg, prop) or not config.checkValidBool(self.cfg, prop):
                 return False
@@ -150,11 +151,11 @@ class docker_driver():
         self.peer_ip = peer_ip
         self.reuse_container = reuse_container
 
-        self.make_connection()
-
         self.watcher = None
         self.overlay_folder = None
         self.mount_dir = None
+
+        self.make_connection()
 
     def make_connection(self):
         self.connection = Client(self.socket)
@@ -166,7 +167,7 @@ class docker_driver():
                 container_data = self.connection.inspect_container(self.peer_ip)
                 # Get container id
                 self.container_id = container_data['Id']
-                log.msg(log.LGREEN, "[PLUGIN][DOCKER]", 'Reusing container %s ' % self.container_id)
+                log.msg(log.LGREEN, '[PLUGIN][DOCKER]', 'Reusing container %s ' % self.container_id)
                 # Restart container
                 self.connection.restart(self.container_id)
             except:

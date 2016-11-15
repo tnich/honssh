@@ -173,6 +173,22 @@ overlay_folder =
 # required: YES
 reuse_container = false
 
+# reuse_ttl: Defines how long a stopped container should be retained for reuse.
+# The amount is measured in minutes.
+# Use '0' for no cleanup.
+# reuse_container has to be activated.
+#
+# required = NO
+# default = 1440 (24 h)
+reuse_ttl =
+
+# reuse_ttl_check_interval: Defines in which interval the ttl should be checked.
+# The amount is measured in minutes.
+#
+# required = NO
+# default =
+reuse_ttl_check_interval = 2
+
 # Pid limit of the honeypot (-1 for unlimited)
 # 
 # input: Number
