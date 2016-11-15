@@ -76,7 +76,7 @@ def cleanup(ttl):
 
         # Check exceeds ttl and remove container if needed
         if diff > ttl_secs:
-            log.msg(log.LYELLOW, '[PLUGIN][DOCKER][CLEANUP]', 'Removing container %s (diff %s)' % (c_id, diff))
+            log.msg(log.LYELLOW, '[PLUGIN][DOCKER][CLEANUP]', 'Removing container %s' % c_id)
             client.remove_container(c_id, force=True)
 
 
