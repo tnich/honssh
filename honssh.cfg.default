@@ -186,8 +186,8 @@ reuse_ttl =
 # The amount is measured in minutes.
 #
 # required = NO
-# default =
-reuse_ttl_check_interval = 2
+# default = 30
+reuse_ttl_check_interval =
 
 # Pid limit of the honeypot (-1 for unlimited)
 # 

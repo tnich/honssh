@@ -34,9 +34,8 @@ from twisted.python import log
 from twisted.application import internet, service
 import sys, os
 from honssh import server, interact
-from honssh.config import config
+from honssh import config
 from honssh.config import validateConfig
-from honssh import log as hlog
 
 from honssh.honeypot.docker_utils import docker_cleanup
 
@@ -44,7 +43,7 @@ if not os.path.exists('honssh.cfg'):
     print '[ERR][FATAL] honssh.cfg is missing!'
     sys.exit(1)
 
-cfg = config()
+cfg = config.config()
 
 if cfg.has_option('devmode', 'enabled'):   
     if cfg.get('devmode', 'enabled') == 'true':
@@ -80,25 +79,25 @@ serverFactory.privateKeys = {'ssh-rsa': privateKey, 'ssh-dsa': privateKeyDSA}
 serverFactory.publicKeys = {'ssh-rsa': publicKey, 'ssh-dsa': publicKeyDSA}
 
 if cfg.get('honeypot-docker', 'enabled') == 'true' and cfg.get('honeypot-docker', 'reuse_container') == 'true':
-    ttl = cfg.get('honeypot-docker', 'reuse_ttl')
-    interval = cfg.get('honeypot-docker', 'reuse_ttl_check_interval')
+    ttl_prop = ['honeypot-docker', 'reuse_ttl']
+    ttl = cfg.get(ttl_prop[0], ttl_prop[1])
+    interval_prop = ['honeypot-docker', 'reuse_ttl_check_interval']
+    interval = cfg.get(interval_prop[0], interval_prop[1])
 
-    ttlValid = False
-    intervalValid = False
+    ttl_valid = False
+    interval_valid = False
 
     if len(ttl) > 0:
-        ttlValid = True
-        #ttlValid = config.checkValidNumber(cfg, ttl)
+        ttl_valid = config.checkValidNumber(cfg, ttl_prop)
 
     if len(interval) > 0:
-        intervalValid = True
-        #intervalValid = config.checkValidNumber(cfg, interval)
+        interval_valid = config.checkValidNumber(cfg, interval_prop)
 
-    if ttlValid and intervalValid:
+    if ttl_valid and interval_valid:
         docker_cleanup.start_cleanup_loop(int(ttl), int(interval))
-    elif ttlValid:
+    elif ttl_valid:
         docker_cleanup.start_cleanup_loop(ttl=int(ttl))
-    elif intervalValid:
+    elif interval_valid:
         docker_cleanup.start_cleanup_loop(interval=int(interval))
     else:
         docker_cleanup.start_cleanup_loop()
