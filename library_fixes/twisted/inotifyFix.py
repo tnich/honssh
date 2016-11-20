@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 # Copyright (c) 2016 Thomas Nicholson <tnnich@googlemail.com>
 # All rights reserved.
 #
@@ -28,39 +26,39 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-import time
+from twisted.internet import inotify
 
-from honssh import log
-from honssh import plugins
+class INotifyRFix(inotify.INotify, object):
+    def __init__(self):
+        inotify.INotify.__init__(self)
+
+    def _addWatch(self, path, mask, autoAdd, callbacks):
+        """
+        Change to catch and ignore the exception as it breaks recursive watch.
+        """
+        try:
+            return inotify.INotify._addWatch(self, path, mask, autoAdd, callbacks)
+        except inotify.INotifyError:
+            pass
+
+        return None
 
 
-class Base_Auth():
-    def __init__(self, server, name):
-        self.server = server
-        self.name = name
-        self.auth_plugin = None
-        self.cfg = self.server.cfg
+    def _doRead(self, in_):
+        """
+        Change to catch and ignore the exception during the watch resolution.
+        """
+        try:
+            inotify.INotify._doRead(self, in_)
+        except KeyError:
+            return
 
-        self.connection_timeout = 10
-        self.conn_details = None
 
-        self.finishedSending = False
-        self.delayedPackets = []
-        self.networkingSetup = False
-
-    def get_conn_details(self):
-        if self.auth_plugin is None:
-            log.msg(log.LRED, '[' + self.name + ']', 'NO AUTH PLUGIN SET FOR ' + self.name)
-            return {'success': False}
-        else:
-            return plugins.run_plugins_function([self.auth_plugin], 'get_' + self.name.lower() + '_details', False,
-                                                self.conn_details)
-
-    def is_pot_connected(self):
-        timeoutCount = 0
-        while not self.server.clientConnected:
-            time.sleep(0.5)
-            timeoutCount += 0.5
-            if timeoutCount == self.connection_timeout:
-                break
-        return self.server.clientConnected
+    def _addChildren(self, iwp):
+        """
+        Change to catch and ignore the exception during the watch resolution.
+        """
+        try:
+            inotify.INotify._addChildren(self, iwp)
+        except KeyError:
+            return
