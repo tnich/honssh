@@ -174,6 +174,11 @@ class docker_driver():
         self.connection.stop(self.container_id)
         self.connection.remove_container(self.container_id, force=True)
 
+        if self.watcher is not None:
+            self.watcher.stopReading()
+            self.watcher.loseConnection()
+            log.msg(log.LBLUE, '[PLUGIN][DOCKER]', 'Filesystem watcher stopped')
+
     def _file_get_contents(self, filename):
         with open(filename) as f:
             return f.read()
@@ -226,7 +231,7 @@ class docker_driver():
                     'Filesystem watcher not supported for storage driver "%s"' % storage_driver)
 
     def notify(self, ignored, file, mask):
-        log.msg(log.LYELLOW, '[notify]', '%s' % str(file))
+        #log.msg(log.LYELLOW, '[notify]', '%s' % str(file))
         if mask & inotify.IN_CREATE or mask & inotify.IN_MODIFY:
             if file.exists() and file.getsize() > 0:
                 # Construct src and dest path as string
