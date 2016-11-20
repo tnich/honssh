@@ -129,10 +129,10 @@ class Plugin(object):
             interval_valid = False
 
             if len(ttl) > 0:
-                ttl_valid = config.checkValidNumber(self.cfg, ttl_prop)
+                ttl_valid = validation.checkValidNumber(ttl_prop, ttl)
 
             if len(interval) > 0:
-                interval_valid = config.checkValidNumber(self.cfg, interval_prop)
+                interval_valid = validation.checkValidNumber(interval_prop, interval)
 
             if ttl_valid and interval_valid:
                 docker_cleanup.start_cleanup_loop(int(ttl), int(interval))
