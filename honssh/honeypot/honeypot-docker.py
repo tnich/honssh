@@ -82,9 +82,10 @@ class Plugin():
         cpu_period = config.get_int(self.cfg, 'honeypot-docker', 'cpu_period')
         cpu_shares = config.get_int(self.cfg, 'honeypot-docker', 'cpu_shares')
         cpuset_cpus = self.cfg.get('honeypot-docker', 'cpuset_cpus')
+        reuse_container = self.cfg.get('honeypot-docker', 'reuse_container')
 
         self.docker_drive = docker_driver(socket, image, launch_cmd, self.sensor_name, pids_limit, mem_limit, memswap_limit,
-                                          shm_size, cpu_period, cpu_shares, cpuset_cpus)
+                                          shm_size, cpu_period, cpu_shares, cpuset_cpus, self.peer_ip, reuse_container)
         self.container = self.docker_drive.launch_container()
 
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]',
@@ -115,7 +116,8 @@ class Plugin():
         self.docker_drive.teardown_container()
 
     def validate_config(self):
-        props = [['honeypot-docker', 'enabled'], ['honeypot-docker', 'pre-auth'], ['honeypot-docker', 'post-auth']]
+        props = [['honeypot-docker', 'enabled'], ['honeypot-docker', 'pre-auth'], ['honeypot-docker', 'post-auth'],
+                 ['honeypot-docker', 'reuse_container']]
         for prop in props:
             if not config.checkExist(self.cfg, prop) or not config.checkValidBool(self.cfg, prop):
                 return False
@@ -130,9 +132,10 @@ class Plugin():
 
 
 class docker_driver():
+
     def __init__(self, socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, cpu_period,
-                 cpu_shares, cpuset_cpus):
-        self.container_id = 0
+                 cpu_shares, cpuset_cpus, peer_ip, reuse_container):
+        self.container_id = None
         self.connection = None
         self.socket = socket
         self.image = image
@@ -145,24 +148,42 @@ class docker_driver():
         self.cpu_period = cpu_period
         self.cpu_shares = cpu_shares
         self.cpuset_cpus = cpuset_cpus
-        self.make_connection()
+        self.peer_ip = peer_ip
+        self.reuse_container = reuse_container
 
         self.watcher = None
         self.overlay_folder = None
         self.mount_dir = None
 
+        self.make_connection()
+
     def make_connection(self):
         self.connection = Client(self.socket)
 
     def launch_container(self):
-        host_config = self.connection.create_host_config(pids_limit=self.pids_limit, mem_limit=self.mem_limit,
-                                                         memswap_limit=self.memswap_limit, shm_size=self.shm_size,
-                                                         cpu_period=self.cpu_period, cpu_shares=self.cpu_shares,
-                                                         cpuset_cpus=self.cpuset_cpus)
-        self.container_id = \
-            self.connection.create_container(image=self.image, tty=True, hostname=self.hostname,
-                                             host_config=host_config)['Id']
-        self.connection.start(self.container_id)
+        if self.reuse_container:
+            try:
+                # Check for existing container
+                container_data = self.connection.inspect_container(self.peer_ip)
+                # Get container id
+                self.container_id = container_data['Id']
+                log.msg(log.LGREEN, '[PLUGIN][DOCKER]', 'Reusing container %s ' % self.container_id)
+                # Restart container
+                self.connection.restart(self.container_id)
+            except:
+                self.container_id = None
+                pass
+
+        if self.container_id is None:
+            host_config = self.connection.create_host_config(pids_limit=self.pids_limit, mem_limit=self.mem_limit,
+                                                             memswap_limit=self.memswap_limit, shm_size=self.shm_size,
+                                                             cpu_period=self.cpu_period, cpu_shares=self.cpu_shares,
+                                                             cpuset_cpus=self.cpuset_cpus)
+            self.container_id = \
+                self.connection.create_container(image=self.image, tty=True, hostname=self.hostname,
+                                                 name=self.peer_ip, host_config=host_config)['Id']
+            self.connection.start(self.container_id)
+
         exec_id = self.connection.exec_create(self.container_id, self.launch_cmd)['Id']
         self.connection.exec_start(exec_id, tty=True)
         container_data = self.connection.inspect_container(self.container_id)
@@ -172,7 +193,10 @@ class docker_driver():
 
     def teardown_container(self):
         self.connection.stop(self.container_id)
-        self.connection.remove_container(self.container_id, force=True)
+
+        # Check for container reuse
+        if not self.reuse_container:
+            self.connection.remove_container(self.container_id, force=True)
 
         if self.watcher is not None:
             self.watcher.stopReading()

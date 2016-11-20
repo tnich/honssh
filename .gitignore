@@ -7,3 +7,7 @@ id_rsa.pub
 id_dsa
 id_dsa.pub
 honssh.pid
+*.pyc
+.idea/
+*.iml
+*~

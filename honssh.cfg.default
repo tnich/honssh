@@ -167,6 +167,28 @@ honey_port =
 # required: NO
 overlay_folder =
 
+# reuse_container: If activated containers will be linked to the attackers IP address
+# and restarted on subsequent connects from the same IP address.
+#
+# required: YES
+reuse_container = false
+
+# reuse_ttl: Defines how long a stopped container should be retained for reuse.
+# The amount is measured in minutes.
+# Use '0' for no cleanup.
+# reuse_container has to be activated.
+#
+# required = NO
+# default = 1440 (24 h)
+reuse_ttl =
+
+# reuse_ttl_check_interval: Defines in which interval the ttl should be checked.
+# The amount is measured in minutes.
+#
+# required = NO
+# default = 30
+reuse_ttl_check_interval =
+
 # Pid limit of the honeypot (-1 for unlimited)
 # 
 # input: Number
