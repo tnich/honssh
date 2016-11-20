@@ -167,7 +167,7 @@ class HonsshServerFactory(factory.SSHFactory):
         else:
             log.msg(log.LPURPLE, '[SERVER]', 'Using ssh_banner for SSH Version String: ' + self.ourVersionString)
 
-        plugin_list = plugins.get_plugin_list(type='output')
+        plugin_list = plugins.get_plugin_list()
         loaded_plugins = plugins.import_plugins(plugin_list, self.cfg)
         for plugin in loaded_plugins:
             plugin_server = plugins.run_plugins_function([plugin], 'start_server', False)

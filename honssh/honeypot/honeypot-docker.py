@@ -32,6 +32,7 @@ import os
 from docker import Client
 from honssh import config, log, spoof
 
+from honssh.honeypot.docker_utils import docker_cleanup
 from twisted.python import filepath
 from twisted.internet import inotify
 from library_fixes.twisted import inotifyFix
@@ -114,6 +115,32 @@ class Plugin():
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]',
                 'Stopping container (%s, %s)' % (self.container['ip'], self.container['id']))
         self.docker_drive.teardown_container()
+
+    def start_server(self):
+        if self.cfg.get('honeypot-docker', 'enabled') == 'true' and self.cfg.get('honeypot-docker', 'reuse_container') == 'true':
+            ttl_prop = ['honeypot-docker', 'reuse_ttl']
+            ttl = self.cfg.get(ttl_prop[0], ttl_prop[1])
+            interval_prop = ['honeypot-docker', 'reuse_ttl_check_interval']
+            interval = self.cfg.get(interval_prop[0], interval_prop[1])
+
+            ttl_valid = False
+            interval_valid = False
+
+            if len(ttl) > 0:
+                ttl_valid = config.checkValidNumber(self.cfg, ttl_prop)
+
+            if len(interval) > 0:
+                interval_valid = config.checkValidNumber(self.cfg, interval_prop)
+
+            if ttl_valid and interval_valid:
+                docker_cleanup.start_cleanup_loop(int(ttl), int(interval))
+            elif ttl_valid:
+                docker_cleanup.start_cleanup_loop(ttl=int(ttl))
+            elif interval_valid:
+                docker_cleanup.start_cleanup_loop(interval=int(interval))
+            else:
+                docker_cleanup.start_cleanup_loop()
+        return None
 
     def validate_config(self):
         props = [['honeypot-docker', 'enabled'], ['honeypot-docker', 'pre-auth'], ['honeypot-docker', 'post-auth'],
@@ -201,7 +228,7 @@ class docker_driver():
         if self.watcher is not None:
             self.watcher.stopReading()
             self.watcher.loseConnection()
-            log.msg(log.LBLUE, '[PLUGIN][DOCKER]', 'Filesystem watcher stopped')
+            log.msg(log.LCYAN, '[PLUGIN][DOCKER]', 'Filesystem watcher stopped')
 
     def _file_get_contents(self, filename):
         with open(filename) as f:

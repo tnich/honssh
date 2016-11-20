@@ -37,8 +37,6 @@ from honssh import server, interact
 from honssh import config
 from honssh.config import validateConfig
 
-from honssh.honeypot.docker_utils import docker_cleanup
-
 if not os.path.exists('honssh.cfg'):
     print '[ERR][FATAL] honssh.cfg is missing!'
     sys.exit(1)
@@ -77,31 +75,6 @@ with open(cfg.get('honeypot', 'public_key_dsa')) as publicBlobFile:
 serverFactory = server.HonsshServerFactory()
 serverFactory.privateKeys = {'ssh-rsa': privateKey, 'ssh-dsa': privateKeyDSA}
 serverFactory.publicKeys = {'ssh-rsa': publicKey, 'ssh-dsa': publicKeyDSA}
-
-if cfg.get('honeypot-docker', 'enabled') == 'true' and cfg.get('honeypot-docker', 'reuse_container') == 'true':
-    ttl_prop = ['honeypot-docker', 'reuse_ttl']
-    ttl = cfg.get(ttl_prop[0], ttl_prop[1])
-    interval_prop = ['honeypot-docker', 'reuse_ttl_check_interval']
-    interval = cfg.get(interval_prop[0], interval_prop[1])
-
-    ttl_valid = False
-    interval_valid = False
-
-    if len(ttl) > 0:
-        ttl_valid = config.checkValidNumber(cfg, ttl_prop)
-
-    if len(interval) > 0:
-        interval_valid = config.checkValidNumber(cfg, interval_prop)
-
-    if ttl_valid and interval_valid:
-        docker_cleanup.start_cleanup_loop(int(ttl), int(interval))
-    elif ttl_valid:
-        docker_cleanup.start_cleanup_loop(ttl=int(ttl))
-    elif interval_valid:
-        docker_cleanup.start_cleanup_loop(interval=int(interval))
-    else:
-        docker_cleanup.start_cleanup_loop()
-
 
 if not cfg.has_option('devmode', 'enabled'):   
     application = service.Application('honeypot')
