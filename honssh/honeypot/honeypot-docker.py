@@ -119,20 +119,20 @@ class Plugin(object):
         self.docker_drive.teardown_container()
 
     def start_server(self):
-        if self.cfg.get('honeypot-docker', 'enabled') == 'true' and self.cfg.get('honeypot-docker', 'reuse_container') == 'true':
+        if self.cfg.getboolean(['honeypot-docker', 'enabled']) and self.cfg.getboolean(['honeypot-docker', 'reuse_container']):
             ttl_prop = ['honeypot-docker', 'reuse_ttl']
-            ttl = self.cfg.get(ttl_prop[0], ttl_prop[1])
+            ttl = self.cfg.get(ttl_prop)
             interval_prop = ['honeypot-docker', 'reuse_ttl_check_interval']
-            interval = self.cfg.get(interval_prop[0], interval_prop[1])
+            interval = self.cfg.get(interval_prop)
 
             ttl_valid = False
             interval_valid = False
 
             if len(ttl) > 0:
-                ttl_valid = validation.checkValidNumber(ttl_prop, ttl)
+                ttl_valid = validation.check_valid_number(ttl_prop, ttl)
 
             if len(interval) > 0:
-                interval_valid = validation.checkValidNumber(interval_prop, interval)
+                interval_valid = validation.check_valid_number(interval_prop, interval)
 
             if ttl_valid and interval_valid:
                 docker_cleanup.start_cleanup_loop(int(ttl), int(interval))
