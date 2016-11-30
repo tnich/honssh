@@ -30,78 +30,89 @@ from honssh import log
 from honssh.protocols import baseProtocol 
 import datetime
 
-class Term(baseProtocol.BaseProtocol):    
-    command = ''
-    pointer = 0
-    tabPress = False
-    upArrow = False
-    
-    def __init__(self, out, uuid, chanName, ssh, clientID):
-        self.name = chanName
-        self.uuid = uuid
+
+class Term(baseProtocol.BaseProtocol):
+    def __init__(self, out, uuid, chan_name, ssh, client_id):
+        super(Term, self).__init__(uuid, chan_name, ssh)
+
+        self.command = ''
+        self.pointer = 0
+        self.tabPress = False
+        self.upArrow = False
+
         self.out = out
-        self.ssh = ssh
-        self.clientID = clientID
-        self.ttylog_file = self.out.logLocation + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") + '_' + self.name[1:-1] + '.tty'
-        self.out.openTTY(self.ttylog_file)
+        self.clientID = client_id
+        self.ttylog_file = self.out.logLocation + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") \
+                           + '_' + self.name[1:-1] + '.tty'
+        self.out.open_tty(self.ttylog_file)
         self.interactors = []
-        self.out.registerSelf(self)
-        
-    
-    def channelClosed(self):
-        self.out.closeTTY(self.ttylog_file)
+        self.out.register_self(self)
+
+    def channel_closed(self):
+        self.out.close_tty(self.ttylog_file)
         for i in self.interactors:
             i.transport.loseConnection()
     
-    def parsePacket(self, parent, payload): 
+    def parse_packet(self, parent, payload):
         self.data = payload   
          
         if parent == '[SERVER]':
-            self.out.inputTTY(self.ttylog_file, self.data) #Log to TTY File
+            # Log to TTY File
+            self.out.input_tty(self.ttylog_file, self.data)
 
-            while len(self.data) != 0: 
-                if self.data[:1] == '\x09': #If Tab Pressed
+            while len(self.data) > 0:
+                # If Tab Pressed
+                if self.data[:1] == '\x09':
                     self.tabPress = True 
                     self.data = self.data[1:]
-                elif self.data[:1] == '\x7f' or self.data[:1] == '\x08':   #If Backspace Pressed
-                    if self.pointer != 0:
+                # If Backspace Pressed
+                elif self.data[:1] == '\x7f' or self.data[:1] == '\x08':
+                    if self.pointer > 0:
                         self.command = self.command[:self.pointer-1] + self.command[self.pointer:]
-                        self.pointer = self.pointer - 1
+                        self.pointer -= 1
                     self.data = self.data[1:]
-                elif self.data[:1] == '\x0d' or self.data[:1] == '\x03' or self.data[:1] == '\x0a':  #if enter or ctrl+c or newline
+                # If enter or ctrl+c or newline
+                elif self.data[:1] == '\x0d' or self.data[:1] == '\x03' or self.data[:1] == '\x0a':
                     if self.data[:1] == '\x03':
-                        self.command = self.command + "^C"
+                        self.command += "^C"
+
                     self.data = self.data[1:]
                     if self.command != '':
-                        log.msg(log.LPURPLE, '[TERM]', 'Entered command: %s' % (self.command))
-                        self.out.commandEntered(self.uuid, self.command)
+                        log.msg(log.LPURPLE, '[TERM]', 'Entered command: %s' % self.command)
+                        self.out.command_entered(self.uuid, self.command)
                     
                     self.command = ''
                     self.pointer = 0
-                elif self.data[:3] == '\x1b\x4f\x48':   #If Home Pressed
+                # If Home Pressed
+                elif self.data[:3] == '\x1b\x4f\x48':
                     self.pointer = 0
                     self.data = self.data[3:]
-                elif self.data[:3] == '\x1b\x4f\x46':   #If End Pressed
+                # If End Pressed
+                elif self.data[:3] == '\x1b\x4f\x46':
                     self.pointer = len(self.command)
                     self.data = self.data[3:]
-                elif self.data[:3] == '\x1b\x5b\x43':   #If Right Pressed
+                # If Right Pressed
+                elif self.data[:3] == '\x1b\x5b\x43':
                     if self.pointer != len(self.command):
-                        self.pointer = self.pointer + 1
+                        self.pointer += 1
                     self.data = self.data[3:]
-                elif self.data[:3] == '\x1b\x5b\x44':   #If Left Pressed
+                # If Left Pressed
+                elif self.data[:3] == '\x1b\x5b\x44':
                     if self.pointer != 0:
-                        self.pointer = self.pointer - 1
+                        self.pointer -= 1
                     self.data = self.data[3:]
-                elif self.data[:3] == '\x1b\x5b\x41' or self.data[:3] == '\x1b\x5b\x42':  #If up or down arrow
+                # If up or down arrow
+                elif self.data[:3] == '\x1b\x5b\x41' or self.data[:3] == '\x1b\x5b\x42':
                     self.upArrow = True
                     self.data = self.data[3:]
                 else:                   
                     self.command = self.command[:self.pointer] + self.data[:1] + self.command[self.pointer:]
-                    self.pointer = self.pointer + 1
+                    self.pointer += 1
                     self.data = self.data[1:]
         
         elif parent == '[CLIENT]':
-            self.out.outputTTY(self.ttylog_file, self.data) #Log to TTY File
+            # Log to TTY File
+            self.out.output_tty(self.ttylog_file, self.data)
             for i in self.interactors:
                 i.sendKeystroke(self.data)
             
@@ -110,38 +121,46 @@ class Term(baseProtocol.BaseProtocol):
                     if self.data != '\x07':
                         self.command = self.command + self.data
                 self.tabPress = False
+
             if self.upArrow:
                 while len(self.data) != 0:
-                    if self.data[:1] == '\x08': #Backspace
+                    # Backspace
+                    if self.data[:1] == '\x08':
                         self.command = self.command[:-1]
-                        self.pointer = self.pointer - 1
+                        self.pointer -= 1
                         self.data = self.data[1:]
-                    elif self.data[:3] == '\x1b\x5b\x4b': #ESC[K - Clear Line
+                    # ESC[K - Clear Line
+                    elif self.data[:3] == '\x1b\x5b\x4b':
                         self.command = self.command[:self.pointer]
                         self.data = self.data[3:]
                     elif self.data[:1] == '\x0d':
                         self.pointer = 0
                         self.data = self.data[1:]
-                    elif self.data[:3] == '\x1b\x5b\x43': #Right Arrow
-                        self.pointer = self.pointer + 1
+                    # Right Arrow
+                    elif self.data[:3] == '\x1b\x5b\x43':
+                        self.pointer += 1
                         self.data = self.data[3:]
-                    elif self.data[:2] == '\x1b\x5b' and self.data[3] =='\x50':
+                    elif self.data[:2] == '\x1b\x5b' and self.data[3] == '\x50':
                         self.data = self.data[4:]
-                    elif self.data[:1] != '\x07' and self.data[:1] != '\x0d': #Needed?!
+                    # Needed?!
+                    elif self.data[:1] != '\x07' and self.data[:1] != '\x0d':
                         self.command = self.command[:self.pointer] + self.data[:1] + self.command[self.pointer:]
-                        self.pointer = self.pointer + 1
+                        self.pointer += 1
                         self.data = self.data[1:]
                     else:
-                        self.pointer = self.pointer + 1
+                        self.pointer += 1
                         self.data = self.data[1:]
 
                 self.upArrow = False
             
     def addInteractor(self, interactor):
         self.interactors.append(interactor)
-    def delInteractor(self, interactor):
+
+    def del_interactor(self, interactor):
         self.interactors.remove(interactor)
+
     def inject(self, message):
         message = message.encode('utf8')
-        self.out.interactTTY(self.ttylog_file, message) #Log to TTY File
-        self.ssh.injectKey(self.clientID, message)
+        # Log to TTY File
+        self.out.interact_tty(self.ttylog_file, message)
+        self.ssh.inject_key(self.clientID, message)

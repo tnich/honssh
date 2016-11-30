@@ -32,11 +32,13 @@ import base64
 from twisted.internet import protocol
 from honssh import log
 
-class Interact(protocol.Protocol):
 
-    
-    def connectionMade(self):
+class Interact(protocol.Protocol):
+    def __init__(self):
         self.interact = None
+
+    def connectionMade(self):
+        pass
            
     def dataReceived(self, data):
         datagrams = data.split('_')
@@ -47,11 +49,10 @@ class Interact(protocol.Protocol):
             else:
                 log.msg('[INTERACT] - Bad packet received')
                 self.loseConnection()
-            
-            
-    def sendData(self, theJson):
-        theData = base64.b64encode(json.dumps(theJson))
-        self.transport.write('honssh_s_' + theData + '_')
+
+    def sendData(self, the_json):
+        the_data = base64.b64encode(json.dumps(the_json))
+        self.transport.write('honssh_s_' + the_data + '_')
         
     def sendKeystroke(self, data):
         self.sendData(data)
@@ -60,34 +61,37 @@ class Interact(protocol.Protocol):
         return json.loads(base64.b64decode(theData))
 
     def parsePacket(self, theData):
-        theJson = self.getData(theData)
+        the_json = self.getData(theData)
         
         if not self.interact:
-            theCommand = theJson['command']
-            if theCommand:
-                if theCommand == 'list':
-                    theList = self.factory.connections.return_connections()
+            the_command = the_json['command']
+            if the_command:
+                if the_command == 'list':
+                    the_list = self.factory.connections.return_connections()
                     num_sessions = 0
-                    for sensor in theList:
-                        num_sessions = num_sessions + len(sensor['sessions'])
+
+                    for sensor in the_list:
+                        num_sessions += len(sensor['sessions'])
+
                     if num_sessions == 0:
-                        theList = {'msg':'INFO: No active sessions'}
-                    self.sendData(theList)
-                elif theCommand in ['view', 'interact', 'disconnect']:
-                    theUUID = theJson['uuid']
-                    if theUUID:
-                        sensor, session, chan = self.factory.connections.get_channel(theUUID)
-                        if chan != None:
-                            if theCommand in ['view', 'interact']:
+                        the_list = {'msg':'INFO: No active sessions'}
+
+                    self.sendData(the_list)
+                elif the_command in ['view', 'interact', 'disconnect']:
+                    the_uuid = the_json['uuid']
+                    if the_uuid:
+                        sensor, session, chan = self.factory.connections.get_channel(the_uuid)
+                        if chan is not None:
+                            if the_command in ['view', 'interact']:
                                 if 'TERM' in chan['name']:
                                     chan['class'].addInteractor(self)
-                                    if theCommand == 'interact':
+                                    if the_command == 'interact':
                                         self.interact = chan['class']
                                 else:
                                     self.sendData({'msg':'ERROR: Cannot connect to a non-TERM session'})
-                            elif theCommand == 'disconnect':
-                                chan['class'].injectDisconnect()
-                                self.sendData({'msg':'SUCCESS: Disconnected session: ' + theUUID})
+                            elif the_command == 'disconnect':
+                                chan['class'].inject_disconnect()
+                                self.sendData({'msg':'SUCCESS: Disconnected session: ' + the_uuid})
                         else:
                             self.sendData({'msg':'ERROR: UUID does not exist'})
                     else:
@@ -97,12 +101,13 @@ class Interact(protocol.Protocol):
             else:
                 self.sendData({'msg':'ERROR: Must specify a command'})
         else:
-            self.interact.inject(theJson)
-            
-def makeInteractFactory(honeypotFactory):
+            self.interact.inject(the_json)
+
+
+def make_interact_factory(honeypot_factory):
     ifactory = protocol.Factory()
     ifactory.protocol = Interact
-    ifactory.server = honeypotFactory
-    ifactory.connections = honeypotFactory.connections
+    ifactory.server = honeypot_factory
+    ifactory.connections = honeypot_factory.connections
 
     return ifactory

@@ -28,13 +28,15 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh import config
 from honssh import log
 
-class Plugin():
+from honssh.config import Config
+from honssh.utils import validation
 
-    def __init__(self, cfg):
-        self.cfg = cfg
+
+class Plugin():
+    def __init__(self):
+        self.cfg = Config.getInstance()
 
     def start_server(self):
         log.msg(log.PLAIN, '[PLUGIN][EXAMPLE]', 'START SERVER')
@@ -76,8 +78,8 @@ class Plugin():
         log.msg(log.PLAIN, '[PLUGIN][EXAMPLE]', sensor)
 
     def validate_config(self):
-        props = [['example','enabled']]
+        props = [['example', 'enabled']]
         for prop in props:
-            if not config.checkExist(self.cfg,prop) or not config.checkValidBool(self.cfg, prop):
+            if not self.cfg.check_exist(prop, validation.check_valid_boolean):
                 return False
         return True

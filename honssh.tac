@@ -28,71 +28,102 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
+import sys
+import os
+
 from twisted.internet import reactor
 from twisted.conch.ssh.keys import Key
 from twisted.python import log
 from twisted.application import internet, service
-import sys, os
+
+from honssh.config import Config
 from honssh import server, interact
-from honssh import config
-from honssh.config import validateConfig
 
 if not os.path.exists('honssh.cfg'):
     print '[ERR][FATAL] honssh.cfg is missing!'
     sys.exit(1)
 
-cfg = config.config()
+cfg = Config.getInstance()
 
-if cfg.has_option('devmode', 'enabled'):   
-    if cfg.get('devmode', 'enabled') == 'true':
-        log.startLogging(sys.stdout, setStdout=0)
+'''
+Check to activate dev mode
+'''
+devmode_prop = ['devmode', 'enabled']
+if cfg.has_option(devmode_prop[0], devmode_prop[1]) and cfg.getboolean(devmode_prop):
+    log.startLogging(sys.stdout, setStdout=0)
 
-if not validateConfig(cfg):
+'''
+Validate configuration
+'''
+if not cfg.validate_config():
     sys.exit(1)
 
-ssh_addr = cfg.get('honeypot', 'ssh_addr')
+ssh_addr = cfg.get(['honeypot', 'ssh_addr'])
 
-if not os.path.exists(cfg.get('folders', 'log_path')):
-    os.makedirs(cfg.get('folders', 'log_path'))
-    os.chmod(cfg.get('folders', 'log_path'),0755)
-if not os.path.exists(cfg.get('folders', 'session_path')):
-    os.makedirs(cfg.get('folders', 'session_path'))
-    os.chmod(cfg.get('folders', 'session_path'),0755)
+'''
+Log and session paths
+'''
+log_path = cfg.get(['folders', 'log_path'])
+if not os.path.exists(log_path):
+    os.makedirs(log_path)
+    os.chmod(log_path, 0755)
 
-with open(cfg.get('honeypot', 'private_key')) as privateBlobFile:
+session_path = cfg.get(['folders', 'session_path'])
+if not os.path.exists(session_path):
+    os.makedirs(session_path)
+    os.chmod(session_path, 0755)
+
+'''
+Read public and private keys
+'''
+with open(cfg.get(['honeypot', 'private_key'])) as privateBlobFile:
     privateBlob = privateBlobFile.read()
     privateKey = Key.fromString(data=privateBlob)
-with open(cfg.get('honeypot', 'public_key')) as publicBlobFile:
+
+with open(cfg.get(['honeypot', 'public_key'])) as publicBlobFile:
     publicBlob = publicBlobFile.read()
-    publicKey = Key.fromString(data=publicBlob)    
-with open(cfg.get('honeypot', 'private_key_dsa')) as privateBlobFile:
+    publicKey = Key.fromString(data=publicBlob)
+
+with open(cfg.get(['honeypot', 'private_key_dsa'])) as privateBlobFile:
     privateBlob = privateBlobFile.read()
     privateKeyDSA = Key.fromString(data=privateBlob)
-with open(cfg.get('honeypot', 'public_key_dsa')) as publicBlobFile:
+
+with open(cfg.get(['honeypot', 'public_key_dsa'])) as publicBlobFile:
     publicBlob = publicBlobFile.read()
-    publicKeyDSA = Key.fromString(data=publicBlob)    
-    
+    publicKeyDSA = Key.fromString(data=publicBlob)
+
+'''
+Startup server factory
+'''
 serverFactory = server.HonsshServerFactory()
 serverFactory.privateKeys = {'ssh-rsa': privateKey, 'ssh-dsa': privateKeyDSA}
 serverFactory.publicKeys = {'ssh-rsa': publicKey, 'ssh-dsa': publicKeyDSA}
 
-if not cfg.has_option('devmode', 'enabled'):   
-    application = service.Application('honeypot')
-    service = internet.TCPServer(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
-    service.setServiceParent(application)
+'''
+Start up server
+'''
+ssh_port_prop = ['honeypot', 'ssh_port']
+if cfg.has_option(devmode_prop[0], devmode_prop[1]) and cfg.getboolean(devmode_prop):
+    reactor.listenTCP(cfg.getint(ssh_port_prop), serverFactory, interface=ssh_addr)
 else:
-    if cfg.get('devmode', 'enabled') == 'true':
-        reactor.listenTCP(int(cfg.get('honeypot', 'ssh_port')), serverFactory, interface=ssh_addr)
+    application = service.Application('honeypot')
+    service = internet.TCPServer(cfg.getint(ssh_port_prop), serverFactory, interface=ssh_addr)
+    service.setServiceParent(application)
 
-if cfg.get('interact', 'enabled')== 'true':
-    iport = int(cfg.get('interact', 'port'))
-    if not cfg.has_option('devmode', 'enabled'):   
-        service = internet.TCPServer(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
-        service.setServiceParent(application)
+'''
+Start interaction server if enabled
+'''
+if cfg.getboolean(['interact', 'enabled']):
+    interact_interface_prop = ['interact', 'interface']
+    iport = cfg.getint(['interact', 'port'])
+
+    if cfg.has_option(devmode_prop[0], devmode_prop[1]) and cfg.getboolean(devmode_prop):
+        reactor.listenTCP(iport, interact.make_interact_factory(serverFactory),
+                          interface=cfg.get(interact_interface_prop))
     else:
-        if cfg.get('devmode', 'enabled') == 'true':
-            reactor.listenTCP(iport, interact.makeInteractFactory(serverFactory), interface=cfg.get('interact', 'interface'))
+        service = internet.TCPServer(iport, interact.make_interact_factory(serverFactory),
+                                     interface=cfg.get(interact_interface_prop))
+        service.setServiceParent(application)
 
-if cfg.has_option('devmode', 'enabled'): 
-    if cfg.get('devmode', 'enabled') == 'true':
-        reactor.run()
+if cfg.has_option(devmode_prop[0], devmode_prop[1]) and cfg.getboolean(devmode_prop):
+    reactor.run()

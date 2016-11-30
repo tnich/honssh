@@ -72,15 +72,15 @@ class HonsshProtocol(protocol.Protocol):
             pass
 
     def cmdList(self):
-        self.sendData({'command':'list'})
+        self.sendData({'command': 'list'})
 
     def cmdView(self):
-        self.sendData({'command':'view', 'uuid':self.factory.uuid})
+        self.sendData({'command': 'view', 'uuid': self.factory.uuid})
         escCheck = threads.deferToThread(self.escapeCheck, False)
         escCheck.addCallback(self.escaped)
 
     def cmdDisconnect(self):
-        self.sendData({'command':'disconnect', 'uuid':self.factory.uuid})
+        self.sendData({'command': 'disconnect', 'uuid': self.factory.uuid})
 
     def escapeCheck(self, sendOn):
         print
@@ -100,11 +100,11 @@ class HonsshProtocol(protocol.Protocol):
     def escaped(self, input):
         print('\rEscape sequence detected - Disconnecting')
         reactor.stop()
-    
+
     def dataReceived(self, data):
         datagrams = data.split('_')
-        for i in range(0, len(datagrams)/3):
-            datagram = datagrams[3*i:(3*i)+3]
+        for i in range(0, len(datagrams) / 3):
+            datagram = datagrams[3 * i:(3 * i) + 3]
             if datagram[0] == 'honssh' and datagram[1] == 's':
                 self.theData = datagram[2]
                 self.parsePacket()
@@ -120,22 +120,21 @@ class HonsshProtocol(protocol.Protocol):
         return json.loads(base64.b64decode(theData))
 
     def parsePacket(self):
-         theJson = self.getData(self.theData)
-         if isinstance(theJson, dict):
-             if theJson['msg']:
-                 print theJson['msg']
-                 reactor.stop()
-         else:
-             if self.factory.command == 'list':
-                 if self.factory.style in ['pretty', 'plain']:
-                     self.printPrettyTable(theJson)
-                 elif self.factory.style == 'json':
-                     print json.dumps(theJson, indent=4)
-                 reactor.stop()
-             elif self.factory.command in ['view']:
-                 sys.stdout.write(theJson)
-                 sys.stdout.flush()
-
+        theJson = self.getData(self.theData)
+        if isinstance(theJson, dict):
+            if theJson['msg']:
+                print theJson['msg']
+                reactor.stop()
+        else:
+            if self.factory.command == 'list':
+                if self.factory.style in ['pretty', 'plain']:
+                    self.printPrettyTable(theJson)
+                elif self.factory.style == 'json':
+                    print json.dumps(theJson, indent=4)
+                reactor.stop()
+            elif self.factory.command in ['view']:
+                sys.stdout.write(theJson)
+                sys.stdout.flush()
 
     def printPrettyTable(self, theJson):
         sensorLength = 10
@@ -144,23 +143,22 @@ class HonsshProtocol(protocol.Protocol):
             if i > sensorLength:
                 sensorLength = i
         if self.factory.style == 'pretty':
-            print "UUID".ljust(34) + "Sensor Name".ljust(sensorLength+2) + "PeerIP".ljust(17) + "Name".ljust(9) + "Uptime"
+            print "UUID".ljust(34) + "Sensor Name".ljust(sensorLength + 2) + "PeerIP".ljust(17) + "Name".ljust(
+                9) + "Uptime"
         for sensor in theJson:
             for session in sensor['sessions']:
                 if len(session['channels']) == 0:
-                    print 'AUTHENTICATING'.ljust(34) + sensor['sensor_name'].ljust(sensorLength+2) + session['peer_ip'].ljust(17)
+                    print 'AUTHENTICATING'.ljust(34) + sensor['sensor_name'].ljust(sensorLength + 2) + session[
+                        'peer_ip'].ljust(17)
                 else:
                     for channel in session['channels']:
                         if 'end_time' not in channel:
-                            dt = datetime.datetime.strptime(channel['start_time'],"%Y%m%d_%H%M%S_%f")
+                            dt = datetime.datetime.strptime(channel['start_time'], "%Y%m%d_%H%M%S_%f")
                             now = datetime.datetime.now()
                             totalTime = time.gmtime((now - dt).total_seconds())
-                            print channel['channel_id'].ljust(34) + sensor['sensor_name'].ljust(sensorLength+2) + session['peer_ip'].ljust(17) + channel['name'].ljust(9) + time.strftime("%H:%M:%S", totalTime)
-
-
-
-
-
+                            print channel['channel_id'].ljust(34) + sensor['sensor_name'].ljust(sensorLength + 2) + \
+                                  session['peer_ip'].ljust(17) + channel['name'].ljust(9) + time.strftime("%H:%M:%S",
+                                                                                                          totalTime)
 
 
 class HonSSHInteractFactory(protocol.ClientFactory):
@@ -171,25 +169,23 @@ class HonSSHInteractFactory(protocol.ClientFactory):
         reactor.stop()
 
 
-
-
-
-
 def portType(input):
     if not input.isdigit():
         raise argparse.ArgumentTypeError('Port must be a number between 0 and 65535')
     input = int(input)
     if 0 <= input <= 65535:
-        return input        
+        return input
     else:
         raise argparse.ArgumentTypeError('Port must be a number between 0 and 65535')
+
 
 def ipType(input):
     m = re.match('(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)', input)
     if m:
-       return input
+        return input
     else:
-       raise argparse.ArgumentTypeError('IP Must be a valid IP address')
+        raise argparse.ArgumentTypeError('IP Must be a valid IP address')
+
 
 def uuidType(input):
     m = re.match('^[a-z0-9]{32}$', input)
@@ -197,6 +193,7 @@ def uuidType(input):
         return input
     else:
         raise argparse.ArgumentTypeError('UUID must be 32 Lower Alphanumeric Characters')
+
 
 def parse_args():
     """Defines the command line arguments. """
@@ -209,53 +206,54 @@ def parse_args():
         -c disconnect -u <uuid>
 ''')
 
-    fmt='pretty' 
-    ipa='127.0.0.1'
-    cop='5123'
- 
+    fmt = 'pretty'
+    ipa = '127.0.0.1'
+    cop = '5123'
+
     conn = parser.add_argument_group('Connection Options')
     conn.add_argument(
-                     '-i',
-                     dest='ip', 
-                     help='The HonSSH Interaction IP address to connect to (default: {0})'.format(ipa), 
-                     type=ipType,
-                     default=ipa 
-                     )
+        '-i',
+        dest='ip',
+        help='The HonSSH Interaction IP address to connect to (default: {0})'.format(ipa),
+        type=ipType,
+        default=ipa
+    )
     conn.add_argument(
-                     '-p',
-                     dest='port', 
-                     help='The HonSSH Interaction port to connect to (default: {0})'.format(cop), 
-                     type=portType, 
-                     default=cop
-                     )
+        '-p',
+        dest='port',
+        help='The HonSSH Interaction port to connect to (default: {0})'.format(cop),
+        type=portType,
+        default=cop
+    )
 
     command = parser.add_argument_group('Command Options')
     command.add_argument(
-                        '-c', 
-                        choices=['list','view', 'disconnect'], 
-                        dest='cmd',
-                        help='Command to execute',
-                        required=True
-                        )
+        '-c',
+        choices=['list', 'view', 'disconnect'],
+        dest='cmd',
+        help='Command to execute',
+        required=True
+    )
     command.add_argument(
-                        '-u', 
-                        dest='uuid',
-                        help='UUID of connection to interact with. Required for \'view\' and \'disconnect\' commands',
-                        type=uuidType
-                        )
-
+        '-u',
+        dest='uuid',
+        help='UUID of connection to interact with. Required for \'view\' and \'disconnect\' commands',
+        type=uuidType
+    )
 
     out = parser.add_argument_group('Output Options (Only for the \'list\' command)')
     out.add_argument(
-                    '-o',
-                    dest='format',
-                    choices=['pretty', 'plain', 'json'], 
-                    help='pretty = table with headers. plain = table without headers. json = JSON formatted. (default: {0})'.format(fmt), 
-                    default=fmt
-                    )
+        '-o',
+        dest='format',
+        choices=['pretty', 'plain', 'json'],
+        help='pretty = table with headers. plain = table without headers. json = JSON formatted. (default: {0})'.format(
+            fmt),
+        default=fmt
+    )
 
     args = parser.parse_args()
     return args
+
 
 def process_args(args):
     """Process the command line arguments."""

@@ -28,61 +28,66 @@
 
 from honssh.protocols import baseProtocol, sftp, term, execTerm, portForward
 from honssh import log
-from honssh.config import config
-import struct, uuid
+from honssh.config import Config
+import struct
+import uuid
+
 
 class SSH(baseProtocol.BaseProtocol):
-    
-    channels = []
-    username = ''
-    password = ''
-
-    cfg = config()
-
     packetLayout = {
-                1 : 'SSH_MSG_DISCONNECT',                   #['uint32', 'reason_code'], ['string', 'reason'], ['string', 'language_tag']
-                2 : 'SSH_MSG_IGNORE',                       #['string', 'data']
-                3 : 'SSH_MSG_UNIMPLEMENTED',                #['uint32', 'seq_no']
-                4 : 'SSH_MSG_DEBUG',                        #['boolean', 'always_display']
-                5 : 'SSH_MSG_SERVICE_REQUEST',              #['string', 'service_name']
-                6 : 'SSH_MSG_SERVICE_ACCEPT',               #['string', 'service_name']
-                20 : 'SSH_MSG_KEXINIT',                     #['string', 'service_name']
-                21 : 'SSH_MSG_NEWKEYS',                     #
-                50 : 'SSH_MSG_USERAUTH_REQUEST',            #['string', 'username'], ['string', 'service_name'], ['string', 'method_name']
-                51 : 'SSH_MSG_USERAUTH_FAILURE',            #['name-list', 'authentications'], ['boolean', 'partial_success']
-                52 : 'SSH_MSG_USERAUTH_SUCCESS',            #
-                53 : 'SSH_MSG_USERAUTH_BANNER',             #['string', 'message'], ['string', 'language_tag']
-                60 : 'SSH_MSG_USERAUTH_PK_OK',              #['string', 'algorithm'], ['string', 'blob']
-                80 : 'SSH_MSG_GLOBAL_REQUEST',              #['string', 'request_name'], ['boolean', 'want_reply']  #tcpip-forward
-                81 : 'SSH_MSG_REQUEST_SUCCESS',             #
-                82 : 'SSH_MSG_REQUEST_FAILURE',             #
-                90 : 'SSH_MSG_CHANNEL_OPEN',                #['string', 'channel_type'], ['uint32', 'sender_channel'], ['uint32', 'initial_window_size'], ['uint32', 'maximum_packet_size'],
-                91 : 'SSH_MSG_CHANNEL_OPEN_CONFIRMATION',   #['uint32', 'recipient_channel'], ['uint32', 'sender_channel'], ['uint32', 'initial_window_size'], ['uint32', 'maximum_packet_size'],
-                92 : 'SSH_MSG_CHANNEL_OPEN_FAILURE',        #['uint32', 'recipient_channel'], ['uint32', 'reason_code'], ['string', 'reason'], ['string', 'language_tag']
-                93 : 'SSH_MSG_CHANNEL_WINDOW_ADJUST',       #['uint32', 'recipient_channel'], ['uint32', 'additional_bytes']
-                94 : 'SSH_MSG_CHANNEL_DATA',                #['uint32', 'recipient_channel'], ['string', 'data']
-                95 : 'SSH_MSG_CHANNEL_EXTENDED_DATA',       #['uint32', 'recipient_channel'], ['uint32', 'data_type_code'], ['string', 'data']
-                96 : 'SSH_MSG_CHANNEL_EOF',                 #['uint32', 'recipient_channel']
-                97 : 'SSH_MSG_CHANNEL_CLOSE',               #['uint32', 'recipient_channel']
-                98 : 'SSH_MSG_CHANNEL_REQUEST',             #['uint32', 'recipient_channel'], ['string', 'request_type'], ['boolean', 'want_reply']
-                99 : 'SSH_MSG_CHANNEL_SUCCESS',             #
-                100 : 'SSH_MSG_CHANNEL_FAILURE'             #
-                }
-                
+        1: 'SSH_MSG_DISCONNECT',  # ['uint32', 'reason_code'], ['string', 'reason'], ['string', 'language_tag']
+        2: 'SSH_MSG_IGNORE',  # ['string', 'data']
+        3: 'SSH_MSG_UNIMPLEMENTED',  # ['uint32', 'seq_no']
+        4: 'SSH_MSG_DEBUG',  # ['boolean', 'always_display']
+        5: 'SSH_MSG_SERVICE_REQUEST',  # ['string', 'service_name']
+        6: 'SSH_MSG_SERVICE_ACCEPT',  # ['string', 'service_name']
+        20: 'SSH_MSG_KEXINIT',  # ['string', 'service_name']
+        21: 'SSH_MSG_NEWKEYS',  #
+        50: 'SSH_MSG_USERAUTH_REQUEST', # ['string', 'username'], ['string', 'service_name'], ['string', 'method_name']
+        51: 'SSH_MSG_USERAUTH_FAILURE',  # ['name-list', 'authentications'], ['boolean', 'partial_success']
+        52: 'SSH_MSG_USERAUTH_SUCCESS',  #
+        53: 'SSH_MSG_USERAUTH_BANNER',  # ['string', 'message'], ['string', 'language_tag']
+        60: 'SSH_MSG_USERAUTH_PK_OK',  # ['string', 'algorithm'], ['string', 'blob']
+        80: 'SSH_MSG_GLOBAL_REQUEST',  # ['string', 'request_name'], ['boolean', 'want_reply']  #tcpip-forward
+        81: 'SSH_MSG_REQUEST_SUCCESS',  #
+        82: 'SSH_MSG_REQUEST_FAILURE',  #
+        90: 'SSH_MSG_CHANNEL_OPEN', # ['string', 'channel_type'], ['uint32', 'sender_channel'], ['uint32', 'initial_window_size'], ['uint32', 'maximum_packet_size'],
+        91: 'SSH_MSG_CHANNEL_OPEN_CONFIRMATION', # ['uint32', 'recipient_channel'], ['uint32', 'sender_channel'], ['uint32', 'initial_window_size'], ['uint32', 'maximum_packet_size'],
+        92: 'SSH_MSG_CHANNEL_OPEN_FAILURE', # ['uint32', 'recipient_channel'], ['uint32', 'reason_code'], ['string', 'reason'], ['string', 'language_tag']
+        93: 'SSH_MSG_CHANNEL_WINDOW_ADJUST',  # ['uint32', 'recipient_channel'], ['uint32', 'additional_bytes']
+        94: 'SSH_MSG_CHANNEL_DATA',  # ['uint32', 'recipient_channel'], ['string', 'data']
+        95: 'SSH_MSG_CHANNEL_EXTENDED_DATA', # ['uint32', 'recipient_channel'], ['uint32', 'data_type_code'], ['string', 'data']
+        96: 'SSH_MSG_CHANNEL_EOF',  # ['uint32', 'recipient_channel']
+        97: 'SSH_MSG_CHANNEL_CLOSE',  # ['uint32', 'recipient_channel']
+        98: 'SSH_MSG_CHANNEL_REQUEST', # ['uint32', 'recipient_channel'], ['string', 'request_type'], ['boolean', 'want_reply']
+        99: 'SSH_MSG_CHANNEL_SUCCESS',  #
+        100: 'SSH_MSG_CHANNEL_FAILURE'  #
+    }
+
     def __init__(self, server, out):
+        super(SSH, self).__init__()
+
+        self.channels = []
+        self.username = ''
+        self.password = ''
+
+        self.cfg = Config.getInstance()
+
+        self.sendOn = False
         self.out = out
         self.server = server
         self.channels = []
-        
-    def setClient(self, client):
-        self.client = client            
-                
-    def parsePacket(self, parent, messageNum, payload):
+        self.client = None
+
+    def set_client(self, client):
+        self.client = client
+
+    def parse_packet(self, parent, message_num, payload):
         self.data = payload
         self.packetSize = len(payload)
         self.sendOn = True
 
-        packet = self.packetLayout[messageNum]
+        packet = self.packetLayout[message_num]
 
         if not self.server.post_auth_started:
             if parent == '[SERVER]':
@@ -94,269 +99,279 @@ class SSH(baseProtocol.BaseProtocol):
                 direction = 'HONSSH -> SERVER'
             else:
                 direction = 'SERVER -> HONSSH'
-                
+
         self.out.packet_logged(direction, packet, payload)
-            
-        if self.cfg.has_option('devmode', 'enabled'):   
-            if self.cfg.get('devmode', 'enabled') == 'true':
+
+        if self.cfg.has_option('devmode', 'enabled') and self.cfg.getboolean(['devmode', 'enabled']):
                 log.msg(log.LBLUE, '[SSH]', direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))
-        
+
         # - UserAuth            
         if packet == 'SSH_MSG_USERAUTH_REQUEST':
-            self.username = self.extractString()
-            service = self.extractString()
-            authType = self.extractString()
+            self.username = self.extract_string()
+            service = self.extract_string()
+            auth_type = self.extract_string()
 
-            if authType == 'password':
-                self.extractBool()
-                self.password = self.extractString()
+            if auth_type == 'password':
+                self.extract_bool()
+                self.password = self.extract_string()
 
                 if self.password != "":
                     if not self.server.post_auth_started:
                         self.server.start_post_auth(self.username, self.password)
                         self.sendOn = False
-                    
-            elif authType == 'publickey':
-                if self.cfg.get('hp-restrict', 'disable_publicKey') == 'true':
+
+            elif auth_type == 'publickey':
+                if self.cfg.getboolean(['hp-restrict', 'disable_publicKey']):
                     self.sendOn = False
-                    self.server.sendPacket(51, self.stringToHex('password') + chr(0))
+                    self.server.sendPacket(51, self.string_to_hex('password') + chr(0))
 
         elif packet == 'SSH_MSG_USERAUTH_FAILURE':
-            authList = self.extractString()
-            if 'publickey' in authList:
-                if self.cfg.get('hp-restrict', 'disable_publicKey') == 'true':
-                    log.msg(log.LPURPLE, '[SSH]','Detected Public Key Auth - Disabling!')
-                    payload = self.stringToHex('password') + chr(0)
+            auth_list = self.extract_string()
+
+            if 'publickey' in auth_list:
+                if self.cfg.getboolean(['hp-restrict', 'disable_publicKey']):
+                    log.msg(log.LPURPLE, '[SSH]', 'Detected Public Key Auth - Disabling!')
+                    payload = self.string_to_hex('password') + chr(0)
+
             if not self.server.post_auth_started:
                 if self.username != '' and self.password != '':
                     self.out.login_failed(self.username, self.password)
                     self.server.login_failed(self.username, self.password)
-                    
+
         elif packet == 'SSH_MSG_USERAUTH_SUCCESS':
-            if self.username != ''  and self.password != '':
+            if len(self.username) > 0 and len(self.password) > 0:
                 self.out.login_successful(self.username, self.password, self.server.spoofed)
                 self.server.login_successful(self.username, self.password)
 
         # - End UserAuth
         # - Channels
         elif packet == 'SSH_MSG_CHANNEL_OPEN':
-            type = self.extractString()
-            id = self.extractInt(4)
-            if type == 'session':
-                self.createChannel(parent, id, type)
-            elif type == 'x11':
-                if self.cfg.get('hp-restrict', 'disable_x11') == 'true':
+            channel_type = self.extract_string()
+            id = self.extract_int(4)
+
+            if channel_type == 'session':
+                self.create_channel(parent, id, channel_type)
+            elif channel_type == 'x11':
+                if self.cfg.getboolean(['hp-restrict', 'disable_x11']):
                     log.msg(log.LPURPLE, '[SSH]', 'Detected X11 Channel - Disabling!')
                     self.sendOn = False
-                    self.sendBack(parent, 92, self.intToHex(id))
+                    self.send_back(parent, 92, self.int_to_hex(id))
                 else:
-                    ##LOG X11 Channel opened - not logging
-                    theUUID = uuid.uuid4().hex
-                    theName = '[X11-' + str(id) + ']'
-                    self.createChannel(parent, id, type, session=baseProtocol.BaseProtocol(uuid=theUUID, name=theName, ssh=self))
-                    channel = self.getChannel(id, '[CLIENT]')
-                    channel['name'] = theName
-                    self.out.channelOpened(theUUID, channel['name'])
-            elif type == 'direct-tcpip' or type == 'forwarded-tcpip':
-                if self.cfg.get('hp-restrict', 'disable_port_forwarding') == 'true':
+                    # LOG X11 Channel opened - not logging
+                    the_uuid = uuid.uuid4().hex
+                    the_name = '[X11-' + str(id) + ']'
+                    self.create_channel(parent, id, channel_type,
+                                        session=baseProtocol.BaseProtocol(uuid=the_uuid, name=the_name, ssh=self))
+                    channel = self.get_channel(id, '[CLIENT]')
+                    channel['name'] = the_name
+                    self.out.channel_opened(the_uuid, channel['name'])
+            elif channel_type == 'direct-tcpip' or channel_type == 'forwarded-tcpip':
+                if self.cfg.getboolean(['hp-restrict', 'disable_port_forwarding']):
                     log.msg(log.LPURPLE, '[SSH]', 'Detected Port Forwarding Channel - Disabling!')
                     self.sendOn = False
-                    self.sendBack(parent, 92, self.intToHex(id) + self.intToHex(1) + self.stringToHex('open failed') + self.intToHex(0))
+                    self.send_back(parent, 92, self.int_to_hex(id) + self.int_to_hex(1) + self.string_to_hex(
+                        'open failed') + self.int_to_hex(0))
                 else:
-                    ##LOG PORT FORWARDING Channel opened
-                    self.extractInt(4)
-                    self.extractInt(4)
-                    
-                    connDetails = {'dstIP':self.extractString(), 'dstPort':self.extractInt(4), 'srcIP':self.extractString(), 'srcPort':self.extractInt(4)}
-                    connDetails['srcIP'] = self.out.end_ip
-                    theUUID = uuid.uuid4().hex
-                    self.createChannel(parent, id, type)
-                    
+                    # LOG PORT FORWARDING Channel opened
+                    self.extract_int(4)
+                    self.extract_int(4)
+
+                    conn_details = {'dstIP': self.extract_string(), 'dstPort': self.extract_int(4),
+                                    'srcIP': self.out.end_ip, 'srcPort': self.extract_int(4)}
+                    the_uuid = uuid.uuid4().hex
+                    self.create_channel(parent, id, channel_type)
+
                     if parent == '[SERVER]':
-                        otherParent = '[CLIENT]'
-                        theName = '[LPRTF' + str(id) + ']'
+                        other_parent = '[CLIENT]'
+                        the_name = '[LPRTF' + str(id) + ']'
                     else:
-                        otherParent = '[SERVER]'
-                        theName = '[RPRTF' + str(id) + ']'
-                        
-                    channel = self.getChannel(id, otherParent)
-                    channel['name'] = theName
-                    self.out.channelOpened(theUUID, channel['name'])
-                    channel['session'] = portForward.PortForward(self.out, theUUID, channel['name'], self, connDetails, parent, otherParent)
+                        other_parent = '[SERVER]'
+                        the_name = '[RPRTF' + str(id) + ']'
+
+                    channel = self.get_channel(id, other_parent)
+                    channel['name'] = the_name
+                    self.out.channel_opened(the_uuid, channel['name'])
+                    channel['session'] = portForward.PortForward(self.out, the_uuid, channel['name'],
+                                                                 self, conn_details, parent, other_parent)
             else:
-                ##UNKNOWN CHANNEL TYPE
-                if type not in ['exit-status']:
-                    log.msg(log.LRED, '[SSH]', 'Unknown Channel Type Detected - ' + type)              
+                # UNKNOWN CHANNEL TYPE
+                if channel_type not in ['exit-status']:
+                    log.msg(log.LRED, '[SSH]', 'Unknown Channel Type Detected - ' + channel_type)
 
         elif packet == 'SSH_MSG_CHANNEL_OPEN_CONFIRMATION':
-            channel = self.getChannel(self.extractInt(4), parent)
-            senderID = self.extractInt(4) #SENDER
-            
+            channel = self.get_channel(self.extract_int(4), parent)
+            # SENDER
+            sender_id = self.extract_int(4)
+
             if parent == '[SERVER]':
-                channel['serverID'] = senderID
+                channel['serverID'] = sender_id
             elif parent == '[CLIENT]':
-                channel['clientID'] = senderID
-            ##CHANNEL OPENED
-        
+                channel['clientID'] = sender_id
+                # CHANNEL OPENED
+
         elif packet == 'SSH_MSG_CHANNEL_OPEN_FAILURE':
-            channel = self.getChannel(self.extractInt(4), parent)
-            self.out.channelClosed(channel['session'])
+            channel = self.get_channel(self.extract_int(4), parent)
+            self.out.channel_closed(channel['session'])
             self.channels.remove(channel)
-            ##CHANNEL FAILED TO OPEN
-            
+            # CHANNEL FAILED TO OPEN
+
         elif packet == 'SSH_MSG_CHANNEL_REQUEST':
-            channel = self.getChannel(self.extractInt(4), parent)
-            type = self.extractString()
-            theUUID = uuid.uuid4().hex
-            if type == 'shell':
+            channel = self.get_channel(self.extract_int(4), parent)
+            channel_type = self.extract_string()
+            the_uuid = uuid.uuid4().hex
+
+            if channel_type == 'shell':
                 channel['name'] = '[TERM' + str(channel['serverID']) + ']'
-                self.out.channelOpened(theUUID, channel['name'])
-                channel['session'] = term.Term(self.out, theUUID, channel['name'], self, channel['clientID'])
-            elif type == 'exec':
-                if self.cfg.get('hp-restrict','disable_exec') == 'true':
+                self.out.channel_opened(the_uuid, channel['name'])
+                channel['session'] = term.Term(self.out, the_uuid, channel['name'], self, channel['clientID'])
+            elif channel_type == 'exec':
+                if self.cfg.get(['hp-restrict', 'disable_exec']):
                     log.msg(log.LPURPLE, '[SSH]', 'Detected EXEC Channel Request - Disabling!')
                     self.sendOn = False
-                    self.sendBack(parent, 100, self.intToHex(channel['serverID']))
+                    self.send_back(parent, 100, self.int_to_hex(channel['serverID']))
                     blocked = True
                 else:
                     blocked = False
+
                 channel['name'] = '[EXEC' + str(channel['serverID']) + ']'
-                self.extractBool()
-                command = self.extractString()
-                self.out.channelOpened(theUUID, channel['name'])
-                channel['session'] = execTerm.ExecTerm(self.out, theUUID, channel['name'], command, self, blocked)
+                self.extract_bool()
+                command = self.extract_string()
+                self.out.channel_opened(the_uuid, channel['name'])
+                channel['session'] = execTerm.ExecTerm(self.out, the_uuid, channel['name'], command, self, blocked)
+
                 if blocked:
-                    channel['session'].channelClosed()
-                    self.out.channelClosed(channel['session'])
+                    channel['session'].channel_closed()
+                    self.out.channel_closed(channel['session'])
                     self.channels.remove(channel)
-            elif type == 'subsystem':
-                self.extractBool()
-                subsystem = self.extractString()
+            elif channel_type == 'subsystem':
+                self.extract_bool()
+                subsystem = self.extract_string()
+
                 if subsystem == 'sftp':
-                    if self.cfg.get('hp-restrict','disable_sftp') == 'true':
+                    if self.cfg.getboolean(['hp-restrict', 'disable_sftp']):
                         log.msg(log.LPURPLE, '[SSH]', 'Detected SFTP Channel Request - Disabling!')
                         self.sendOn = False
-                        self.sendBack(parent, 100, self.intToHex(channel['serverID']))
+                        self.send_back(parent, 100, self.int_to_hex(channel['serverID']))
                     else:
                         channel['name'] = '[SFTP' + str(channel['serverID']) + ']'
-                        self.out.channelOpened(theUUID, channel['name'])
-                        channel['session'] = sftp.SFTP(self.out, theUUID, channel['name'], self)
+                        self.out.channel_opened(the_uuid, channel['name'])
+                        channel['session'] = sftp.SFTP(self.out, the_uuid, channel['name'], self)
                 else:
-                    ##UNKNOWN SUBSYSTEM
-                    log.msg(log.LRED, '[SSH]', 'Unknown Subsystem Type Detected - ' + subsystem) 
-            elif type == 'x11-req':
-                if self.cfg.get('hp-restrict', 'disable_x11') == 'true':
+                    # UNKNOWN SUBSYSTEM
+                    log.msg(log.LRED, '[SSH]', 'Unknown Subsystem Type Detected - ' + subsystem)
+            elif channel_type == 'x11-req':
+                if self.cfg.getboolean(['hp-restrict', 'disable_x11']):
                     self.sendOn = False
-                    self.sendBack(parent, 82, '')
+                    self.send_back(parent, 82, '')
             else:
-                ##UNKNOWN CHANNEL REQUEST TYPE
-                if type not in ['window-change', 'env', 'pty-req', 'exit-status', 'exit-signal']:
-                    log.msg(log.LRED, '[SSH]', 'Unknown Channel Request Type Detected - ' + type) 
-                
+                # UNKNOWN CHANNEL REQUEST TYPE
+                if channel_type not in ['window-change', 'env', 'pty-req', 'exit-status', 'exit-signal']:
+                    log.msg(log.LRED, '[SSH]', 'Unknown Channel Request Type Detected - ' + channel_type)
+
         elif packet == 'SSH_MSG_CHANNEL_FAILURE':
             pass
-                
+
         elif packet == 'SSH_MSG_CHANNEL_CLOSE':
-            channel = self.getChannel(self.extractInt(4), parent)
-            channel[parent] = True #Is this needed?!
+            channel = self.get_channel(self.extract_int(4), parent)
+            # Is this needed?!
+            channel[parent] = True
+
             if '[SERVER]' in channel and '[CLIENT]' in channel:
-                ##CHANNEL CLOSED
-                if channel['session'] != None:
-                    channel['session'].channelClosed()
-                    self.out.channelClosed(channel['session'])
+                # CHANNEL CLOSED
+                if channel['session'] is not None:
+                    channel['session'].channel_closed()
+                    self.out.channel_closed(channel['session'])
+
                 self.channels.remove(channel)
         # - END Channels
         # - ChannelData
         elif packet == 'SSH_MSG_CHANNEL_DATA':
-            channel = self.getChannel(self.extractInt(4), parent)
-            channel['session'].parsePacket(parent, self.extractString())
-                        
+            channel = self.get_channel(self.extract_int(4), parent)
+            channel['session'].parse_packet(parent, self.extract_string())
+
         elif packet == 'SSH_MSG_CHANNEL_EXTENDED_DATA':
-            channel = self.getChannel(self.extractInt(4), parent)
-            self.extractInt(4)
-            channel['session'].parsePacket(parent, self.extractString())
+            channel = self.get_channel(self.extract_int(4), parent)
+            self.extract_int(4)
+            channel['session'].parse_packet(parent, self.extract_string())
         # - END ChannelData
-        
+
         elif packet == 'SSH_MSG_GLOBAL_REQUEST':
-            type = self.extractString()
-            if type == 'tcpip-forward':
-                if self.cfg.get('hp-restrict', 'disable_port_forwarding') == 'true':
+            channel_type = self.extract_string()
+            if channel_type == 'tcpip-forward':
+                if self.cfg.getboolean(['hp-restrict', 'disable_port_forwarding']):
                     self.sendOn = False
-                    self.sendBack(parent, 82, '')
-         
+                    self.send_back(parent, 82, '')
+
         if self.server.post_auth_started:
             if parent == '[CLIENT]':
-                self.server.post_auth.send_next()   
+                self.server.post_auth.send_next()
                 self.sendOn = False
-                           
-        if self.sendOn: 
+
+        if self.sendOn:
             if parent == '[SERVER]':
-                self.client.sendPacket(messageNum, payload)
+                self.client.sendPacket(message_num, payload)
             else:
-                self.server.sendPacket(messageNum, payload)
-    
-    def sendBack(self, parent, messageNum, payload):
-        packet = self.packetLayout[messageNum]
-        
+                self.server.sendPacket(message_num, payload)
+
+    def send_back(self, parent, message_num, payload):
+        packet = self.packetLayout[message_num]
+
         if parent == '[SERVER]':
             direction = 'HONSSH -> CLIENT'
         else:
             direction = 'HONSSH -> SERVER'
-            
+
         self.out.packet_logged(direction, packet, payload)
 
-        if self.cfg.has_option('devmode', 'enabled'):   
-            if self.cfg.get('devmode', 'enabled') == 'true':
+        if self.cfg.has_option('devmode', 'enabled') and self.cfg.getboolean(['devmode', 'enabled']):
                 log.msg(log.LBLUE, '[SSH]', direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))
-            
+
         if parent == '[SERVER]':
-            self.server.sendPacket(messageNum, payload)
+            self.server.sendPacket(message_num, payload)
         elif parent == '[CLIENT]':
-            self.client.sendPacket(messageNum, payload)
-    
-    def createChannel(self, parent, id, type, session=None):
+            self.client.sendPacket(message_num, payload)
+
+    def create_channel(self, parent, id, channel_type, session=None):
         if parent == '[SERVER]':
-            self.channels.append({'serverID':id, 'type': type, 'session':session})
+            self.channels.append({'serverID': id, 'type': channel_type, 'session': session})
         elif parent == '[CLIENT]':
-            self.channels.append({'clientID':id, 'type': type, 'session':session})
-    
-    def getChannel(self, channelNum, parent):
-        theChannel = None
+            self.channels.append({'clientID': id, 'type': channel_type, 'session': session})
+
+    def get_channel(self, channel_num, parent):
+        the_channel = None
         for channel in self.channels:
             if parent == '[CLIENT]':
                 search = 'serverID'
             else:
                 search = 'clientID'
-                
-            if channel[search] == channelNum:
-                theChannel = channel
+
+            if channel[search] == channel_num:
+                the_channel = channel
                 break
-        return theChannel
-    
-    def injectKey(self, serverID, message):
-        payload = self.intToHex(serverID) + self.stringToHex(message)
+        return the_channel
+
+    def inject_key(self, server_id, message):
+        payload = self.int_to_hex(server_id) + self.string_to_hex(message)
         self.inject(94, payload)
-    
-    def injectDisconnect(self):
+
+    def inject_disconnect(self):
         self.server.loseConnection()
-        
-    def inject(self, packetNum, payload):
+
+    def inject(self, packet_num, payload):
         direction = 'INTERACT -> SERVER'
-        packet = self.packetLayout[packetNum]
-        
+        packet = self.packetLayout[packet_num]
+
         self.out.packet_logged(direction, packet, payload)
 
-        if self.cfg.has_option('devmode', 'enabled'):   
-            if self.cfg.get('devmode', 'enabled') == 'true':
-                log.msg(log.LBLUE, '[SSH]', direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))   
-        
-        self.client.sendPacket(packetNum, payload)
+        if self.cfg.has_option('devmode', 'enabled') and self.cfg.getboolean(['devmode', 'enabled']):
+                log.msg(log.LBLUE, '[SSH]', direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))
 
-    
-    def stringToHex(self, message):
+        self.client.sendPacket(packet_num, payload)
+
+    def string_to_hex(self, message):
         b = message.encode('utf-8')
-        size = struct.pack('>L',len(b))
+        size = struct.pack('>L', len(b))
         return size + b
-    
-    def intToHex(self, int):
-        return struct.pack('>L', int)
+
+    def int_to_hex(self, value):
+        return struct.pack('>L', value)

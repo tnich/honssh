@@ -27,31 +27,37 @@
 # SUCH DAMAGE.
 
 from twisted.conch.ssh import transport
-from honssh import log
 from twisted.internet import reactor, protocol, defer
+from honssh import log
+from honssh.config import Config
+
 
 class HonsshClientTransport(transport.SSHClientTransport):
-    
+    def __init__(self):
+        self.cfg = Config.getInstance()
+        self.out = None
+
     def connectionMade(self):
         log.msg(log.LGREEN, '[CLIENT]', 'New client connection')
-        self.factory.server.client = self
-        self.factory.server.sshParse.setClient(self)
-        transport.SSHClientTransport.connectionMade(self)
-        self.cfg = self.factory.server.cfg
         self.out = self.factory.server.out
-        
-    def verifyHostKey(self, pubKey, fingerprint):
+        self.factory.server.client = self
+        self.factory.server.sshParse.set_client(self)
+        transport.SSHClientTransport.connectionMade(self)
+
+    def verifyHostKey(self, pub_key, fingerprint):
         return defer.succeed(True)
-    
+
     def connectionSecure(self):
         self.factory.server.clientConnected = True
         log.msg(log.LGREEN, '[CLIENT]', 'Client Connection Secured')
-        
+
     def connectionLost(self, reason):
         transport.SSHClientTransport.connectionLost(self, reason)
 
         if self.factory.server.wasConnected:
-            log.msg(log.LBLUE, '[CLIENT]', 'Lost connection with the Honeypot: ' + self.factory.server.sensor_name + ' (' + self.factory.server.honey_ip + ':' + str(self.factory.server.honey_port) + ')')
+            log.msg(log.LBLUE, '[CLIENT]',
+                    'Lost connection with the Honeypot: ' + self.factory.server.sensor_name + ' (' + self.factory.server.honey_ip + ':' + str(
+                        self.factory.server.honey_port) + ')')
         else:
             log.msg(log.LBLUE, '[CLIENT]', 'Lost connection with the Honeypot (Server<->Honeypot not connected)')
 
@@ -60,22 +66,26 @@ class HonsshClientTransport(transport.SSHClientTransport):
         else:
             self.factory.server.post_auth.connection_lost()
 
-    def dispatchMessage(self, messageNum, payload):
+    def dispatchMessage(self, message_num, payload):
         if transport.SSHClientTransport.isEncrypted(self, "both"):
-            self.factory.server.sshParse.parsePacket('[CLIENT]', messageNum, payload)
+            self.factory.server.sshParse.parse_packet('[CLIENT]', message_num, payload)
         else:
-            transport.SSHClientTransport.dispatchMessage(self, messageNum, payload)
+            transport.SSHClientTransport.dispatchMessage(self, message_num, payload)
+
 
 class HonsshClientFactory(protocol.ClientFactory):
-    protocol = HonsshClientTransport   
-    
+    protocol = HonsshClientTransport
+
+
 class HonsshSlimClientTransport(transport.SSHClientTransport):
     gotVersion = False
+
     def dataReceived(self, data):
         self.buf = self.buf + data
         if not self.gotVersion:
             if self.buf.find('\n', self.buf.find('SSH-')) == -1:
                 return
+
             lines = self.buf.split('\n')
             for p in lines:
                 if p.startswith('SSH-'):
@@ -84,15 +94,18 @@ class HonsshSlimClientTransport(transport.SSHClientTransport):
                     self.factory.server.ourVersionString = self.ourVersionString
                     log.msg(log.LBLUE, '[CLIENT]', 'Got SSH Version String: ' + self.factory.server.ourVersionString)
                     self.loseConnection()
-            
+
+
 class HonsshSlimClientFactory(protocol.ClientFactory):
-    protocol = HonsshSlimClientTransport  
-    
+    protocol = HonsshSlimClientTransport
+
     def clientConnectionFailed(self, connector, reason):
-        log.msg(log.LRED, '[HONSSH][ERR][FATAL]' ,'HonSSH could not connect to the honeypot to accquire the SSH Version String.')
-        log.msg(log.LRED, '[HONSSH][ERR][FATAL]' ,'Please ensure connectivity between HonSSH\'s client_addr to honey_ip:honey_port or set ssh_banner manually')
-        log.msg(log.LRED, '[HONSSH][ERR][FATAL]' ,'...Gracefully Exiting')
+        log.msg(log.LRED, '[HONSSH][ERR][FATAL]',
+                'HonSSH could not connect to the honeypot to accquire the SSH Version String.')
+        log.msg(log.LRED, '[HONSSH][ERR][FATAL]',
+                'Please ensure connectivity between HonSSH\'s client_addr to honey_ip:honey_port or set ssh_banner manually')
+        log.msg(log.LRED, '[HONSSH][ERR][FATAL]', '...Gracefully Exiting')
         reactor.stop()
-        
+
     def clientConnectionLost(self, connector, reason):
-        log.msg(log.LGREEN, '[HONSSH]', 'HonSSH Boot Sequence Complete - Ready for attacks!') 
+        log.msg(log.LGREEN, '[HONSSH]', 'HonSSH Boot Sequence Complete - Ready for attacks!')

@@ -34,40 +34,56 @@ from honssh import log
 from honssh import output_handler
 from honssh import post_auth_handler
 from honssh import pre_auth_handler
-from honssh.config import config
+from honssh.config import Config
 from honssh.protocols import ssh
 
 
 class HonsshServerTransport(honsshServer.HonsshServer):
-    cfg = config()
-
-    def connectionMade(self):
+    def __init__(self):
+        self.cfg = Config.getInstance()
         self.timeoutCount = 0
         self.interactors = []
+
+        self.out = None
+        self.net = None
+        self.sshParse = None
+
         self.wasConnected = False
-
-        self.out = output_handler.Output(self.factory)
-        self.net = networking.Networking()
-
-        self.sshParse = ssh.SSH(self, self.out)
-
         self.disconnected = False
         self.clientConnected = False
         self.post_auth_started = False
         self.spoofed = False
+
+        self.peer_ip = None
+        self.peer_port = 0
+        self.local_ip = None
+        self.local_port = 0
+
+        self.pre_auth = None
+        self.post_auth = None
+
+        self.sensor_name = None
+        self.honey_ip = None
+        self.honey_port = 0
+
+    def connectionMade(self):
+        self.out = output_handler.Output(self.factory)
+        self.net = networking.Networking()
+
+        self.sshParse = ssh.SSH(self, self.out)
 
         self.peer_ip = self.transport.getPeer().host
         self.peer_port = self.transport.getPeer().port + 1
         self.local_ip = self.transport.getHost().host
         self.local_port = self.transport.getHost().port
 
-        self.pre_auth = pre_auth_handler.Pre_Auth(self)
-        self.post_auth = post_auth_handler.Post_Auth(self)
+        self.pre_auth = pre_auth_handler.PreAuth(self)
+        self.post_auth = post_auth_handler.PostAuth(self)
 
         # Get auth plugins
-        plugin_list = plugins.get_plugin_list(type='honeypot')
-        pre_auth_plugin = plugins.import_auth_plugin(self.pre_auth.name, plugin_list, self.cfg)
-        post_auth_plugin = plugins.import_auth_plugin(self.post_auth.name, plugin_list, self.cfg)
+        plugin_list = plugins.get_plugin_list(plugin_type='honeypot')
+        pre_auth_plugin = plugins.import_auth_plugin(self.pre_auth.name, plugin_list)
+        post_auth_plugin = plugins.import_auth_plugin(self.post_auth.name, plugin_list)
 
         # Check pre auth plugin is set
         if pre_auth_plugin is None:
@@ -99,32 +115,32 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         honsshServer.HonsshServer.connectionLost(self, reason)
 
         if self.wasConnected:
-            self.out.connectionLost()
+            self.out.connection_lost()
 
     def ssh_KEXINIT(self, packet):
         return honsshServer.HonsshServer.ssh_KEXINIT(self, packet)
 
-    def dispatchMessage(self, messageNum, payload):
+    def dispatchMessage(self, message_num, payload):
         if honsshServer.HonsshServer.isEncrypted(self, "both"):
             if not self.post_auth_started:
-                self.packet_buffer(self.pre_auth, messageNum, payload)
+                self.packet_buffer(self.pre_auth, message_num, payload)
             else:
-                self.packet_buffer(self.post_auth, messageNum, payload)
+                self.packet_buffer(self.post_auth, message_num, payload)
         else:
-            honsshServer.HonsshServer.dispatchMessage(self, messageNum, payload)
+            honsshServer.HonsshServer.dispatchMessage(self, message_num, payload)
 
-    def packet_buffer(self, stage, messageNum, payload):
+    def packet_buffer(self, stage, message_num, payload):
         if not self.clientConnected:
             log.msg(log.LPURPLE, '[SERVER]', 'CONNECTION TO HONEYPOT NOT READY, BUFFERING PACKET')
-            stage.delayedPackets.append([messageNum, payload])
+            stage.delayedPackets.append([message_num, payload])
         else:
             if not stage.finishedSending:
-                stage.delayedPackets.append([messageNum, payload])
+                stage.delayedPackets.append([message_num, payload])
             else:
-                self.sshParse.parsePacket("[SERVER]", messageNum, payload)
+                self.sshParse.parse_packet("[SERVER]", message_num, payload)
 
-    def sendPacket(self, messageNum, payload):
-        honsshServer.HonsshServer.sendPacket(self, messageNum, payload)
+    def sendPacket(self, message_num, payload):
+        honsshServer.HonsshServer.sendPacket(self, message_num, payload)
 
     def connection_init(self, sensor_name, honey_ip, honey_port):
         self.sensor_name = sensor_name
@@ -133,8 +149,8 @@ class HonsshServerTransport(honsshServer.HonsshServer):
 
     def connection_setup(self):
         self.wasConnected = True
-        self.out.connectionMade(self.peer_ip, self.peer_port, self.honey_ip, self.honey_port, self.sensor_name)
-        self.out.setVersion(self.otherVersionString)
+        self.out.connection_made(self.peer_ip, self.peer_port, self.honey_ip, self.honey_port, self.sensor_name)
+        self.out.set_version(self.otherVersionString)
 
     def start_post_auth(self, username, password):
         self.post_auth_started = True
@@ -146,29 +162,30 @@ class HonsshServerTransport(honsshServer.HonsshServer):
     def login_failed(self, username, password):
         self.post_auth.login_failed()
 
+
 class HonsshServerFactory(factory.SSHFactory):
-    cfg = config()
-    otherVersionString = ''
-    connections = connections.Connections()
-    plugin_servers = []
-
     def __init__(self):
-        self.ourVersionString = self.cfg.get('honeypot', 'ssh_banner')
-        if self.ourVersionString == '':
-            if self.cfg.get('honeypot-static', 'enabled') == 'true':
-                log.msg(log.LPURPLE, '[SERVER]', 'Acquiring SSH Version String from honey_ip:honey_port')
-                clientFactory = client.HonsshSlimClientFactory()
-                clientFactory.server = self
+        self.cfg = Config.getInstance()
+        self.otherVersionString = ''
+        self.connections = connections.Connections()
+        self.plugin_servers = []
+        self.ourVersionString = self.cfg.get(['honeypot', 'ssh_banner'])
 
-                reactor.connectTCP(self.cfg.get('honeypot-static', 'honey_ip'),
-                                   int(self.cfg.get('honeypot-static', 'honey_port')), clientFactory)
-            elif self.cfg.get('honeypot-docker', 'enabled') == 'true':
-                log.msg(log.LRED, '[SERVER][ERR]', 'You need to configure the ssh_banner for docker manually!')
-        else:
+        if len(self.ourVersionString) > 0:
             log.msg(log.LPURPLE, '[SERVER]', 'Using ssh_banner for SSH Version String: ' + self.ourVersionString)
+        else:
+            if self.cfg.getboolean(['honeypot-static', 'enabled']):
+                log.msg(log.LPURPLE, '[SERVER]', 'Acquiring SSH Version String from honey_ip:honey_port')
+                client_factory = client.HonsshSlimClientFactory()
+                client_factory.server = self
+
+                reactor.connectTCP(self.cfg.get(['honeypot-static', 'honey_ip']),
+                                   int(self.cfg.get(['honeypot-static', 'honey_port'])), client_factory)
+            elif self.cfg.getboolean(['honeypot-docker', 'enabled']):
+                log.msg(log.LRED, '[SERVER][ERR]', 'You need to configure the ssh_banner for docker manually!')
 
         plugin_list = plugins.get_plugin_list()
-        loaded_plugins = plugins.import_plugins(plugin_list, self.cfg)
+        loaded_plugins = plugins.import_plugins(plugin_list)
         for plugin in loaded_plugins:
             plugin_server = plugins.run_plugins_function([plugin], 'start_server', False)
             plugin_name = plugins.get_plugin_name(plugin)

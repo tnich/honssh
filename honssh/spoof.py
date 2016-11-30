@@ -27,16 +27,21 @@
 # SUCH DAMAGE.
 
 from honssh import log
+from honssh.config import Config
 import ConfigParser
 import os
 import re
 import random
 
-def get_connection_details(cfg, conn_details):
-    if cfg.get('spoof', 'enabled') == 'true':
-        user = get_users(cfg, conn_details['username'])
+
+def get_connection_details(conn_details):
+    cfg = Config.getInstance()
+
+    if cfg.getboolean(['spoof', 'enabled']):
+        user = get_users(conn_details['username'])
         rand = 0
-        if user != None:
+
+        if user is not None:
             if user[1] == conn_details['password']:
                 rand = 1
             else:
@@ -46,71 +51,86 @@ def get_connection_details(cfg, conn_details):
                         rand = 1
                 elif user[2] == 'random':
                     if int(user[3]) > 0:
-                        randomFactor = (100 / int(user[3])) + 1
-                        rand = random.randrange(1, randomFactor)
-        
-                logfile = cfg.get('folders', 'log_path') + "/spoof.log"
+                        random_factor = (100 / int(user[3])) + 1
+                        rand = random.randrange(1, random_factor)
+
+                logfile = cfg.get(['folders', 'log_path']) + "/spoof.log"
+
                 if os.path.isfile(logfile):
                     f = file(logfile, 'r')
                     creds = f.read().splitlines()
                     f.close()
+
                     for cred in creds:
                         cred = cred.strip().split(' - ')
                         if cred[0] == conn_details['username'] and cred[1] == conn_details['password']:
                             rand = 1
                             break
-
         if rand == 1:
-            write_spoof_log(cfg, conn_details)
+            write_spoof_log(conn_details)
             return True, conn_details['username'], user[1]
-    
+
     return False, '', ''
 
-def get_users(cfg, username):
-    usersCfg = ConfigParser.ConfigParser()
-    if os.path.exists(cfg.get('spoof','users_conf')):
-        usersCfg.read(cfg.get('spoof','users_conf'))
-        users = usersCfg.sections()
+
+def get_users(username):
+    cfg = Config.getInstance()
+    user_cfg_path = cfg.get(['spoof', 'users_conf'])
+
+    if os.path.exists(user_cfg_path):
+        users_cfg = ConfigParser.ConfigParser()
+        users_cfg.read(user_cfg_path)
+        users = users_cfg.sections()
+
         for user in users:
             if user == username:
-                if usersCfg.has_option(user, 'fake_passwords'):
-                    return [user, usersCfg.get(user, 'real_password'), 'fixed', usersCfg.get(user, 'fake_passwords')]
-                if usersCfg.has_option(user, 'random_chance'):
-                    return [user, usersCfg.get(user, 'real_password'), 'random', usersCfg.get(user, 'random_chance')]
+                if users_cfg.has_option(user, 'fake_passwords'):
+                    return [user, users_cfg.get(user, 'real_password'), 'fixed', users_cfg.get(user, 'fake_passwords')]
+
+                if users_cfg.has_option(user, 'random_chance'):
+                    return [user, users_cfg.get(user, 'real_password'), 'random', users_cfg.get(user, 'random_chance')]
     else:
         log.msg(log.LRED, '[SPOOF]', 'ERROR: users_conf does not exist')
     return None
 
-def write_spoof_log(cfg, conn_details):
-    logfile = cfg.get('folders', 'log_path') + '/spoof.log'
+
+def write_spoof_log(conn_details):
+    cfg = Config.getInstance()
+
+    logfile = cfg.get(['folders', 'log_path']) + '/spoof.log'
     username = conn_details['username']
     password = conn_details['password']
     ip = conn_details['peer_ip']
-    
-    setPermissions = False
+
+    set_permissions = False
     found = False
-        
+
     if os.path.isfile(logfile):
         f = file(logfile, 'r')
         lines = f.readlines()
         f.close()
+
         for i in range(len(lines)):
             lines[i] = lines[i].strip().split(' - ')
             if lines[i][0] == username and lines[i][1] == password:
                 found = True
                 if ip not in lines[i][2:]:
                     lines[i].append(ip)
+
         f = file(logfile, 'w')
+
         for line in lines:
             f.write(' - '.join(line) + '\n')
+
         if not found:
-            f.write("%s - %s - %s\n" % (username,password,ip))
+            f.write("%s - %s - %s\n" % (username, password, ip))
+
         f.close()
     else:
         f = file(logfile, 'a')
-        f.write("%s - %s - %s\n" % (username,password,ip))
+        f.write("%s - %s - %s\n" % (username, password, ip))
         f.close()
-        setPermissions = True
-    
-    if(setPermissions):
+        set_permissions = True
+
+    if set_permissions:
         os.chmod(logfile, 0644)

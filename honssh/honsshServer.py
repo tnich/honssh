@@ -29,6 +29,7 @@
 from twisted.conch.ssh import transport
 from honssh import log
 
+
 class HonsshServer(transport.SSHServerTransport):
     def connectionMade(self):
         """
@@ -39,7 +40,7 @@ class HonsshServer(transport.SSHServerTransport):
         self.currentEncryptions = transport.SSHCiphers('none', 'none', 'none', 'none')
         self.currentEncryptions.setKeys('', '', '', '', '', '')
         self.otherVersionString = 'Unknown'
-        
+
     def dataReceived(self, data):
         """
         First, check for the version string (SSH-2.0-*).  After that has been
@@ -48,7 +49,8 @@ class HonsshServer(transport.SSHServerTransport):
         
         @type data: C{str}
         """
-        self.buf = self.buf + data
+        self.buf += data
+
         if not self.gotVersion:
             if self.buf.find('\n', self.buf.find('SSH-')) == -1:
                 return
@@ -57,19 +59,20 @@ class HonsshServer(transport.SSHServerTransport):
                 if p.startswith('SSH-'):
                     self.gotVersion = True
                     self.otherVersionString = p.strip()
-                    remoteVersion = p.split('-')[1]
-                    if remoteVersion not in self.supportedVersions:
-                        self._unsupportedVersionReceived(remoteVersion)
+                    remote_version = p.split('-')[1]
+
+                    if remote_version not in self.supportedVersions:
+                        self._unsupportedVersionReceived(remote_version)
                         return
                     i = lines.index(p)
                     self.buf = '\n'.join(lines[i + 1:])
                     self.sendKexInit()
         packet = self.getPacket()
         while packet:
-            messageNum = ord(packet[0])
-            self.dispatchMessage(messageNum, packet[1:])
+            message_num = ord(packet[0])
+            self.dispatchMessage(message_num, packet[1:])
             packet = self.getPacket()
-            
+
     def sendDisconnect(self, reason, desc):
         """
         http://kbyte.snowpenguin.org/portal/2013/04/30/kippo-protocol-mismatch-workaround/
@@ -81,7 +84,7 @@ class HonsshServer(transport.SSHServerTransport):
         @param desc: a description of the reason for the disconnection.
         @type desc: C{str}
         """
-        if not 'bad packet length' in desc:
+        if 'bad packet length' not in desc:
             # With python >= 3 we can use super?
             transport.SSHServerTransport.sendDisconnect(self, reason, desc)
         else:
