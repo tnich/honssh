@@ -50,6 +50,7 @@ class Plugin(object):
         self.container = None
         self.sensor_name = None
         self.peer_ip = None
+        self.channel_open = False
 
     def get_pre_auth_details(self, conn_details):
         return self.get_connection_details(conn_details)
@@ -92,14 +93,14 @@ class Plugin(object):
                                          shm_size, cpu_period, cpu_shares, cpuset_cpus, self.peer_ip, reuse_container)
         self.container = self.docker_drive.launch_container()
 
-        log.msg(log.LCYAN, '[PLUGIN][DOCKER]',
-                'Launched container (%s, %s)' % (self.container['ip'], self.container['id']))
         honey_ip = self.container['ip']
 
         return {'success': True, 'sensor_name': self.sensor_name, 'honey_ip': honey_ip, 'honey_port': honey_port,
                 'connection_timeout': self.connection_timeout}
 
     def login_successful(self):
+        self.channel_open = True
+
         '''
         FIXME: Currently output_handler and this plugin do both construct the session folder path. This should be encapsulated.
         '''
@@ -117,9 +118,7 @@ class Plugin(object):
             self.docker_drive.start_watcher(overlay_folder, max_filesize, use_revisions)
 
     def connection_lost(self, conn_details):
-        log.msg(log.LCYAN, '[PLUGIN][DOCKER]',
-                'Stopping container (%s, %s)' % (self.container['ip'], self.container['id']))
-        self.docker_drive.teardown_container()
+        self.docker_drive.teardown_container(not self.channel_open)
 
     def start_server(self):
         if self.cfg.getboolean(['honeypot-docker', 'enabled']) and self.cfg.getboolean(['honeypot-docker', 'reuse_container']):
@@ -168,6 +167,7 @@ class DockerDriver(object):
     def __init__(self, socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, cpu_period,
                  cpu_shares, cpuset_cpus, peer_ip, reuse_container):
         self.container_id = None
+        self.container_ip = None
         self.connection = None
         self.socket = socket
         self.image = image
@@ -221,16 +221,24 @@ class DockerDriver(object):
         exec_id = self.connection.exec_create(self.container_id, self.launch_cmd)['Id']
         self.connection.exec_start(exec_id, tty=True)
         container_data = self.connection.inspect_container(self.container_id)
+        self.container_ip = container_data['NetworkSettings']['Networks']['bridge']['IPAddress']
 
-        return {"id": self.container_id,
-                "ip": container_data['NetworkSettings']['Networks']['bridge']['IPAddress']}
+        log.msg(log.LCYAN, '[PLUGIN][DOCKER]',
+                'Launched container (%s, %s)' % (self.container_ip, self.container_id))
 
-    def teardown_container(self):
+        return {"id": self.container_id, "ip": self.container_ip}
+
+    def teardown_container(self, destroy_container):
         self.connection.stop(self.container_id)
 
         # Check for container reuse
-        if not self.reuse_container:
+        if not self.reuse_container or destroy_container:
+            log.msg(log.LCYAN, '[PLUGIN][DOCKER]',
+                    'Destroying container (%s, %s)' % (self.container_ip, self.container_id))
             self.connection.remove_container(self.container_id, force=True)
+        else:
+            log.msg(log.LCYAN, '[PLUGIN][DOCKER]',
+                    'Stopping container (%s, %s)' % (self.container_ip, self.container_id))
 
         if self.watcher is not None:
             self.watcher.stopReading()
