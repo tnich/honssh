@@ -50,7 +50,7 @@ class Plugin(object):
         self.container = None
         self.sensor_name = None
         self.peer_ip = None
-        self.channelOpen = False
+        self.channel_open = False
 
     def get_pre_auth_details(self, conn_details):
         return self.get_connection_details(conn_details)
@@ -99,7 +99,7 @@ class Plugin(object):
                 'connection_timeout': self.connection_timeout}
 
     def login_successful(self):
-        self.channelOpen = True
+        self.channel_open = True
 
         '''
         FIXME: Currently output_handler and this plugin do both construct the session folder path. This should be encapsulated.
@@ -118,7 +118,7 @@ class Plugin(object):
             self.docker_drive.start_watcher(overlay_folder, max_filesize, use_revisions)
 
     def connection_lost(self, conn_details):
-        self.docker_drive.teardown_container(not self.channelOpen)
+        self.docker_drive.teardown_container(not self.channel_open)
 
     def start_server(self):
         if self.cfg.get('honeypot-docker', 'enabled') == 'true' and self.cfg.get('honeypot-docker', 'reuse_container') == 'true':
