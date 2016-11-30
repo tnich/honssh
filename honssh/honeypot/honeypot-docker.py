@@ -28,6 +28,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 import os
+import time
 
 from honssh.config import Config
 from honssh.utils import validation
@@ -103,6 +104,8 @@ class Plugin(object):
         FIXME: Currently output_handler and this plugin do both construct the session folder path. This should be encapsulated.
         '''
         overlay_folder = self.cfg.get(['honeypot-docker', 'overlay_folder'])
+        max_filesize = self.cfg.getint(['honeypot-docker', 'overlay_max_filesize'], 51200)
+        use_revisions = self.cfg.getboolean(['honeypot-docker', 'overlay_use_revisions'])
 
         if self.docker_drive.watcher is None and len(overlay_folder) > 0:
             overlay_folder = '%s/%s/%s/%s' % \
@@ -111,7 +114,7 @@ class Plugin(object):
                               self.peer_ip,
                               overlay_folder)
 
-            self.docker_drive.start_watcher(overlay_folder)
+            self.docker_drive.start_watcher(overlay_folder, max_filesize, use_revisions)
 
     def connection_lost(self, conn_details):
         log.msg(log.LCYAN, '[PLUGIN][DOCKER]',
@@ -146,7 +149,7 @@ class Plugin(object):
 
     def validate_config(self):
         props = [['honeypot-docker', 'enabled'], ['honeypot-docker', 'pre-auth'], ['honeypot-docker', 'post-auth'],
-                 ['honeypot-docker', 'reuse_container']]
+                 ['honeypot-docker', 'reuse_container'], ['honeypot-docker', 'overlay_use_revisions']]
         for prop in props:
             if not self.cfg.check_exist(prop, validation.check_valid_boolean):
                 return False
@@ -160,7 +163,7 @@ class Plugin(object):
         return True
 
 
-class DockerDriver():
+class DockerDriver(object):
 
     def __init__(self, socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, cpu_period,
                  cpu_shares, cpuset_cpus, peer_ip, reuse_container):
@@ -183,6 +186,8 @@ class DockerDriver():
         self.watcher = None
         self.overlay_folder = None
         self.mount_dir = None
+        self.max_filesize = 0
+        self.use_revisions = False
 
         self.make_connection()
 
@@ -236,9 +241,11 @@ class DockerDriver():
         with open(filename) as f:
             return f.read()
 
-    def start_watcher(self, dest_path):
+    def start_watcher(self, dest_path, max_filesize, use_revisions):
         if self.watcher is None:
             self.overlay_folder = dest_path
+            self.max_filesize = max_filesize
+            self.use_revisions = use_revisions
 
             # Check if watching should be started
             if len(self.overlay_folder) > 0:
@@ -284,24 +291,44 @@ class DockerDriver():
                     'Filesystem watcher not supported for storage driver "%s"' % storage_driver)
 
     def notify(self, ignored, file, mask):
-        #log.msg(log.LYELLOW, '[notify]', '%s' % str(file))
+        # log.msg(log.LYELLOW, '[notify]', '%s' % str(file))
+
         if mask & inotify.IN_CREATE or mask & inotify.IN_MODIFY:
             if file.exists() and file.getsize() > 0:
-                # Construct src and dest path as string
-                src_path = '%s/%s' % (file.dirname(), file.basename())
-                dest_path = '%s/%s' % (self.overlay_folder, src_path.replace(self.mount_dir, ''))
-                # log.msg(log.LBLUE, '[COPY]', '%s / %s' % (src_path, dest_path))
+                # Check max_filesize constraint
+                if self.max_filesize == 0 or (self.max_filesize > 0 and (file.getsize() / 1024) <= self.max_filesize):
+                    # Construct src and dest path as string
+                    src_path = '%s/%s' % (file.dirname(), file.basename())
+                    dest_path = '%s/%s' % (self.overlay_folder, src_path.replace(self.mount_dir, ''))
 
-                try:
-                    # Create directory tree
-                    os.makedirs('%s%s' % (self.overlay_folder, file.dirname().replace(self.mount_dir, '')))
-                except:
-                    # Ignore exception
-                    pass
-
-                try:
-                    # Create dest file object and do actual copy
+                    # Create dest file object
                     d = filepath.FilePath(dest_path)
-                    file.copyTo(d)
-                except Exception as exc:
-                    log.msg(log.LRED, '[PLUGIN][DOCKER][FS_WATCH]', 'FAILED TO COPY "%s" - %s' % (src_path, str(exc)))
+
+                    # Check for revision constraint
+                    if self.use_revisions and d.exists():
+                        c = 0
+                        while True:
+                            # Increment counter and construct new path
+                            c += 1
+                            dpath = dest_path + "-" + str(c)
+                            d = filepath.FilePath(dpath)
+
+                            # Check for new path
+                            if not d.exists():
+                                dest_path = dpath
+                                break
+
+                    # log.msg(log.LBLUE, '[COPY]', '%s / %s' % (src_path, dest_path))
+
+                    try:
+                        # Create directory tree
+                        os.makedirs('%s%s' % (self.overlay_folder, file.dirname().replace(self.mount_dir, '')))
+                    except:
+                        # Ignore exception
+                        pass
+
+                    try:
+                        # Do actual copy
+                        file.copyTo(d)
+                    except Exception as exc:
+                        log.msg(log.LRED, '[PLUGIN][DOCKER][FS_WATCH]', 'FAILED TO COPY "%s" - %s' % (src_path, str(exc)))
