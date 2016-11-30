@@ -129,7 +129,10 @@ class Config(ConfigParser.ConfigParser):
             return False
 
     def get(self, prop, raw=False, vars=None, default=None):
-        ret = ConfigParser.ConfigParser.get(self, prop[0], prop[1], raw, vars)
+        if ConfigParser.ConfigParser.has_option(self, prop[0], prop[1]):
+            ret = ConfigParser.ConfigParser.get(self, prop[0], prop[1], raw, vars)
+        else:
+            ret = ''
 
         if len(ret) == 0 and default is not None:
             ret = default
@@ -137,7 +140,10 @@ class Config(ConfigParser.ConfigParser):
         return ret
 
     def _getconv(self, prop, conv=None, default=None):
-        ret = ConfigParser.ConfigParser.get(self, prop[0], prop[1], False, None)
+        if ConfigParser.ConfigParser.has_option(self, prop[0], prop[1]):
+            ret = ConfigParser.ConfigParser.get(self, prop[0], prop[1], False, None)
+        else:
+            ret = ''
 
         if len(ret) == 0 and default is not None:
             ret = default
