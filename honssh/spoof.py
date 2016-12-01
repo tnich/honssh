@@ -38,42 +38,64 @@ def get_connection_details(conn_details):
     cfg = Config.getInstance()
 
     if cfg.getboolean(['spoof', 'enabled']):
-        user = get_users(conn_details['username'])
-        rand = 0
+        # Get credentials for username
+        credentials = get_credentials(conn_details['username'])
+        password = None
 
-        if user is not None:
-            if user[1] == conn_details['password']:
-                rand = 1
-            else:
-                if user[2] == 'fixed':
-                    passwords = re.sub(r'\s', '', user[3]).split(',')
-                    if conn_details['password'] in passwords:
-                        rand = 1
-                elif user[2] == 'random':
-                    if int(user[3]) > 0:
-                        random_factor = (100 / int(user[3])) + 1
-                        rand = random.randrange(1, random_factor)
+        if credentials is not None:
+            for cred in credentials:
+                # Check for real password match
+                if cred[1] == conn_details['password']:
+                    password = cred[1]
+                    break
+                else:
+                    # Check fixed password allowed
+                    if cred[2] == 'fixed':
+                        passwords = re.sub(r'\s', '', cred[3]).split(',')
 
-                logfile = cfg.get(['folders', 'log_path']) + "/spoof.log"
-
-                if os.path.isfile(logfile):
-                    f = file(logfile, 'r')
-                    creds = f.read().splitlines()
-                    f.close()
-
-                    for cred in creds:
-                        cred = cred.strip().split(' - ')
-                        if cred[0] == conn_details['username'] and cred[1] == conn_details['password']:
-                            rand = 1
+                        # Check for fixed password match
+                        if conn_details['password'] in passwords:
+                            password = cred[1]
                             break
-        if rand == 1:
-            write_spoof_log(conn_details)
-            return True, conn_details['username'], user[1]
+                    # Check random password chance allowed
+                    elif cred[2] == 'random':
+                        # Check for random password chance
+                        if int(cred[3]) > 0:
+                            random_factor = (100 / int(cred[3])) + 1
+                            rand = random.randrange(1, random_factor)
 
+                            if rand == 1:
+                                password = cred[1]
+
+                            break
+
+                        # If no match using random chance try already used credentials from spoof log
+                        logfile = cfg.get(['folders', 'log_path']) + "/spoof.log"
+
+                        if os.path.isfile(logfile):
+                            f = file(logfile, 'r')
+                            used_credentials = f.read().splitlines()
+                            f.close()
+
+                            for used_credential in used_credentials:
+                                used_credential = used_credential.strip().split(' - ')
+                                if used_credential[0] == conn_details['username'] and used_credential[1] == conn_details['password']:
+                                    password = cred[1]
+                                    break
+
+                            if password is not None:
+                                break
+
+        # Do we have a match?
+        if password is not None:
+            write_spoof_log(conn_details)
+            return True, conn_details['username'], password
+
+    # No match!
     return False, '', ''
 
 
-def get_users(username):
+def get_credentials(username):
     cfg = Config.getInstance()
     user_cfg_path = cfg.get(['spoof', 'users_conf'])
 
@@ -82,13 +104,17 @@ def get_users(username):
         users_cfg.read(user_cfg_path)
         users = users_cfg.sections()
 
+        retval = []
+
         for user in users:
             if user == username:
                 if users_cfg.has_option(user, 'fake_passwords'):
-                    return [user, users_cfg.get(user, 'real_password'), 'fixed', users_cfg.get(user, 'fake_passwords')]
+                    retval.append([user, users_cfg.get(user, 'real_password'), 'fixed', users_cfg.get(user, 'fake_passwords')])
 
                 if users_cfg.has_option(user, 'random_chance'):
-                    return [user, users_cfg.get(user, 'real_password'), 'random', users_cfg.get(user, 'random_chance')]
+                    retval.append([user, users_cfg.get(user, 'real_password'), 'random', users_cfg.get(user, 'random_chance')])
+
+        return retval if len(retval) > 0 else None
     else:
         log.msg(log.LRED, '[SPOOF]', 'ERROR: users_conf does not exist')
     return None
