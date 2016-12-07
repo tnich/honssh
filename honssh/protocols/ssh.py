@@ -87,7 +87,10 @@ class SSH(baseProtocol.BaseProtocol):
         self.packetSize = len(payload)
         self.sendOn = True
 
-        packet = self.packetLayout[message_num]
+        try:
+            packet = self.packetLayout[message_num]
+        except:
+            packet = 'UNKNOWN_%s' % message_num
 
         if not self.server.post_auth_started:
             if parent == '[SERVER]':
