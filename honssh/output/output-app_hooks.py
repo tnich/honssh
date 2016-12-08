@@ -95,7 +95,7 @@ class Plugin(object):
 
         if val is not None:
             channel = sensor['session']['channel']
-            command = '%s CHANNEL_OPENED %s %s %s' % (val, channel['start_time'], channel['name'], channel['channel_id'])
+            command = '%s CHANNEL_OPENED %s %s %s' % (val, channel['start_time'], channel['name'], channel['uuid'])
             self.runCommand(command)
 
     def channel_closed(self, sensor):
@@ -105,7 +105,7 @@ class Plugin(object):
         val = self._checkProp(prop)
 
         if val is not None:
-            command = '%s CHANNEL_CLOSED %s %s %s' % (val, channel['end_time'], channel['name'], channel['channel_id'])
+            command = '%s CHANNEL_CLOSED %s %s %s' % (val, channel['end_time'], channel['name'], channel['uuid'])
             self.runCommand(command)
 
         if 'ttylog_file' in channel:
@@ -122,7 +122,7 @@ class Plugin(object):
 
         if val is not None:
             channel = sensor['session']['channel']
-            command = '%s COMMAND_ENTERED %s %s \'%s\'' % (val, channel['command']['date_time'], channel['channel_id'],
+            command = '%s COMMAND_ENTERED %s %s \'%s\'' % (val, channel['command']['date_time'], channel['uuid'],
                                                            channel['command']['command'])
             self.runCommand(command)
 
@@ -133,7 +133,7 @@ class Plugin(object):
         if val is not None:
             channel = sensor['session']['channel']
             download = channel['download']
-            command = '%s DOWNLOAD_STARTED %s %s %s %s' % (val, download['start_time'], channel['channel_id'],
+            command = '%s DOWNLOAD_STARTED %s %s %s %s' % (val, download['start_time'], channel['uuid'],
                                                            download['link'], download['file'])
             self.runCommand(command)
 
@@ -144,7 +144,7 @@ class Plugin(object):
         if val is not None:
             channel = sensor['session']['channel']
             download = channel['download']
-            command = '%s DOWNLOAD_FINISHED %s %s %s %s' % (val, download['end_time'], channel['channel_id'],
+            command = '%s DOWNLOAD_FINISHED %s %s %s %s' % (val, download['end_time'], channel['uuid'],
                                                             download['link'], download['file'])
             self.runCommand(command)
 

@@ -44,7 +44,7 @@ class Term(baseProtocol.BaseProtocol):
         self.clientID = client_id
         self.ttylog_file = self.out.logLocation + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") \
                            + '_' + self.name[1:-1] + '.tty'
-        self.out.open_tty(self.ttylog_file)
+        self.out.open_tty(self.uuid, self.ttylog_file)
         self.interactors = []
         self.out.register_self(self)
 

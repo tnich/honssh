@@ -86,33 +86,33 @@ class Plugin(object):
         channel = sensor['session']['channel']
         self.insert(
             'INSERT INTO `channels` (`id`, `type`, `starttime`, `sessionid`) VALUES (%s, %s, FROM_UNIXTIME(%s), %s)', (
-            channel['channel_id'], channel['name'], self.now_unix(channel['start_time']),
+            channel['uuid'], channel['name'], self.now_unix(channel['start_time']),
             sensor['session']['session_id']))
 
     def channel_closed(self, sensor):
         channel = sensor['session']['channel']
         self.insert('UPDATE `channels` SET `endtime` = FROM_UNIXTIME(%s) WHERE `id` = %s',
-                    (self.now_unix(channel['end_time']), channel['channel_id']))
+                    (self.now_unix(channel['end_time']), channel['uuid']))
 
         if 'ttylog_file' in channel:
             fp = open(channel['ttylog_file'], 'rb')
             ttydata = fp.read()
             fp.close()
             self.insert('INSERT INTO `ttylog` (`channelid`, `ttylog`) VALUES (%s, %s)',
-                        (channel['channel_id'], ttydata))
+                        (channel['uuid'], ttydata))
 
     def command_entered(self, sensor):
         channel = sensor['session']['channel']
         command = channel['command']
         self.insert('INSERT INTO `commands` (`timestamp`, `channelid`, `command`) VALUES (FROM_UNIXTIME(%s), %s, %s)',
-                    (self.now_unix(command['date_time']), channel['channel_id'], command['command']))
+                    (self.now_unix(command['date_time']), channel['uuid'], command['command']))
 
     def download_finished(self, sensor):
         channel = sensor['session']['channel']
         download = channel['download']
         self.insert(
             'INSERT INTO `downloads` (`channelid`, `timestamp`, `link`, `outfile`) VALUES (%s, FROM_UNIXTIME(%s), %s, %s)',
-            (channel['channel_id'], self.now_unix(download['start_time']), download['link'], download['file']))
+            (channel['uuid'], self.now_unix(download['start_time']), download['link'], download['file']))
 
     def insert_sensor(self, sensor):
         r = self.get_sensor_id(sensor)

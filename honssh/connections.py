@@ -128,17 +128,15 @@ class Connections(object):
     def add_channel(self, session_id, name, dt, channel_id):
         sensor, session = self.get_session(session_id)
         if session:
-            channel = {'name': name, 'start_time': dt, 'channel_id': channel_id, 'commands': [], 'downloads': []}
+            channel = {'name': name, 'start_time': dt, 'uuid': channel_id, 'commands': [], 'downloads': []}
             session['channels'].append(channel)
             return self.return_channel(sensor, session, channel)
         return None
 
-    def set_channel_close(self, channel_id, dt, ttylog_file):
+    def set_channel_close(self, channel_id, dt):
         sensor, session, channel = self.get_channel(channel_id)
         if sensor and session and channel:
             channel['end_time'] = dt
-            if ttylog_file is not None:
-                channel['ttylog_file'] = ttylog_file
             return self.return_channel(sensor, session, channel)
         return None
 
@@ -158,9 +156,22 @@ class Connections(object):
         for sensor in self.connections:
             for session in sensor['sessions']:
                 for channel in session['channels']:
-                    if channel['channel_id'] == channel_id:
+                    if channel['uuid'] == channel_id:
                         return sensor, session, channel
         return None, None, None
+
+    def get_channels(self, session_id):
+        sensor, session = self.get_session(session_id)
+        if sensor and session:
+            return session['channels']
+        return None
+
+    def add_ttylog_file(self, channel_id, ttylog_file):
+        for sensor in self.connections:
+            for session in sensor['sessions']:
+                for channel in session['channels']:
+                    if channel['uuid'] == channel_id:
+                        channel['ttylog_file'] = ttylog_file
 
     def add_command(self, channel_id, dt, command_string, blocked):
         sensor, session, channel = self.get_channel(channel_id)

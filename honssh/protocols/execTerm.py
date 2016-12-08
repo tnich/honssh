@@ -54,7 +54,7 @@ class ExecTerm(baseProtocol.BaseProtocol):
             self.scp = False
             self.ttylog_file = self.out.logLocation + datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f") \
                                + '_' + self.name[1:-1] + '.tty'
-            self.out.open_tty(self.ttylog_file)
+            self.out.open_tty(self.uuid, self.ttylog_file)
             self.out.input_tty(self.ttylog_file, 'INPUT: ' + command + '\n\n')
 
         self.out.command_entered(self.uuid, command, blocked=blocked)
