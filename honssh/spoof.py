@@ -47,6 +47,7 @@ def get_connection_details(conn_details):
             for cred in credentials:
                 # Check for real password match
                 if cred[1] == conn_details['password']:
+                    log.msg(log.LYELLOW, '[SPOOF]', 'Real password match %s/%s' % (cred[0], conn_details['password']))
                     password = cred[1]
                     break
                 else:
@@ -56,6 +57,7 @@ def get_connection_details(conn_details):
 
                         # Check for fixed password match
                         if conn_details['password'] in passwords:
+                            log.msg(log.LYELLOW, '[SPOOF]', 'Fixed password match %s/%s' % (cred[0], conn_details['password']))
                             password = cred[1]
                             break
                     # Check random password chance allowed
@@ -72,6 +74,7 @@ def get_connection_details(conn_details):
                                 used_credential = used_credential.strip().split(' - ')
                                 if used_credential[0] == conn_details['username'] and used_credential[1] == conn_details['password']:
                                     # Match - set password
+                                    log.msg(log.LYELLOW, '[SPOOF]', 'Spoof.log password match %s/%s' % (cred[0], conn_details['password']))
                                     password = cred[1]
                                     break
 
@@ -86,6 +89,7 @@ def get_connection_details(conn_details):
 
                             if rand == 1:
                                 # Match - set password
+                                log.msg(log.LYELLOW, '[SPOOF]', 'Random password match %s/%s' % (cred[0], conn_details['password']))
                                 password = cred[1]
                                 break
 
