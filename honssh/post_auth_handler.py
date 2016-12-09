@@ -36,7 +36,6 @@ from honssh import log
 
 class PostAuth(base_auth_handler.BaseAuth):
     def __init__(self, server):
-        # base_auth_handler.BaseAuth.__init__(self, server, 'POST_AUTH')
         super(PostAuth, self).__init__(server, 'POST_AUTH')
 
         self.auth_packets = None

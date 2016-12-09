@@ -94,6 +94,13 @@ class Output(object):
         log.msg(log.LRED, '[OUTPUT]', 'Lost Connection with the attacker: %s' % self.end_ip)
 
         dt = self.get_date_time()
+
+        channels = self.connections.get_channels(self.session_id)
+        if channels is not None:
+            for channel in channels:
+                if 'end_time' not in channel:
+                    self._channel_closed(channel['uuid'])
+
         session = self.connections.set_session_close(self.session_id, dt)
         plugins.run_plugins_function(self.loaded_plugins, 'connection_lost', True, session)
         self.connections.del_session(self.session_id)
@@ -233,10 +240,12 @@ class Output(object):
         plugins.run_plugins_function(self.loaded_plugins, 'channel_opened', True, channel)
 
     def channel_closed(self, channel):
+        self._channel_closed(channel.uuid)
+
+    def _channel_closed(self, channel_id):
         dt = self.get_date_time()
-        channel = self.connections.set_channel_close(channel.uuid, dt, channel.ttylog_file)
+        channel = self.connections.set_channel_close(channel_id, dt)
         plugins.run_plugins_function(self.loaded_plugins, 'channel_closed', True, channel)
-        # self.connections.del_channel(channel.uuid)
 
     def packet_logged(self, direction, packet, payload):
         if self.cfg.getboolean(['packet_logging', 'enabled']):
@@ -248,7 +257,8 @@ class Output(object):
                                                  'payload': payload}
             plugins.run_plugins_function(self.loaded_plugins, 'packet_logged', True, session_copy)
 
-    def open_tty(self, ttylog_file):
+    def open_tty(self, uuid, ttylog_file):
+        self.connections.add_ttylog_file(uuid, ttylog_file)
         ttylog.ttylog_open(ttylog_file, time.time())
 
     def input_tty(self, ttylog_file, data):

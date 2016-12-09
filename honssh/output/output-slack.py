@@ -97,7 +97,7 @@ class Plugin(object):
             pretext = 'Channel Opened'
 
         attach = [{'color': '#ff6600', 'pretext': pretext,
-                   'title': session['session_id'] + ' - ' + channel['name'] + ' - ' + channel['channel_id']}]
+                   'title': session['session_id'] + ' - ' + channel['name'] + ' - ' + channel['uuid']}]
         self.post_json(attach, sensor)
 
     def command_entered(self, sensor):
@@ -106,7 +106,7 @@ class Plugin(object):
         command = channel['command']
 
         attach = [{'color': '#764FA5', 'pretext': 'Command Entered',
-                   'title': session['session_id'] + ' - ' + channel['name'] + ' - ' + channel['channel_id'],
+                   'title': session['session_id'] + ' - ' + channel['name'] + ' - ' + channel['uuid'],
                    'fields': [{'title': 'Command', 'value': command['command'], 'short': False}]}]
         self.post_json(attach, sensor)
 
@@ -132,7 +132,7 @@ class Plugin(object):
             pretext = 'Download Started'
 
         attach = [{'color': '#ffff66', 'pretext': pretext,
-                   'title': session['session_id'] + ' - ' + channel['name'] + ' - ' + channel['channel_id'],
+                   'title': session['session_id'] + ' - ' + channel['name'] + ' - ' + channel['uuid'],
                    'fields': fields}]
         self.post_json(attach, sensor)
 

@@ -37,7 +37,6 @@ from honssh import plugins
 
 class PreAuth(base_auth_handler.BaseAuth):
     def __init__(self, server):
-        #base_auth_handler.BaseAuth.__init__(self, server, 'PRE_AUTH')
         super(PreAuth, self).__init__(server, 'PRE_AUTH')
 
         self.sensor_name = None

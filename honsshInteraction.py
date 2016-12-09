@@ -156,7 +156,7 @@ class HonsshProtocol(protocol.Protocol):
                             dt = datetime.datetime.strptime(channel['start_time'], "%Y%m%d_%H%M%S_%f")
                             now = datetime.datetime.now()
                             totalTime = time.gmtime((now - dt).total_seconds())
-                            print channel['channel_id'].ljust(34) + sensor['sensor_name'].ljust(sensorLength + 2) + \
+                            print channel['uuid'].ljust(34) + sensor['sensor_name'].ljust(sensorLength + 2) + \
                                   session['peer_ip'].ljust(17) + channel['name'].ljust(9) + time.strftime("%H:%M:%S",
                                                                                                           totalTime)
 

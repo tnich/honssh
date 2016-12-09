@@ -178,7 +178,7 @@ overlay_max_filesize =
 # If 'false' the same file will be overwritten on subsequent modifications.
 # If 'true' every file modification will create a new file with running counter appended.
 #
-# Be careful!! In conjunction with a large overlay_max_filesize or even set to 0 this
+# Be careful!! In conjunction with a large overlay_max_filesize or set to 0 this
 # can fill your filesystem quite fast. Please consider using quotas on your filesystem.
 #
 # required: NO
