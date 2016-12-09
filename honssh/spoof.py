@@ -26,12 +26,13 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh import log
-from honssh.config import Config
 import ConfigParser
 import os
-import re
 import random
+import re
+
+from honssh import log
+from honssh.config import Config
 
 
 def get_connection_details(conn_details):
@@ -59,17 +60,7 @@ def get_connection_details(conn_details):
                             break
                     # Check random password chance allowed
                     elif cred[2] == 'random':
-                        # Check for random password chance
-                        if int(cred[3]) > 0:
-                            random_factor = (100 / int(cred[3])) + 1
-                            rand = random.randrange(1, random_factor)
-
-                            if rand == 1:
-                                password = cred[1]
-
-                            break
-
-                        # If no match using random chance try already used credentials from spoof log
+                        # Try already used credentials from spoof log
                         logfile = cfg.get(['folders', 'log_path']) + "/spoof.log"
 
                         if os.path.isfile(logfile):
@@ -80,10 +71,22 @@ def get_connection_details(conn_details):
                             for used_credential in used_credentials:
                                 used_credential = used_credential.strip().split(' - ')
                                 if used_credential[0] == conn_details['username'] and used_credential[1] == conn_details['password']:
+                                    # Match - set password
                                     password = cred[1]
                                     break
 
+                            # Break out from loop on match
                             if password is not None:
+                                break
+
+                        # Check for random password chance
+                        if int(cred[3]) > 0:
+                            random_factor = (100 / int(cred[3])) + 1
+                            rand = random.randrange(1, random_factor)
+
+                            if rand == 1:
+                                # Match - set password
+                                password = cred[1]
                                 break
 
         # Do we have a match?
