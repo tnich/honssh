@@ -33,17 +33,17 @@ import os
 from honssh import log
 from docker import Client
 from watchdog.observers import Observer
-from honssh.honeypot.docker_utils.docker_filesystem import DockerFileSystemEventHandler
+from .docker_filesystem import DockerFileSystemEventHandler
 
 
 class DockerDriver(object):
 
-    def __init__(self, socket, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, cpu_period,
+    def __init__(self, uri, image, launch_cmd, hostname, pids_limit, mem_limit, memswap_limit, shm_size, cpu_period,
                  cpu_shares, cpuset_cpus, peer_ip, reuse_container):
         self.container_id = None
         self.container_ip = None
         self.connection = None
-        self.socket = socket
+        self.uri = uri
         self.image = image
         self.hostname = hostname
         self.launch_cmd = launch_cmd
@@ -66,7 +66,7 @@ class DockerDriver(object):
         self.make_connection()
 
     def make_connection(self):
-        self.connection = Client(self.socket)
+        self.connection = Client(self.uri)
 
     def launch_container(self):
         if self.reuse_container:

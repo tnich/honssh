@@ -28,11 +28,11 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh import spoof
+from honssh import spoof, log
 from honssh.config import Config
-from honssh.honeypot.docker_utils import docker_cleanup
-from honssh.honeypot.docker_utils.docker_driver import DockerDriver
 from honssh.utils import validation
+from .docker_utils import docker_cleanup
+from .docker_utils.docker_driver import DockerDriver
 
 
 class Plugin(object):
@@ -44,6 +44,7 @@ class Plugin(object):
         self.sensor_name = None
         self.peer_ip = None
         self.channel_open = False
+        self.is_local_docker = True;
 
     def get_pre_auth_details(self, conn_details):
         return self.get_connection_details(conn_details)
@@ -68,7 +69,7 @@ class Plugin(object):
     def get_connection_details(self, conn_details):
         self.peer_ip = conn_details['peer_ip']
 
-        socket = self.cfg.get(['honeypot-docker', 'uri'])
+        uri = self.cfg.get(['honeypot-docker', 'uri'])
         image = self.cfg.get(['honeypot-docker', 'image'])
         launch_cmd = self.cfg.get(['honeypot-docker', 'launch_cmd'])
         self.sensor_name = self.cfg.get(['honeypot-docker', 'hostname'])
@@ -82,7 +83,9 @@ class Plugin(object):
         cpuset_cpus = self.cfg.get(['honeypot-docker', 'cpuset_cpus'])
         reuse_container = self.cfg.get(['honeypot-docker', 'reuse_container'])
 
-        self.docker_drive = DockerDriver(socket, image, launch_cmd, self.sensor_name, pids_limit, mem_limit, memswap_limit,
+        self.is_local_docker = uri.startswith('unix://') or uri.startswith('http+unix://')
+
+        self.docker_drive = DockerDriver(uri, image, launch_cmd, self.sensor_name, pids_limit, mem_limit, memswap_limit,
                                          shm_size, cpu_period, cpu_shares, cpuset_cpus, self.peer_ip, reuse_container)
         self.container = self.docker_drive.launch_container()
 
@@ -94,21 +97,22 @@ class Plugin(object):
     def login_successful(self):
         self.channel_open = True
 
-        '''
-        FIXME: Currently output_handler and this plugin do both construct the session folder path. This should be encapsulated.
-        '''
-        overlay_folder = self.cfg.get(['honeypot-docker', 'overlay_folder'])
-        max_filesize = self.cfg.getint(['honeypot-docker', 'overlay_max_filesize'], 51200)
-        use_revisions = self.cfg.getboolean(['honeypot-docker', 'overlay_use_revisions'])
+        if self.is_local_docker:
+            '''
+            FIXME: Currently output_handler and this plugin do both construct the session folder path. This should be encapsulated.
+            '''
+            overlay_folder = self.cfg.get(['honeypot-docker', 'overlay_folder'])
+            max_filesize = self.cfg.getint(['honeypot-docker', 'overlay_max_filesize'], 51200)
+            use_revisions = self.cfg.getboolean(['honeypot-docker', 'overlay_use_revisions'])
 
-        if self.docker_drive.watcher is None and len(overlay_folder) > 0:
-            overlay_folder = '%s/%s/%s/%s' % \
-                             (self.cfg.get(['folders', 'session_path']),
-                              self.sensor_name,
-                              self.peer_ip,
-                              overlay_folder)
+            if self.docker_drive.watcher is None and len(overlay_folder) > 0:
+                overlay_folder = '%s/%s/%s/%s' % \
+                                 (self.cfg.get(['folders', 'session_path']),
+                                  self.sensor_name,
+                                  self.peer_ip,
+                                  overlay_folder)
 
-            self.docker_drive.start_watcher(overlay_folder, max_filesize, use_revisions)
+                self.docker_drive.start_watcher(overlay_folder, max_filesize, use_revisions)
 
     def connection_lost(self, conn_details):
         self.docker_drive.teardown_container(not self.channel_open)
