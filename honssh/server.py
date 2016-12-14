@@ -34,6 +34,7 @@ from honssh import log
 from honssh import output_handler
 from honssh import post_auth_handler
 from honssh import pre_auth_handler
+from honssh.analyzer import nmap_scanner
 from honssh.config import Config
 from honssh.protocols import ssh
 
@@ -106,6 +107,13 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         self.pre_auth.start()
 
         honsshServer.HonsshServer.connectionMade(self)
+
+        scanner = nmap_scanner.Nmap(self.peer_ip, self.scan_finished)
+        scanner.scan()
+
+    def scan_finished(self):
+        log.msg(log.LYELLOW, "", "")
+
 
     def connectionLost(self, reason):
         try:
