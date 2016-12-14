@@ -96,8 +96,8 @@ with open(cfg.get(['honeypot', 'public_key_dsa'])) as publicBlobFile:
 Startup server factory
 '''
 serverFactory = server.HonsshServerFactory()
-serverFactory.privateKeys = {'ssh-rsa': privateKey, 'ssh-dsa': privateKeyDSA}
-serverFactory.publicKeys = {'ssh-rsa': publicKey, 'ssh-dsa': publicKeyDSA}
+serverFactory.privateKeys = {'ssh-rsa': privateKey, 'ssh-dss': privateKeyDSA}
+serverFactory.publicKeys = {'ssh-rsa': publicKey, 'ssh-dss': publicKeyDSA}
 
 '''
 Start up server
