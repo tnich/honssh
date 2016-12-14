@@ -47,7 +47,8 @@ class SSH(baseProtocol.BaseProtocol):
         51: 'SSH_MSG_USERAUTH_FAILURE',  # ['name-list', 'authentications'], ['boolean', 'partial_success']
         52: 'SSH_MSG_USERAUTH_SUCCESS',  #
         53: 'SSH_MSG_USERAUTH_BANNER',  # ['string', 'message'], ['string', 'language_tag']
-        60: 'SSH_MSG_USERAUTH_PK_OK',  # ['string', 'algorithm'], ['string', 'blob']
+        60: 'SSH_MSG_USERAUTH_INFO_REQUEST',  # ['string', 'name'], ['string', 'instruction'], ['string', 'language_tag'], ['uint32', 'num-prompts'], ['string', 'prompt[x]'], ['boolean', 'echo[x]']
+        61: 'SSH_MSG_USERAUTH_INFO_RESPONSE',  # ['uint32', 'num-responses'], ['string', 'response[x]']
         80: 'SSH_MSG_GLOBAL_REQUEST',  # ['string', 'request_name'], ['boolean', 'want_reply']  #tcpip-forward
         81: 'SSH_MSG_REQUEST_SUCCESS',  #
         82: 'SSH_MSG_REQUEST_FAILURE',  #
@@ -74,6 +75,7 @@ class SSH(baseProtocol.BaseProtocol):
         self.cfg = Config.getInstance()
 
         self.sendOn = False
+        self.expect_password = 0
         self.out = out
         self.server = server
         self.channels = []
@@ -108,7 +110,7 @@ class SSH(baseProtocol.BaseProtocol):
         if self.cfg.has_option('devmode', 'enabled') and self.cfg.getboolean(['devmode', 'enabled']):
                 log.msg(log.LBLUE, '[SSH]', direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))
 
-        # - UserAuth            
+        # - UserAuth
         if packet == 'SSH_MSG_USERAUTH_REQUEST':
             self.username = self.extract_string()
             service = self.extract_string()
@@ -145,6 +147,26 @@ class SSH(baseProtocol.BaseProtocol):
             if len(self.username) > 0 and len(self.password) > 0:
                 self.out.login_successful(self.username, self.password, self.server.spoofed)
                 self.server.login_successful(self.username, self.password)
+
+        elif packet == 'SSH_MSG_USERAUTH_INFO_REQUEST':
+            self.extract_string()
+            self.extract_string()
+            self.extract_string()
+            num_prompts = self.extract_int(4)
+            for i in range(0, num_prompts):
+                request = self.extract_string()
+                self.extract_bool()
+
+                if 'password' in request.lower():
+                    self.expect_password = i
+
+        elif packet == 'SSH_MSG_USERAUTH_INFO_RESPONSE':
+            num_responses = self.extract_int(4)
+            for i in range(0, num_prompts):
+                response = self.extract_string()
+                if i == self.expect_password:
+                    pass
+                    # TODO: Create password entry function (Line 123) and call from here too with password
 
         # - End UserAuth
         # - Channels
