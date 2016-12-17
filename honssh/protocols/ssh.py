@@ -71,6 +71,7 @@ class SSH(baseProtocol.BaseProtocol):
         self.channels = []
         self.username = ''
         self.password = ''
+        self.auth_type = ''
 
         self.cfg = Config.getInstance()
 
@@ -114,18 +115,14 @@ class SSH(baseProtocol.BaseProtocol):
         if packet == 'SSH_MSG_USERAUTH_REQUEST':
             self.username = self.extract_string()
             service = self.extract_string()
-            auth_type = self.extract_string()
+            self.auth_type = self.extract_string()
 
-            if auth_type == 'password':
+            if self.auth_type == 'password':
                 self.extract_bool()
                 self.password = self.extract_string()
+                self.start_post_auth()
 
-                if self.password != "":
-                    if not self.server.post_auth_started:
-                        self.server.start_post_auth(self.username, self.password)
-                        self.sendOn = False
-
-            elif auth_type == 'publickey':
+            elif self.auth_type == 'publickey':
                 if self.cfg.getboolean(['hp-restrict', 'disable_publicKey']):
                     self.sendOn = False
                     self.server.sendPacket(51, self.string_to_hex('password') + chr(0))
@@ -149,6 +146,7 @@ class SSH(baseProtocol.BaseProtocol):
                 self.server.login_successful(self.username, self.password)
 
         elif packet == 'SSH_MSG_USERAUTH_INFO_REQUEST':
+            self.auth_type = 'keyboard-interactive'
             self.extract_string()
             self.extract_string()
             self.extract_string()
@@ -162,11 +160,11 @@ class SSH(baseProtocol.BaseProtocol):
 
         elif packet == 'SSH_MSG_USERAUTH_INFO_RESPONSE':
             num_responses = self.extract_int(4)
-            for i in range(0, num_prompts):
+            for i in range(0, num_responses):
                 response = self.extract_string()
                 if i == self.expect_password:
-                    pass
-                    # TODO: Create password entry function (Line 123) and call from here too with password
+                    self.password = response
+                    self.start_post_auth()
 
         # - End UserAuth
         # - Channels
@@ -374,6 +372,12 @@ class SSH(baseProtocol.BaseProtocol):
                 the_channel = channel
                 break
         return the_channel
+        
+    def start_post_auth(self):
+        if self.password != "":
+            if not self.server.post_auth_started:
+                self.server.start_post_auth(self.username, self.password, self.auth_type)
+                self.sendOn = False
 
     def inject_key(self, server_id, message):
         payload = self.int_to_hex(server_id) + self.string_to_hex(message)
