@@ -47,7 +47,8 @@ class SSH(baseProtocol.BaseProtocol):
         51: 'SSH_MSG_USERAUTH_FAILURE',  # ['name-list', 'authentications'], ['boolean', 'partial_success']
         52: 'SSH_MSG_USERAUTH_SUCCESS',  #
         53: 'SSH_MSG_USERAUTH_BANNER',  # ['string', 'message'], ['string', 'language_tag']
-        60: 'SSH_MSG_USERAUTH_PK_OK',  # ['string', 'algorithm'], ['string', 'blob']
+        60: 'SSH_MSG_USERAUTH_INFO_REQUEST',  # ['string', 'name'], ['string', 'instruction'], ['string', 'language_tag'], ['uint32', 'num-prompts'], ['string', 'prompt[x]'], ['boolean', 'echo[x]']
+        61: 'SSH_MSG_USERAUTH_INFO_RESPONSE',  # ['uint32', 'num-responses'], ['string', 'response[x]']
         80: 'SSH_MSG_GLOBAL_REQUEST',  # ['string', 'request_name'], ['boolean', 'want_reply']  #tcpip-forward
         81: 'SSH_MSG_REQUEST_SUCCESS',  #
         82: 'SSH_MSG_REQUEST_FAILURE',  #
@@ -70,10 +71,12 @@ class SSH(baseProtocol.BaseProtocol):
         self.channels = []
         self.username = ''
         self.password = ''
+        self.auth_type = ''
 
         self.cfg = Config.getInstance()
 
         self.sendOn = False
+        self.expect_password = 0
         self.out = out
         self.server = server
         self.channels = []
@@ -108,22 +111,18 @@ class SSH(baseProtocol.BaseProtocol):
         if self.cfg.has_option('devmode', 'enabled') and self.cfg.getboolean(['devmode', 'enabled']):
                 log.msg(log.LBLUE, '[SSH]', direction + ' - ' + packet.ljust(37) + ' - ' + repr(payload))
 
-        # - UserAuth            
+        # - UserAuth
         if packet == 'SSH_MSG_USERAUTH_REQUEST':
             self.username = self.extract_string()
             service = self.extract_string()
-            auth_type = self.extract_string()
+            self.auth_type = self.extract_string()
 
-            if auth_type == 'password':
+            if self.auth_type == 'password':
                 self.extract_bool()
                 self.password = self.extract_string()
+                self.start_post_auth()
 
-                if self.password != "":
-                    if not self.server.post_auth_started:
-                        self.server.start_post_auth(self.username, self.password)
-                        self.sendOn = False
-
-            elif auth_type == 'publickey':
+            elif self.auth_type == 'publickey':
                 if self.cfg.getboolean(['hp-restrict', 'disable_publicKey']):
                     self.sendOn = False
                     self.server.sendPacket(51, self.string_to_hex('password') + chr(0))
@@ -145,6 +144,27 @@ class SSH(baseProtocol.BaseProtocol):
             if len(self.username) > 0 and len(self.password) > 0:
                 self.out.login_successful(self.username, self.password, self.server.spoofed)
                 self.server.login_successful(self.username, self.password)
+
+        elif packet == 'SSH_MSG_USERAUTH_INFO_REQUEST':
+            self.auth_type = 'keyboard-interactive'
+            self.extract_string()
+            self.extract_string()
+            self.extract_string()
+            num_prompts = self.extract_int(4)
+            for i in range(0, num_prompts):
+                request = self.extract_string()
+                self.extract_bool()
+
+                if 'password' in request.lower():
+                    self.expect_password = i
+
+        elif packet == 'SSH_MSG_USERAUTH_INFO_RESPONSE':
+            num_responses = self.extract_int(4)
+            for i in range(0, num_responses):
+                response = self.extract_string()
+                if i == self.expect_password:
+                    self.password = response
+                    self.start_post_auth()
 
         # - End UserAuth
         # - Channels
@@ -352,6 +372,12 @@ class SSH(baseProtocol.BaseProtocol):
                 the_channel = channel
                 break
         return the_channel
+        
+    def start_post_auth(self):
+        if self.password != "":
+            if not self.server.post_auth_started:
+                self.server.start_post_auth(self.username, self.password, self.auth_type)
+                self.sendOn = False
 
     def inject_key(self, server_id, message):
         payload = self.int_to_hex(server_id) + self.string_to_hex(message)
