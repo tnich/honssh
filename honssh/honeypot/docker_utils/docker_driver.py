@@ -160,7 +160,7 @@ class DockerDriver(object):
                 # Create watcher and start watching
                 self.watcher = Observer()
                 event_handler = DockerFileSystemEventHandler(self.overlay_folder, self.mount_dir,
-                                                             self.max_filesize, self.use_revisions);
+                                                             self.max_filesize, self.use_revisions)
                 self.watcher.schedule(event_handler, self.mount_dir, recursive=True)
                 self.watcher.start()
 

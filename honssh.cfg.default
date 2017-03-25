@@ -151,7 +151,7 @@ honey_port =
 # overlay_folder: Save all changes made to the docker container filesystem into given session
 # subdirectory. This includes changes made by the attacker and by the system itself!
 # Make sure to apply quotas.
-# This feature does *NOT* work remote docker hosts.
+# This feature does *NOT* work with remote docker hosts.
 #
 # Nothing is saved if left empty.
 #

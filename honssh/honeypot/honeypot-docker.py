@@ -44,7 +44,7 @@ class Plugin(object):
         self.sensor_name = None
         self.peer_ip = None
         self.channel_open = False
-        self.is_local_docker = True;
+        self.is_local_docker = True
 
     def get_pre_auth_details(self, conn_details):
         return self.get_connection_details(conn_details)
