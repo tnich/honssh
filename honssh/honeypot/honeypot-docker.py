@@ -28,7 +28,7 @@
 # OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
 # SUCH DAMAGE.
 
-from honssh import spoof, log
+from honssh import spoof
 from honssh.config import Config
 from honssh.utils import validation
 from .docker_utils import docker_cleanup
