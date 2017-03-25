@@ -152,9 +152,9 @@ class HonsshServerTransport(honsshServer.HonsshServer):
         self.out.connection_made(self.peer_ip, self.peer_port, self.honey_ip, self.honey_port, self.sensor_name)
         self.out.set_version(self.otherVersionString)
 
-    def start_post_auth(self, username, password):
+    def start_post_auth(self, username, password, auth_type):
         self.post_auth_started = True
-        self.post_auth.start(username, password)
+        self.post_auth.start(username, password, auth_type)
 
     def login_successful(self, username, password):
         self.post_auth.login_successful()

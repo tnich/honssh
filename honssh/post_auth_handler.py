@@ -47,12 +47,13 @@ class PostAuth(base_auth_handler.BaseAuth):
         self.honey_ip = None
         self.honey_port = None
 
-    def start(self, username, password):
+    def start(self, username, password, auth_type):
         self.conn_details = {'peer_ip': self.server.peer_ip, 'peer_port': self.server.peer_port,
                              'local_ip': self.server.local_ip, 'local_port': self.server.local_port,
                              'username': username, 'password': password, 'honey_ip': self.server.honey_ip,
                              'honey_port': self.server.honey_port,
-                             'sensor_name': self.server.sensor_name}
+                             'sensor_name': self.server.sensor_name,
+                             'auth_type': auth_type}
 
         conn_details_defer = threads.deferToThread(self.get_conn_details)
         conn_details_defer.addCallback(self.connect_to_pot)
@@ -138,9 +139,17 @@ class PostAuth(base_auth_handler.BaseAuth):
 
         self.finishedSending = True
         self.server.post_auth_started = False
-        packet = [50, self.to_string(self.username) + self.to_string('ssh-connection') + self.to_string(
-            'password') + '\x00' + self.to_string(self.password)]
-        self.server.sshParse.send_back('[CLIENT]', packet[0], packet[1])
+        
+        if self.conn_details['auth_type'] in ['password', 'keyboard-interactive']:
+            if self.conn_details['auth_type'] == 'password':
+                packet = [50, self.to_string(self.username) + self.to_string('ssh-connection') + self.to_string(
+                    'password') + '\x00' + self.to_string(self.password)]
+            elif self.conn_details['auth_type'] == 'keyboard-interactive':
+                packet = [61, '\x00\x00\x00\x01' + self.to_string(self.password)]
+                
+            self.server.sshParse.send_back('[CLIENT]', packet[0], packet[1])
+        else:
+            log.msg(log.LRED, '[POST_AUTH]', 'Unknown authentication type!')
 
         if self.server.post_auth_started:
             log.msg(log.LGREEN, '[POST_AUTH]', 'CLIENT CONNECTED, REPLAYING BUFFERED PACKETS')
