@@ -248,7 +248,7 @@ class SSH(baseProtocol.BaseProtocol):
                 self.out.channel_opened(the_uuid, channel['name'])
                 channel['session'] = term.Term(self.out, the_uuid, channel['name'], self, channel['clientID'])
             elif channel_type == 'exec':
-                if self.cfg.get(['hp-restrict', 'disable_exec']):
+                if self.cfg.getboolean(['hp-restrict', 'disable_exec']):
                     log.msg(log.LPURPLE, '[SSH]', 'Detected EXEC Channel Request - Disabling!')
                     self.sendOn = False
                     self.send_back(parent, 100, self.int_to_hex(channel['serverID']))
