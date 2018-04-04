@@ -29,6 +29,7 @@
 # SUCH DAMAGE.
 
 import subprocess
+import shlex
 
 from honssh.config import Config
 from honssh.utils import validation
@@ -43,8 +44,9 @@ class Plugin(object):
         command = '%s %s %s %s %s' % (
             self.cfg.get(['honeypot-script', 'pre-auth-script']), conn_details['peer_ip'], conn_details['local_ip'],
             conn_details['peer_port'], conn_details['local_port'])
-
-        sp = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        args = shlex.split(command)
+        
+        sp = subprocess.Popen(args, shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         result = sp.communicate()
         if sp.returncode == 0:
             binder = result[0].split(',')
@@ -62,7 +64,8 @@ class Plugin(object):
             self.cfg.get(['honeypot-script', 'post-auth-script']), conn_details['peer_ip'], conn_details['local_ip'],
             conn_details['peer_port'], conn_details['local_port'], conn_details['username'], conn_details['password'])
 
-        sp = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        args = shlex.split(command)
+        sp = subprocess.Popen(args, shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         result = sp.communicate()
         if sp.returncode == 0:
             binder = result[0].split(',')

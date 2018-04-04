@@ -32,6 +32,7 @@ from honssh.config import Config
 from honssh.utils import validation
 
 import subprocess
+import shlex
 
 
 class Plugin(object):
@@ -157,5 +158,6 @@ class Plugin(object):
         return True
 
     def runCommand(self, command):
-        sp = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        args = shlex.split(command)
+        sp = subprocess.Popen(args, shell=False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         sp.communicate()
