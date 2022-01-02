@@ -733,5 +733,5 @@ webhook-url =
 #
 # input: true/false
 # required: YES
-# default: true
-enabled = true
+# default: false
+enabled = false
